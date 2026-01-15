@@ -9,7 +9,9 @@
       "Bash(dir:*)",
       "Bash(\"C:\\\\Users\\\\shlob\\\\Pycharm Projects\\\\agentHarness\\\\.venv\\\\Scripts\\\\pip.exe\" list)",
       "WebSearch",
-      "WebFetch(domain:www.pythonguis.com)"
+      "WebFetch(domain:www.pythonguis.com)",
+      "Bash(cd:*)",
+      "Bash(tree:*)"
     ]
   }
 }

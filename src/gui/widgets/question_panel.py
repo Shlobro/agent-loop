@@ -33,9 +33,22 @@ class QuestionPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # Group box
+        # Group box with larger title
         self.group = QGroupBox("Clarifying Questions")
+        self.group.setStyleSheet("""
+            QGroupBox {
+                font-size: 14px;
+                font-weight: bold;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 5px 10px;
+            }
+        """)
         group_layout = QVBoxLayout(self.group)
+        group_layout.setSpacing(10)
 
         # Placeholder label (shown when no questions)
         self.placeholder_label = QLabel(
@@ -43,7 +56,7 @@ class QuestionPanel(QWidget):
             "The LLM will generate questions to clarify your requirements."
         )
         self.placeholder_label.setAlignment(Qt.AlignCenter)
-        self.placeholder_label.setStyleSheet("color: gray; padding: 20px;")
+        self.placeholder_label.setStyleSheet("color: gray; padding: 30px; font-size: 13px;")
         group_layout.addWidget(self.placeholder_label)
 
         # Scroll area for questions
@@ -59,8 +72,16 @@ class QuestionPanel(QWidget):
 
         group_layout.addWidget(self.scroll_area)
 
-        # Submit button
+        # Submit button (larger and more prominent)
         self.submit_button = QPushButton("Submit Answers")
+        self.submit_button.setMinimumHeight(40)
+        self.submit_button.setStyleSheet("""
+            QPushButton {
+                font-size: 14px;
+                font-weight: bold;
+                padding: 10px 20px;
+            }
+        """)
         self.submit_button.clicked.connect(self._on_submit)
         self.submit_button.setEnabled(False)
         self.submit_button.hide()
@@ -89,20 +110,40 @@ class QuestionPanel(QWidget):
             # Create frame for this question
             q_frame = QFrame()
             q_frame.setFrameShape(QFrame.StyledPanel)
-            q_frame.setStyleSheet("QFrame { background-color: palette(base); border-radius: 4px; padding: 8px; }")
+            q_frame.setStyleSheet("""
+                QFrame {
+                    background-color: palette(base);
+                    border-radius: 6px;
+                    padding: 12px;
+                    margin: 4px;
+                }
+            """)
             q_layout = QVBoxLayout(q_frame)
+            q_layout.setSpacing(8)
 
-            # Question label
-            label = QLabel(f"<b>{q_text}</b>")
+            # Question label (larger font)
+            label = QLabel(f"<b style='font-size: 13px;'>{q_text}</b>")
             label.setWordWrap(True)
+            label.setStyleSheet("font-size: 13px; padding: 5px 0;")
             q_layout.addWidget(label)
 
-            # Radio buttons for options
+            # Radio buttons for options (larger)
             group = QButtonGroup(self)
             group.buttonClicked.connect(self._on_answer_changed)
 
             for option in options:
                 radio = QRadioButton(option)
+                radio.setStyleSheet("""
+                    QRadioButton {
+                        font-size: 12px;
+                        padding: 4px;
+                        spacing: 8px;
+                    }
+                    QRadioButton::indicator {
+                        width: 16px;
+                        height: 16px;
+                    }
+                """)
                 group.addButton(radio)
                 q_layout.addWidget(radio)
 

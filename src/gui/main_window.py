@@ -69,46 +69,50 @@ class MainWindow(QMainWindow):
         self.status_panel = StatusPanel()
         main_layout.addWidget(self.status_panel)
 
-        # Main content area with splitter
-        splitter = QSplitter(Qt.Horizontal)
+        # Main content area: Two columns (Logs left, Rest right)
+        main_splitter = QSplitter(Qt.Horizontal)
 
-        # Left side: Description and Questions
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(0, 0, 0, 0)
+        # LEFT COLUMN: Log viewer
+        self.log_viewer = LogViewer()
+        main_splitter.addWidget(self.log_viewer)
 
+        # RIGHT COLUMN: Everything else
+        right_column = QWidget()
+        right_column_layout = QVBoxLayout(right_column)
+        right_column_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Top section of right column: Description + Config/LLM
+        top_splitter = QSplitter(Qt.Horizontal)
+
+        # Description panel
         self.description_panel = DescriptionPanel()
-        left_layout.addWidget(self.description_panel)
+        top_splitter.addWidget(self.description_panel)
 
-        self.question_panel = QuestionPanel()
-        left_layout.addWidget(self.question_panel)
-
-        splitter.addWidget(left_widget)
-
-        # Right side: Config and LLM selection
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        # Config and LLM selection side by side
+        config_widget = QWidget()
+        config_layout = QVBoxLayout(config_widget)
+        config_layout.setContentsMargins(0, 0, 0, 0)
 
         self.llm_selector_panel = LLMSelectorPanel()
-        right_layout.addWidget(self.llm_selector_panel)
+        config_layout.addWidget(self.llm_selector_panel)
 
         self.config_panel = ConfigPanel()
-        right_layout.addWidget(self.config_panel)
+        config_layout.addWidget(self.config_panel)
 
-        right_layout.addStretch()
-        splitter.addWidget(right_widget)
+        config_layout.addStretch()
+        top_splitter.addWidget(config_widget)
 
-        # Set initial splitter sizes (60% left, 40% right)
-        splitter.setSizes([600, 400])
+        # Set top splitter sizes (60% description, 40% config)
+        top_splitter.setSizes([500, 350])
 
-        main_layout.addWidget(splitter, stretch=1)
+        right_column_layout.addWidget(top_splitter, stretch=1)
 
-        # Log viewer
-        self.log_viewer = LogViewer()
-        main_layout.addWidget(self.log_viewer, stretch=2)
+        # Bottom section of right column: Clarifying Questions (larger)
+        self.question_panel = QuestionPanel()
+        self.question_panel.setMinimumHeight(300)
+        right_column_layout.addWidget(self.question_panel, stretch=2)
 
-        # Control buttons
+        # Control buttons at bottom of right column
         button_layout = QHBoxLayout()
 
         self.start_button = QPushButton("Start")
@@ -130,7 +134,14 @@ class MainWindow(QMainWindow):
 
         button_layout.addStretch()
 
-        main_layout.addLayout(button_layout)
+        right_column_layout.addLayout(button_layout)
+
+        main_splitter.addWidget(right_column)
+
+        # Set main splitter sizes (40% logs, 60% rest)
+        main_splitter.setSizes([480, 720])
+
+        main_layout.addWidget(main_splitter, stretch=1)
 
     def connect_signals(self):
         """Connect UI signals to slots."""

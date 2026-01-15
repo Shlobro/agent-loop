@@ -1,0 +1,11 @@
+the way questions work should be changed.
+one question at a time each time have the llm think of the next question reading the current description and questions. this loop should run for 20 questions with the option perhaps for the llm to write to a file that will act as a flag of when to exit early
+
+there needs to be a box in the UI to enter the remote (like github) so that the git commands work
+
+
+
+I need way more verbose output so i can follow wtf is going on.
+
+
+and option to save the current state to continue some other time.
