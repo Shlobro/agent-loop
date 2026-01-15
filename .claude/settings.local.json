@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "Bash(dir /B /S \"C:\\\\Users\\\\shlob\\\\Pycharm Projects\\\\agentHarness\")",
+      "Bash(findstr:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(dir:*)",
+      "Bash(\"C:\\\\Users\\\\shlob\\\\Pycharm Projects\\\\agentHarness\\\\.venv\\\\Scripts\\\\pip.exe\" list)",
+      "WebSearch",
+      "WebFetch(domain:www.pythonguis.com)"
+    ]
+  }
+}

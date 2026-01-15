@@ -1,0 +1,115 @@
+have a look at https://github.com/frankbria/ralph-claude-code. I want to create my own loop.
+but instead of having it all in the terminal it should be a python pyside6 GUI
+at first the user should put in the description of what he wants done, there should be a dedicated spot for this in the GUI.
+from here we should send to an LLM in headless mode what the user said and the LLM should create as many questions and multiple choice answers as needed, these questions and answers should appear in the UI. in order for them to appear in the UI the output format must be required from the LLM so it is consistent
+Question generation output (JSON, not markdown)
+{
+  "questions": [
+    {
+      "id": "q1",
+      "question": "What platform should this run on?",
+      "options": ["CLI", "GUI", "Web", "Library"]
+    }
+  ]
+}
+once all the questions are submitted, we should send the user description and all the questions and answers to another LLM which will turn all of these into tasks and put them all as a list into a file called tasks.md
+from here there should be a while loop where the condition for stopping is going to be the task file, when it is empty the loop stops. there should also be in the UI a max iterations option.
+
+
+each time a prompt should be sent to an LLM, the prompt should be something like: "read the recent-changes.md file. Choose a single task from the tasks.md file and implement it. recored all changes in the recent-changes.md file, once complete mark as complete in the file. if other tasks arise add them to the task.md"
+Output format enforcement (critical!)
+Use strong instructions like:
+textYou MUST respond ONLY with valid markdown wrapped in ```tasks ... ``` or ```review ... ```
+No other text before or after. No explanations outside the code block.
+Use this exact schema:
+- Use - [ ] for unfinished
+- Use - [x] for done
+Never use json/yaml - only markdown lists
+
+LLMs are explicitly told:
+
+“You may only remove ONE unchecked task per iteration.”
+
+there should be a for loop here the user should input the amount of times the debug loop should run default should be 5
+another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff from an Architecture prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
+another prompt sent to an llm in headless mode should be something like: "look at review.md, decide if you agree or disagree. if you agree fix the what is mentioned there."
+then the file should be truncated.
+another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff from an Efficiency prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
+another prompt sent to an llm in headless mode should be something like: "look at review.md, decide if you agree or disagree. if you agree fix the what is mentioned there."
+then the file should be truncated.
+another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff from an Error Handling prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
+another prompt sent to an llm in headless mode should be something like: "look at review.md, decide if you agree or disagree. if you agree fix the what is mentioned there."
+then the file should be truncated.
+another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff from a safety prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
+another prompt sent to an llm in headless mode should be something like: "look at review.md, decide if you agree or disagree. if you agree fix the what is mentioned there."
+then the file should be truncated.
+another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff from a Testing prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
+another prompt sent to an llm in headless mode should be something like: "look at review.md, decide if you agree or disagree. if you agree fix the what is mentioned there."
+then the file should be truncated.
+another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff from a Documentation prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
+another prompt sent to an llm in headless mode should be something like: "look at review.md, decide if you agree or disagree. if you agree fix the what is mentioned there."
+then the file should be truncated.
+this is the end of the debug loop
+
+
+another prompt should be sent to an LLM where it tells the llm to git add git commit and git push
+
+
+
+for each stage the user should be able to choose which LLM it is using for which step
+
+here are examples of how to run LLM's in headless mode, please
+for gemini:
+gemini "<prompt>" --yolo
+for claude:
+claude --dangerously-skip-permissions   # run once first
+claude -p "<prompt>"
+for codex:
+codex exec --full-auto "<prompt>"
+
+
+
+there should be clear UI feedback of what stage is happening which iteration is happening and all the outputs from the LLMs should be viewable in a clean UI
+there should be a stop button where the main while loop will end at the next iteration if the user clicked it.
+
+
+the way Gemini put it, notice he thinks that the tasks should be popped 1 at a time using python. i think the LLM should be responsible for erasing tasks:
+Phase 1: Ingestion (GUI)
+
+User inputs text.
+
+LLM 1 (Clarifier): Prompts for "Questions needed to clarify this request. Output as JSON."
+
+GUI: Renders JSON questions. User answers.
+
+Phase 2: Planning
+
+LLM 2 (Planner): Takes Description + Answers. Generates tasks.md.
+
+Constraint: tasks.md should be a clean line-by-line list for easy parsing.
+
+Phase 3: The Execution Loop (Worker Thread)
+
+While tasks.md is not empty OR Max Iterations reached OR stop button clicked:
+
+Python: Reads top line of tasks.md.
+
+Python: Removes that line from tasks.md (updates file).
+
+LLM 3 (Coder): "Implement: [Task]. Update recent-changes.md."
+
+Review Cycle (in a loop):
+
+LLM 4 (Reviewer): "Read recent-changes.md. Review for [Architecture, Safety, etc]. Write to review.md."
+
+LLM 5 (Fixer): "Read review.md. Fix issues in code. Update recent-changes.md."
+
+Python: Truncates review.md.
+
+Git: Python executes git add ., git commit -m "Implemented [Task]", git push.
+
+
+another suggestion from gemini:
+Git Safety: Add a checkbox in the UI: "Auto-push to Git". If unchecked, the loop pauses after the commit step and waits for user approval.
+
+
