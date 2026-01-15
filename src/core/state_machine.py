@@ -75,6 +75,7 @@ class StateContext:
     qa_pairs: List[Dict[str, str]] = field(default_factory=list)  # [{"question": ..., "answer": ...}]
     current_question_text: str = ""  # The current question being displayed
     current_question_options: List[str] = field(default_factory=list)  # Options for current question
+    is_last_question_shown: bool = False  # True when showing the last question
     # LLM configuration per stage
     llm_config: Dict[str, str] = field(default_factory=lambda: {
         "question_gen": "gemini",
@@ -290,6 +291,7 @@ class StateMachine(QObject):
                 "qa_pairs": self._context.qa_pairs,
                 "current_question_text": self._context.current_question_text,
                 "current_question_options": self._context.current_question_options,
+                "is_last_question_shown": self._context.is_last_question_shown,
                 "llm_config": self._context.llm_config,
             }
         }
@@ -317,6 +319,7 @@ class StateMachine(QObject):
         self._context.qa_pairs = ctx.get("qa_pairs", [])
         self._context.current_question_text = ctx.get("current_question_text", "")
         self._context.current_question_options = ctx.get("current_question_options", [])
+        self._context.is_last_question_shown = ctx.get("is_last_question_shown", False)
         self._context.llm_config = ctx.get("llm_config", self._context.llm_config)
 
         self.phase_changed.emit(self._phase, self._sub_phase)

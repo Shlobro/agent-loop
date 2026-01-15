@@ -29,8 +29,8 @@ class PlanningWorker(BaseWorker):
         self.model = model
 
     def execute(self):
-        """Generate task list and save to tasks.md."""
-        self.update_status("Creating task list...")
+        """Generate description.md and task list, save both files."""
+        self.update_status("Creating project description and task list...")
         self.log(f"=== TASK PLANNING PHASE START ===", "phase")
         self.log(f"Working directory: {self.working_directory}", "info")
         self.log(f"Project description: {self.description[:200]}{'...' if len(self.description) > 200 else ''}", "info")
@@ -41,6 +41,63 @@ class PlanningWorker(BaseWorker):
 
         provider = LLMProviderRegistry.get(self.provider_name)
         self.log(f"Using LLM provider: {provider.display_name}", "info")
+
+        # Step 1: Generate description.md
+        self._generate_description(provider)
+
+        # Step 2: Generate tasks.md
+        self._generate_tasks(provider)
+
+        self.log(f"=== TASK PLANNING PHASE END ===", "phase")
+        return {
+            "tasks_content": self.tasks_content,
+            "task_count": self.task_count
+        }
+
+    def _generate_description(self, provider):
+        """Generate and save description.md file."""
+        self.log("Generating project description document...", "info")
+
+        base_prompt = PromptTemplates.format_description_prompt(
+            self.description,
+            self.answers,
+            qa_pairs=self.qa_pairs
+        )
+        prompt = provider.format_prompt(base_prompt, "markdown")
+        self.log(f"Built description prompt ({len(prompt)} chars)", "debug")
+
+        llm_worker = LLMWorker(
+            provider=provider,
+            prompt=prompt,
+            working_directory=self.working_directory,
+            model=self.model
+        )
+
+        llm_worker.signals.llm_output.connect(
+            lambda line: self.signals.llm_output.emit(line)
+        )
+
+        llm_worker.run()
+
+        if llm_worker._is_cancelled:
+            self.log(f"LLM worker was cancelled", "warning")
+            self.check_cancelled()
+
+        description_output = ''.join(llm_worker._output_lines)
+        self.log(f"LLM description output received ({len(description_output)} chars)", "debug")
+
+        # Save to file
+        if self.working_directory:
+            file_manager = FileManager(self.working_directory)
+            file_manager.ensure_files_exist()
+            description_path = file_manager.working_dir / "description.md"
+            description_path.write_text(description_output, encoding='utf-8')
+            self.log(f"Saved description to {description_path}", "success")
+            self.log(f"Description file size: {len(description_output)} chars", "debug")
+
+    def _generate_tasks(self, provider):
+        """Generate and save tasks.md file."""
+        self.log("Generating task list...", "info")
 
         # Build prompt
         base_prompt = PromptTemplates.format_planning_prompt(
@@ -128,12 +185,12 @@ class PlanningWorker(BaseWorker):
             file_manager = FileManager(self.working_directory)
             file_manager.ensure_files_exist()
             file_manager.write_tasks(output)
-            self.log(f"Saved tasks to {file_manager.tasks_file}", "info")
+            self.log(f"Saved tasks to {file_manager.tasks_file}", "success")
             self.log(f"Task file size: {len(output)} chars", "debug")
 
-        self.log(f"=== TASK PLANNING PHASE END ===", "phase")
+        # Store for return
+        self.tasks_content = output
+        self.task_count = len(tasks)
+
+        # Emit signal
         self.signals.tasks_ready.emit(output)
-        return {
-            "tasks_content": output,
-            "task_count": len(tasks)
-        }

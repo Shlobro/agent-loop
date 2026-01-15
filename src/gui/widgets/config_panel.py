@@ -42,11 +42,11 @@ class ConfigPanel(QWidget):
 
         # Number of clarifying questions to generate
         self.max_questions_spin = QSpinBox()
-        self.max_questions_spin.setRange(1, 100)
+        self.max_questions_spin.setRange(0, 100)
         self.max_questions_spin.setValue(20)
         self.max_questions_spin.setToolTip(
             "Maximum number of clarifying questions to generate. "
-            "You can stop early at any time."
+            "Set to 0 to skip clarifying questions."
         )
         self.max_questions_spin.valueChanged.connect(self._on_config_changed)
         form.addRow("Max Questions:", self.max_questions_spin)

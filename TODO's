@@ -1,8 +1,8 @@
-the way the single question generation is running is slow since for each question i have to wait for the LLM. I want a system where there are 2 questions ahead of the current one ready at all times. so at the start generate 3 of them and after the user answers the first one the llm should already be working on the fourth one. ofc it is importnat that the when the llm is working on the next question it knows about all the answered questions and the questions in the queue that have not been answered yet (so that we don't get duplicates). if the suer cancels early then the unanswered questions in the queue should be thrown away. also when i get to the last question it should not be submmitted right away i should be able to ask for another question if i want to or submit questions and answers and move on to the next step
-besides for the tasks.md file alongside it the same LLM that makes the task file should also make the description.md file that takes the user submitted answers and the user submitted description and creates a file describing the product
-
 and option to save the current state to continue some other time.
 
+even if all tasks are complete we still need to run the reviewers one last time (unless the review loop was set to 0)
+
+if the review loop is set to 0 warn the user about it when he click start, he may choose to not start yet to change this or have 0 review (simular to how putting 0 questions works)
 
 when i reach the limit with gemini i get this [15:48:21] [DEB] Final task file content: # Tasks YOLO mode is enabled. All tool calls will be automatically approved. Loaded cached credentials. Error when talking to Gemini API Full report available at: C:\Users\shlob\AppData\Local\Temp\gemini-client-error-Turn.run-sendMessageStream-2026-01-15T13-48-21-578Z.json TerminalQuotaError: You have exhausted your capacity on this model. Your quota will reset after 21h55m25s. at classifyGoogleError (file:///C:/Users/shlob/AppData/Roaming/npm/node_modules/@google/gemini-cli/node_modules/@g...
 [15:48:21] [DEB] Single task execution result: {'task_completed': False, 'all_tasks_done': True, 'iteration': 0, 'stopped_early': False}. this is something i need to be able to catch at any phase and let the user know and let him switch to a different llm
@@ -10,19 +10,19 @@ when i reach the limit with gemini i get this [15:48:21] [DEB] Final task file c
 when i reach the limit in claude i get something like this in a terminal: "PS C:\Users\shlob> claude -p "<prompt>"
 You've hit your limit · resets 4pm (Asia/Jerusalem)". ofc it's important to recognize in any time zone so try and detect the You've hit your limit when using claude. and let the user know and let him switch to a different llm
 
-we have to add another review option of UI/UX
+we have to add another review option of UI/UX (besides the debugging and all the rest)
 
-we need to make sure there are these flag files for each step (like if all tasks complete exit the main loop) if the llm found nothing worng in the debugging phase he should output somehwere all clear or something so we can skip the next iteration if all the debuggers passed no problem.
+we need to make sure there are these flag files for each step (like if all tasks complete exit the main loop) if the llm found nothing wording in the debugging phase he should output somewhere all clear or something so we can skip the next iteration if all the debuggers passed no problem.
 
+make sure we are dealing with cases where i launch the program again, meaning everything is reset. the questions json is empty and so on.
 
 I need more GUI feedback of what's going on. when generating questions there should be nice text in the questions section saying Generating questions..... like the entire clarifying questions section should be transformed to current phase and some detail of whats going on. more UI freindly then the logger. but like in the debug phase it should show the findings of each debugger as it is happening.
 
-
 where the original project description was where the user entered the descreption after the question phase we should generate a full description taking into account the questions and display that there. there should also be the checklist of tasks that we are going through which should be marked as the ai get's through these tasks so the user can see visual progress
-
 
 I should be able to change what llm is on what stage while it's running so if i want to change the debugger to codex for some reason mid run i should be able to do so
 
+in the output log there is an option to filter but when i click it after a bunch of logs are generated it is not filtering anything. meaning the logs that were there stay there
 
 should the task planning happen in a loop at the start??? meaning should we allow the llm to iterate a few times and break down tasks further if needed?
 

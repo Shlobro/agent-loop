@@ -157,6 +157,33 @@ CORRECT OUTPUT FORMAT (start immediately with tasks):
 BEGIN YOUR OUTPUT NOW (first character must be `-`):'''
 
     # =========================================================================
+    # Description Generation (for description.md)
+    # =========================================================================
+    DESCRIPTION_GENERATION = '''Create a comprehensive project description document based on the user's input and clarifying questions.
+
+PROJECT OBJECTIVE:
+{description}
+
+USER ANSWERS TO CLARIFYING QUESTIONS:
+{answers}
+
+OUTPUT REQUIREMENTS:
+Create a well-structured markdown document that summarizes the complete project specification.
+This document will be used by developers to understand the project goals and requirements.
+
+Include these sections:
+1. Project Overview - High-level description of what's being built
+2. Technical Stack - Languages, frameworks, databases, and tools to be used
+3. Key Features - List of main features and functionality
+4. Architecture - Brief architectural approach
+5. Requirements - Specific technical and functional requirements
+
+Use markdown formatting with headers (##), lists, and emphasis where appropriate.
+Be comprehensive but concise. Focus on actionable information that helps with implementation.
+
+BEGIN YOUR OUTPUT NOW:'''
+
+    # =========================================================================
     # Phase 3: Main Execution
     # =========================================================================
     MAIN_EXECUTION = '''You are an autonomous code implementation agent working in the directory: {working_directory}
@@ -458,6 +485,34 @@ Instead, report the error and suggest the user resolve it manually.'''
             description=description,
             previous_qa_section=previous_qa_section,
             working_directory=working_directory
+        )
+
+    @classmethod
+    def format_description_prompt(cls, description: str, answers: dict,
+                                   qa_pairs: list = None) -> str:
+        """Format the description.md generation prompt.
+
+        Args:
+            description: The project description
+            answers: Dict of {question_id: answer} (legacy format)
+            qa_pairs: List of {"question": ..., "answer": ...} (new format, preferred)
+        """
+        # Prefer qa_pairs if available (new iterative format)
+        if qa_pairs:
+            qa_lines = []
+            for i, qa in enumerate(qa_pairs, 1):
+                qa_lines.append(f"Q{i}: {qa['question']}")
+                qa_lines.append(f"A{i}: {qa['answer']}")
+                qa_lines.append("")
+            answers_text = "\n".join(qa_lines)
+        else:
+            # Legacy format - just question IDs
+            answers_text = "\n".join(
+                f"- {q_id}: {answer}" for q_id, answer in answers.items()
+            )
+        return cls.DESCRIPTION_GENERATION.format(
+            description=description,
+            answers=answers_text
         )
 
     @classmethod

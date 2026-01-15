@@ -19,8 +19,8 @@ from ..core.state_machine import StateMachine, Phase, SubPhase
 from ..core.file_manager import FileManager
 from ..core.session_manager import SessionManager
 from ..core.project_settings import ProjectSettings, ProjectSettingsManager
+from ..core.question_prefetch_manager import QuestionPrefetchManager
 
-from ..workers.question_worker import SingleQuestionWorker
 from ..workers.planning_worker import PlanningWorker
 from ..workers.execution_worker import ExecutionWorker
 from ..workers.review_worker import ReviewWorker
@@ -48,6 +48,7 @@ class MainWindow(QMainWindow):
         self.state_machine = StateMachine()
         self.file_manager = None  # Created when working dir is set
         self.session_manager = SessionManager()
+        self.question_prefetch_manager = QuestionPrefetchManager(self.thread_pool)
 
         # Current worker reference (for cancellation)
         self.current_worker = None
@@ -185,6 +186,12 @@ class MainWindow(QMainWindow):
         # Question panel
         self.question_panel.answer_submitted.connect(self.on_single_answer_submitted)
         self.question_panel.stop_requested.connect(self.on_stop_questions_requested)
+        self.question_panel.request_more_questions.connect(self.on_request_more_questions)
+        self.question_panel.start_planning_requested.connect(self.on_start_planning_requested)
+
+        # Question prefetch manager
+        self.question_prefetch_manager.question_ready.connect(self.on_prefetch_question_ready)
+        self.question_prefetch_manager.log_message.connect(self.log_viewer.append_log)
 
         # Config panel
         self.config_panel.working_directory_changed.connect(self.on_working_dir_changed)
@@ -278,7 +285,27 @@ class MainWindow(QMainWindow):
         self.log_viewer.append_log(f"  Git Ops: {llm_config.get('git_ops', 'N/A')}", "info")
         self.log_viewer.append_log("=" * 50, "info")
 
-        # Start Phase 1: Question Generation
+        # Start Phase 1: Question Generation (or skip if max_questions is 0)
+        if config.max_questions == 0:
+            reply = QMessageBox.question(
+                self,
+                "No Clarifying Questions",
+                "Not allowing the Agent to ask any questions means the quality of the output will not be as good.\n"
+                "Do you want to begin planning anyway?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                self.log_viewer.append_log("User cancelled start after max questions warning.", "info")
+                return
+
+            self.log_viewer.append_log("Max questions set to 0 - skipping question phase.", "warning")
+            self.question_panel.clear_question()
+            self.question_panel.set_readonly(True)
+            self.state_machine.transition_to(Phase.QUESTION_GENERATION)
+            self._finish_question_phase()
+            return
+
         self.question_panel.clear_question()
         self.question_panel.set_readonly(True)
         self.state_machine.transition_to(Phase.QUESTION_GENERATION)
@@ -420,15 +447,50 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.log_viewer.append_error(f"Failed to load session: {e}")
 
-    @Slot(str, str)
-    def on_single_answer_submitted(self, question_text: str, answer: str):
-        """Handle a single question answer submission."""
+    def _validate_answer(self, question_text: str, answer: str) -> tuple[bool, str]:
+        """
+        Validate question and answer without side effects.
+
+        Args:
+            question_text: The question text (can be empty, will use ctx.current_question_text)
+            answer: The user's answer
+
+        Returns:
+            tuple[bool, str]: (is_valid, error_message)
+                - (True, "") if valid
+                - (False, error_msg) if invalid
+        """
         ctx = self.state_machine.context
         question = question_text or ctx.current_question_text
-        if not question:
-            self.log_viewer.append_log("No question text available for answer submission", "warning")
-            return
 
+        # Validate question text
+        if not question:
+            return False, "No question text available for answer submission"
+
+        # Validate answer is not empty
+        if not answer or not answer.strip():
+            return False, "Cannot submit empty answer"
+
+        return True, ""
+
+    def _commit_answer(self, question_text: str, answer: str):
+        """
+        Commit a validated answer to state (assumes validation already passed).
+
+        This method performs all state mutations for recording an answer.
+        Should only be called after _validate_answer returns True.
+
+        Args:
+            question_text: The question text (can be empty, will use ctx.current_question_text)
+            answer: The user's answer
+        """
+        ctx = self.state_machine.context
+        question = question_text or ctx.current_question_text
+
+        # Record the answer in prefetch manager
+        self.question_prefetch_manager.on_answer_submitted(question, answer)
+
+        # Update state
         qa_pairs = list(ctx.qa_pairs)
         qa_pairs.append({
             "question": question,
@@ -446,18 +508,115 @@ class MainWindow(QMainWindow):
         self.question_panel.show_previous_qa(qa_pairs)
         self.log_viewer.append_log(f"Recorded answer {next_num}/{ctx.max_questions}", "info")
 
-        if next_num >= ctx.max_questions:
-            self._finish_question_phase()
+    def _process_answer(self, question_text: str, answer: str) -> bool:
+        """
+        Validate and commit a question answer.
+
+        This is a convenience method that combines validation and commit.
+        For atomic operations, use _validate_answer + _commit_answer separately.
+
+        Args:
+            question_text: The question text (can be empty, will use ctx.current_question_text)
+            answer: The user's answer
+
+        Returns:
+            bool: True if successfully processed, False if validation failed
+        """
+        is_valid, error_msg = self._validate_answer(question_text, answer)
+        if not is_valid:
+            self.log_viewer.append_log(error_msg, "warning")
+            return False
+
+        self._commit_answer(question_text, answer)
+        return True
+
+    @Slot(str, str)
+    def on_single_answer_submitted(self, question_text: str, answer: str):
+        """Handle a single question answer submission (Submit Answer button)."""
+        ctx = self.state_machine.context
+
+        # Process the answer using shared logic
+        if not self._process_answer(question_text, answer):
             return
 
+        next_num = ctx.current_question_num
+
+        # Check if we've now reached max questions after processing this answer
+        # If so, wait for user decision (don't auto-proceed to planning)
+        if next_num >= ctx.max_questions:
+            self.log_viewer.append_log(
+                f"Reached max questions ({ctx.max_questions}). Waiting for user to request more or start planning...",
+                "info"
+            )
+            # Show waiting state with decision buttons
+            self.question_panel.show_waiting_for_decision(ctx.qa_pairs, ctx.max_questions)
+            self.state_machine.update_context(is_last_question_shown=True)
+            return
+
+        # Show the next buffered question
         self.question_panel.set_readonly(True)
-        self.state_machine.transition_to(Phase.QUESTION_GENERATION)
-        self._generate_next_question()
+        self._show_next_buffered_question()
 
     @Slot()
     def on_stop_questions_requested(self):
         """Handle user request to stop question loop early."""
         self.log_viewer.append_log("User stopped question loop early", "info")
+        # Cancel any pending prefetch operations
+        self.question_prefetch_manager.cancel()
+        self._finish_question_phase()
+
+    @Slot(str, str)
+    def on_request_more_questions(self, question_text: str, answer: str):
+        """Handle user request for more questions.
+
+        Can be called either:
+        1. From a question (answer required)
+        2. From waiting state after max questions (no answer needed)
+
+        Args:
+            question_text: The current question text (empty if in waiting mode)
+            answer: The user's answer to the current question (empty if in waiting mode)
+        """
+        ctx = self.state_machine.context
+
+        self.log_viewer.append_log("User requested more questions", "info")
+
+        # Increase max questions limit
+        new_max = ctx.max_questions + 5
+        self.state_machine.update_context(
+            max_questions=new_max,
+            is_last_question_shown=False
+        )
+        self.question_prefetch_manager.max_questions = new_max
+        self.log_viewer.append_log(f"Increased question limit to {new_max}", "info")
+
+        # Ensure buffer is being filled (this will start workers if needed)
+        self.question_prefetch_manager.ensure_generating()
+
+        # Update UI state
+        self.question_panel.set_readonly(True)
+
+        # Show next question if available, otherwise show generating message
+        self._show_next_buffered_question()
+
+    @Slot(str, str)
+    def on_start_planning_requested(self, question_text: str, answer: str):
+        """Handle user request to start planning.
+
+        Can be called either:
+        1. From a question (answer required)
+        2. From waiting state after max questions (no answer needed)
+
+        Args:
+            question_text: The current question text (empty if in waiting mode)
+            answer: The user's answer to the current question (empty if in waiting mode)
+        """
+        self.log_viewer.append_log("User requested to start planning", "info")
+
+        # Cancel any pending prefetch operations
+        self.question_prefetch_manager.cancel()
+
+        # Move directly to planning phase
         self._finish_question_phase()
 
     # =========================================================================
@@ -465,84 +624,136 @@ class MainWindow(QMainWindow):
     # =========================================================================
 
     def run_question_generation(self):
-        """Run Phase 1: Question Generation (iterative)."""
-        self._generate_next_question()
-
-    def _generate_next_question(self):
-        """Generate the next single question."""
+        """Run Phase 1: Question Generation (with prefetching)."""
         ctx = self.state_machine.context
 
-        if ctx.current_question_num >= ctx.max_questions:
-            self._finish_question_phase()
-            return
-
-        if self.state_machine.phase == Phase.QUESTION_GENERATION:
-            self.state_machine.set_sub_phase(SubPhase.GENERATING_SINGLE_QUESTION)
-        else:
-            self.state_machine.transition_to(Phase.QUESTION_GENERATION, SubPhase.GENERATING_SINGLE_QUESTION)
-        self.question_panel.set_readonly(True)
-        self.log_viewer.append_log(
-            f"Generating question {ctx.current_question_num + 1} of {ctx.max_questions}...",
-            "info"
-        )
-
-        worker = SingleQuestionWorker(
+        # Initialize prefetch manager
+        self.question_prefetch_manager.initialize(
             description=ctx.description,
-            previous_qa=ctx.qa_pairs,
             provider_name=ctx.llm_config.get("question_gen", "claude"),
             working_directory=ctx.working_directory,
-            model=ctx.llm_config.get("question_gen_model")
+            model=ctx.llm_config.get("question_gen_model"),
+            max_questions=ctx.max_questions
         )
 
-        self._connect_worker_signals(worker)
-        worker.signals.single_question_ready.connect(self.on_single_question_ready)
+        # Start prefetching initial batch of questions
+        self.log_viewer.append_log("Starting question generation with prefetching...", "info")
+        self.question_prefetch_manager.start_prefetching()
+        self.question_panel.show_generating_message()
+        self.question_panel.show_previous_qa(ctx.qa_pairs)
 
-        self.current_worker = worker
-        self.thread_pool.start(worker)
+        # Transition to awaiting state - we'll show the first question when it's ready
+        self.state_machine.transition_to(Phase.QUESTION_GENERATION, SubPhase.GENERATING_SINGLE_QUESTION)
 
-    @Slot(dict)
-    def on_single_question_ready(self, question_data: dict):
-        """Handle single question generated by LLM."""
+    def _show_next_buffered_question(self):
+        """Show the next question from the buffer."""
         ctx = self.state_machine.context
+
+        # Check if we have a buffered question
+        if not self.question_prefetch_manager.has_buffered_question():
+            self.log_viewer.append_log("No buffered question available, waiting for generation...", "info")
+            self.question_panel.show_generating_message()
+            self.question_panel.show_previous_qa(ctx.qa_pairs)
+            # Transition to QUESTION_GENERATION so on_prefetch_question_ready will show it
+            self.state_machine.transition_to(Phase.QUESTION_GENERATION, SubPhase.GENERATING_SINGLE_QUESTION)
+            return
+
+        # Get next question from buffer
+        question_data = self.question_prefetch_manager.get_next_question()
+        if not question_data:
+            return
+
+        # Ensure buffer is being refilled after taking a question
+        self.question_prefetch_manager.ensure_generating()
+
         question_text = (question_data.get("question") or "").strip()
         options = question_data.get("options", [])
 
         if not question_text:
-            self.log_viewer.append_log("Received empty question text from LLM", "error")
+            self.log_viewer.append_log("Received empty question text from buffer", "error")
             self._finish_question_phase()
             return
 
+        # Check if this is the last question
+        is_last = ctx.current_question_num + 1 >= ctx.max_questions
+
         self.state_machine.update_context(
             current_question_text=question_text,
-            current_question_options=options
+            current_question_options=options,
+            is_last_question_shown=is_last
         )
 
         self.question_panel.show_question(
             question_text,
             options,
             ctx.current_question_num + 1,
-            ctx.max_questions
+            ctx.max_questions,
+            is_last=is_last
         )
         self.question_panel.show_previous_qa(ctx.qa_pairs)
         self.question_panel.set_readonly(False)
         self.state_machine.transition_to(Phase.AWAITING_ANSWERS, SubPhase.AWAITING_SINGLE_ANSWER)
-        self.log_viewer.append_success("Generated 1 question")
+        self.log_viewer.append_log(
+            f"Showing question {ctx.current_question_num + 1}/{ctx.max_questions}" +
+            (" (last question)" if is_last else ""),
+            "success"
+        )
+
+    @Slot(dict)
+    def on_prefetch_question_ready(self, question_data: dict):
+        """Handle a question ready from the prefetch manager."""
+        ctx = self.state_machine.context
+
+        # Only auto-show if we're actively waiting for a question (QUESTION_GENERATION phase)
+        # Do NOT auto-show if user is answering a question (AWAITING_ANSWERS phase)
+        if self.state_machine.phase == Phase.QUESTION_GENERATION:
+            self.log_viewer.append_log("Question ready, showing it now", "debug")
+            self._show_next_buffered_question()
+        else:
+            self.log_viewer.append_log(
+                f"Question ready and buffered (phase: {self.state_machine.phase.name})",
+                "debug"
+            )
 
     def _restore_question_ui(self):
         """Restore the current question UI from state context."""
         ctx = self.state_machine.context
+
+        # Re-initialize the prefetch manager with current state
+        self.question_prefetch_manager.initialize(
+            description=ctx.description,
+            provider_name=ctx.llm_config.get("question_gen", "claude"),
+            working_directory=ctx.working_directory,
+            model=ctx.llm_config.get("question_gen_model"),
+            max_questions=ctx.max_questions
+        )
+        # CRITICAL: Restore QA history AFTER initialize to preserve it
+        self.question_prefetch_manager.qa_pairs = list(ctx.qa_pairs)
+        self.question_prefetch_manager.questions_generated_count = ctx.current_question_num
+
         if ctx.current_question_text:
+            # Restore the current question being shown
             self.question_panel.show_question(
                 ctx.current_question_text,
                 ctx.current_question_options,
                 ctx.current_question_num + 1,
-                ctx.max_questions
+                ctx.max_questions,
+                is_last=ctx.is_last_question_shown
             )
             self.question_panel.show_previous_qa(ctx.qa_pairs)
             self.question_panel.set_readonly(False)
             self.state_machine.set_sub_phase(SubPhase.AWAITING_SINGLE_ANSWER)
+
+            # Resume prefetching in background
+            self.question_prefetch_manager.start_prefetching()
         else:
-            self._generate_next_question()
+            # No current question text - we were in generation phase when paused
+            # Just start prefetching, don't re-initialize (would lose qa_pairs)
+            self.log_viewer.append_log("Resuming question generation from saved state...", "info")
+            self.state_machine.transition_to(Phase.QUESTION_GENERATION, SubPhase.GENERATING_SINGLE_QUESTION)
+            self.question_prefetch_manager.start_prefetching()
+            self.question_panel.show_generating_message()
+            self.question_panel.show_previous_qa(ctx.qa_pairs)
 
     def _finish_question_phase(self):
         """Finalize question loop and move to task planning."""
