@@ -309,6 +309,7 @@ class MainWindow(QMainWindow):
             answers={},
             auto_push=config.auto_push,
             git_remote=config.git_remote,
+            review_types=config.review_types,
             llm_config=llm_config
         )
         self._reset_activity_state()
@@ -326,6 +327,9 @@ class MainWindow(QMainWindow):
         self.log_viewer.append_log(f"  Max Main Iterations: {config.max_main_iterations}", "info")
         self.log_viewer.append_log(f"  Max Questions: {config.max_questions}", "info")
         self.log_viewer.append_log(f"  Debug Loop Iterations: {config.debug_loop_iterations}", "info")
+        review_types = config.review_types or []
+        review_labels = ", ".join([r.replace('_', ' ').title() for r in review_types]) or "(none)"
+        self.log_viewer.append_log(f"  Review Types: {review_labels}", "info")
         self.log_viewer.append_log(f"  Auto Push: {config.auto_push}", "info")
         self.log_viewer.append_log(f"  Git Remote: {config.git_remote or '(not set)'}", "info")
         self.log_viewer.append_log("LLM PROVIDERS:", "info")
@@ -964,13 +968,17 @@ class MainWindow(QMainWindow):
         self.log_viewer.append_log(f"Task iteration {result.get('iteration')} complete", "success")
 
         # Check if we should run review loop
-        if self.state_machine.context.debug_iterations > 0:
+        if self.state_machine.context.debug_iterations > 0 and self.state_machine.context.review_types:
             self.log_viewer.append_log(f"Running Debug/Review for this task ({self.state_machine.context.debug_iterations} iterations)...", "info")
             self.state_machine.transition_to(Phase.DEBUG_REVIEW)
             self.run_review_loop()
         else:
             # Skip review, go directly to git for this task
-            self.log_viewer.append_log("Skipping Debug/Review phase (0 iterations configured)", "info")
+            if self.state_machine.context.debug_iterations == 0:
+                reason = "0 iterations configured"
+            else:
+                reason = "no review types selected"
+            self.log_viewer.append_log(f"Skipping Debug/Review phase ({reason})", "info")
             self.log_viewer.append_log("Transitioning to Git Operations for this task...", "info")
             self.state_machine.transition_to(Phase.GIT_OPERATIONS)
             self.run_git_operations()
@@ -978,6 +986,11 @@ class MainWindow(QMainWindow):
     def run_review_loop(self):
         """Run Phase 4: Debug/Review Loop."""
         ctx = self.state_machine.context
+        if not ctx.review_types:
+            self.log_viewer.append_log("No review types selected - skipping review loop", "warning")
+            self.state_machine.transition_to(Phase.GIT_OPERATIONS)
+            self.run_git_operations()
+            return
 
         worker = ReviewWorker(
             reviewer_provider_name=ctx.llm_config.get("reviewer", "claude"),
@@ -985,6 +998,7 @@ class MainWindow(QMainWindow):
             working_directory=ctx.working_directory,
             iterations=ctx.debug_iterations,
             start_iteration=ctx.current_debug_iteration,
+            review_types=ctx.review_types,
             reviewer_model=ctx.llm_config.get("reviewer_model"),
             fixer_model=ctx.llm_config.get("fixer_model")
         )
@@ -1171,7 +1185,8 @@ class MainWindow(QMainWindow):
             max_questions=exec_config.max_questions,
             auto_push=exec_config.auto_push,
             working_directory=exec_config.working_directory,
-            git_remote=exec_config.git_remote
+            git_remote=exec_config.git_remote,
+            review_types=exec_config.review_types
         )
 
         # Open file dialog
@@ -1229,7 +1244,8 @@ class MainWindow(QMainWindow):
                     max_questions=settings.max_questions,
                     auto_push=settings.auto_push,
                     working_directory=settings.working_directory,
-                    git_remote=settings.git_remote
+                    git_remote=settings.git_remote,
+                    review_types=settings.review_types
                 )
                 self.config_panel.set_config(exec_config)
 

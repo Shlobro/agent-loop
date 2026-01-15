@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List
 from PySide6.QtCore import QObject, Signal
 
+from ..llm.prompt_templates import PromptTemplates
 
 class Phase(Enum):
     """Main execution phases."""
@@ -63,6 +64,9 @@ class StateContext:
     debug_iterations: int = 5
     current_debug_iteration: int = 0
     current_review_type: str = ""
+    review_types: List[str] = field(
+        default_factory=lambda: [r.value for r in PromptTemplates.get_all_review_types()]
+    )
     error_message: Optional[str] = None
     stop_requested: bool = False
     pause_requested: bool = False
@@ -283,6 +287,7 @@ class StateMachine(QObject):
                 "debug_iterations": self._context.debug_iterations,
                 "current_debug_iteration": self._context.current_debug_iteration,
                 "current_review_type": self._context.current_review_type,
+                "review_types": self._context.review_types,
                 "working_directory": self._context.working_directory,
                 "auto_push": self._context.auto_push,
                 "git_remote": self._context.git_remote,
@@ -311,6 +316,10 @@ class StateMachine(QObject):
         self._context.debug_iterations = ctx.get("debug_iterations", 5)
         self._context.current_debug_iteration = ctx.get("current_debug_iteration", 0)
         self._context.current_review_type = ctx.get("current_review_type", "")
+        self._context.review_types = ctx.get(
+            "review_types",
+            [r.value for r in PromptTemplates.get_all_review_types()]
+        )
         self._context.working_directory = ctx.get("working_directory", "")
         self._context.auto_push = ctx.get("auto_push", False)
         self._context.git_remote = ctx.get("git_remote", "")

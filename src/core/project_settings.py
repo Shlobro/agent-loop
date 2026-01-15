@@ -2,8 +2,10 @@
 
 import json
 from pathlib import Path
-from dataclasses import dataclass, asdict
-from typing import Optional, Dict, Any
+from dataclasses import dataclass, asdict, field
+from typing import Optional, Dict, Any, List
+
+from ..llm.prompt_templates import PromptTemplates
 
 
 @dataclass
@@ -22,6 +24,9 @@ class ProjectSettings:
     reviewer_model: str = ""
     fixer_model: str = ""
     git_ops_model: str = ""
+    review_types: List[str] = field(
+        default_factory=lambda: [r.value for r in PromptTemplates.get_all_review_types()]
+    )
 
     # Execution Configuration
     max_main_iterations: int = 50

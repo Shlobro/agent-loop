@@ -5,9 +5,12 @@ from PySide6.QtWidgets import (
     QLineEdit, QPushButton, QHBoxLayout, QGroupBox, QFileDialog
 )
 from PySide6.QtCore import Signal
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import subprocess
+from typing import List, Dict
+
+from ...llm.prompt_templates import PromptTemplates
 
 
 @dataclass
@@ -19,6 +22,9 @@ class ExecutionConfig:
     working_directory: str
     git_remote: str = ""
     max_questions: int = 20
+    review_types: List[str] = field(
+        default_factory=lambda: [r.value for r in PromptTemplates.get_all_review_types()]
+    )
 
 
 class ConfigPanel(QWidget):
@@ -101,7 +107,19 @@ class ConfigPanel(QWidget):
 
         form.addRow("Working Directory:", dir_layout)
 
+        self.review_checkboxes: Dict[str, QCheckBox] = {}
+        reviews_group = QGroupBox("Review Types")
+        reviews_layout = QVBoxLayout(reviews_group)
+        for review_type in PromptTemplates.get_all_review_types():
+            label = review_type.value.replace('_', ' ').title()
+            checkbox = QCheckBox(label)
+            checkbox.setChecked(True)
+            checkbox.stateChanged.connect(self._on_config_changed)
+            self.review_checkboxes[review_type.value] = checkbox
+            reviews_layout.addWidget(checkbox)
+
         layout.addWidget(group)
+        layout.addWidget(reviews_group)
 
     def _on_config_changed(self):
         """Emit signal when configuration changes."""
@@ -158,7 +176,8 @@ class ConfigPanel(QWidget):
             auto_push=self.auto_push_checkbox.isChecked(),
             working_directory=self.working_dir_edit.text().strip(),
             git_remote=self.git_remote_edit.text().strip(),
-            max_questions=self.max_questions_spin.value()
+            max_questions=self.max_questions_spin.value(),
+            review_types=self.get_review_types()
         )
 
     def set_config(self, config: ExecutionConfig):
@@ -169,6 +188,17 @@ class ConfigPanel(QWidget):
         self.auto_push_checkbox.setChecked(config.auto_push)
         self.working_dir_edit.setText(config.working_directory)
         self.git_remote_edit.setText(config.git_remote or "")
+        selected = set(config.review_types or [])
+        for review_type, checkbox in self.review_checkboxes.items():
+            checkbox.setChecked(review_type in selected)
+
+    def get_review_types(self) -> List[str]:
+        """Get the selected review types."""
+        return [
+            review_type
+            for review_type, checkbox in self.review_checkboxes.items()
+            if checkbox.isChecked()
+        ]
 
     def set_working_directory(self, path: str):
         """Set the working directory."""
@@ -191,3 +221,5 @@ class ConfigPanel(QWidget):
         self.auto_push_checkbox.setEnabled(enabled)
         self.git_remote_edit.setEnabled(enabled)
         self.browse_button.setEnabled(enabled)
+        for checkbox in self.review_checkboxes.values():
+            checkbox.setEnabled(enabled)

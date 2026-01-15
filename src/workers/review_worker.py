@@ -10,24 +10,15 @@ from ..core.file_manager import FileManager
 class ReviewWorker(BaseWorker):
     """
     Phase 4 worker: Debug/Review loop.
-    Runs 6 review cycles per iteration (Architecture, Efficiency, Error Handling,
-    Safety, Testing, Documentation).
+    Runs review cycles per iteration based on selected review types.
     """
-
-    REVIEW_SEQUENCE = [
-        ReviewType.ARCHITECTURE,
-        ReviewType.EFFICIENCY,
-        ReviewType.ERROR_HANDLING,
-        ReviewType.SAFETY,
-        ReviewType.TESTING,
-        ReviewType.DOCUMENTATION,
-    ]
 
     def __init__(self, reviewer_provider_name: str = "claude",
                  fixer_provider_name: str = "claude",
                  working_directory: str = None,
                  iterations: int = 5,
                  start_iteration: int = 0,
+                 review_types: list = None,
                  reviewer_model: str = None,
                  fixer_model: str = None):
         super().__init__()
@@ -37,6 +28,7 @@ class ReviewWorker(BaseWorker):
         self.iterations = iterations
         self.start_iteration = start_iteration
         self.current_iteration = start_iteration
+        self.review_sequence = self._build_review_sequence(review_types)
         self.reviewer_model = reviewer_model
         self.fixer_model = fixer_model
 
@@ -46,7 +38,14 @@ class ReviewWorker(BaseWorker):
         self.log(f"=== DEBUG/REVIEW PHASE START ===", "phase")
         self.log(f"Working directory: {self.working_directory}", "info")
         self.log(f"Total iterations planned: {self.iterations}, Starting from: {self.start_iteration}", "info")
-        self.log(f"Review sequence: {' -> '.join([r.value for r in self.REVIEW_SEQUENCE])}", "info")
+        if self.review_sequence:
+            self.log(f"Review sequence: {' -> '.join([r.value for r in self.review_sequence])}", "info")
+        else:
+            self.log("Review sequence: (none selected)", "warning")
+            return {
+                "review_iterations_completed": 0,
+                "stopped_early": False
+            }
 
         reviewer_provider = LLMProviderRegistry.get(self.reviewer_provider_name)
         fixer_provider = LLMProviderRegistry.get(self.fixer_provider_name)
@@ -68,9 +67,12 @@ class ReviewWorker(BaseWorker):
             self.current_iteration = iteration
             self.update_progress(iteration, self.iterations)
             self.log(f"Debug iteration {iteration}/{self.iterations}", "phase")
-            self.log(f"Running 6 review cycles: Architecture, Efficiency, Error Handling, Safety, Testing, Documentation", "debug")
+            review_labels = ", ".join(
+                [r.value.replace('_', ' ').title() for r in self.review_sequence]
+            )
+            self.log(f"Running {len(self.review_sequence)} review cycles: {review_labels}", "debug")
 
-            for review_type in self.REVIEW_SEQUENCE:
+            for review_type in self.review_sequence:
                 if self.should_stop():
                     break
 
@@ -89,6 +91,13 @@ class ReviewWorker(BaseWorker):
             "review_iterations_completed": self.current_iteration,
             "stopped_early": self._is_cancelled or self._is_paused
         }
+
+    def _build_review_sequence(self, review_types: list) -> list:
+        """Build ordered review sequence from selected review type values."""
+        if review_types is None:
+            review_types = [r.value for r in PromptTemplates.get_all_review_types()]
+        selected = set(review_types)
+        return [r for r in PromptTemplates.get_all_review_types() if r.value in selected]
 
     def _run_review_cycle(self, review_type: ReviewType,
                           reviewer_provider, fixer_provider,
