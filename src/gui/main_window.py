@@ -2,9 +2,10 @@
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QSplitter, QPushButton, QMessageBox, QApplication
+    QSplitter, QPushButton, QMessageBox, QApplication, QFileDialog
 )
 from PySide6.QtCore import Qt, Slot, QThreadPool
+from PySide6.QtGui import QAction
 
 from .widgets.description_panel import DescriptionPanel
 from .widgets.question_panel import QuestionPanel
@@ -17,6 +18,7 @@ from .dialogs.git_approval_dialog import GitApprovalDialog
 from ..core.state_machine import StateMachine, Phase, SubPhase
 from ..core.file_manager import FileManager
 from ..core.session_manager import SessionManager
+from ..core.project_settings import ProjectSettings, ProjectSettingsManager
 
 from ..workers.question_worker import SingleQuestionWorker
 from ..workers.planning_worker import PlanningWorker
@@ -55,9 +57,40 @@ class MainWindow(QMainWindow):
         self.auto_push_remembered = False
 
         # Setup UI
+        self.setup_menu_bar()
         self.setup_ui()
         self.connect_signals()
         self.update_button_states()
+
+    def setup_menu_bar(self):
+        """Initialize the menu bar with File menu."""
+        menu_bar = self.menuBar()
+
+        # File menu
+        file_menu = menu_bar.addMenu("&File")
+
+        # Save Settings action
+        save_action = QAction("&Save Settings...", self)
+        save_action.setShortcut("Ctrl+S")
+        save_action.setStatusTip("Save current project settings to file")
+        save_action.triggered.connect(self.on_save_settings)
+        file_menu.addAction(save_action)
+
+        # Load Settings action
+        load_action = QAction("&Load Settings...", self)
+        load_action.setShortcut("Ctrl+O")
+        load_action.setStatusTip("Load project settings from file")
+        load_action.triggered.connect(self.on_load_settings)
+        file_menu.addAction(load_action)
+
+        file_menu.addSeparator()
+
+        # Exit action
+        exit_action = QAction("E&xit", self)
+        exit_action.setShortcut("Ctrl+Q")
+        exit_action.setStatusTip("Exit the application")
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
 
     def setup_ui(self):
         """Initialize and layout all UI components."""
@@ -457,7 +490,8 @@ class MainWindow(QMainWindow):
             description=ctx.description,
             previous_qa=ctx.qa_pairs,
             provider_name=ctx.llm_config.get("question_gen", "claude"),
-            working_directory=ctx.working_directory
+            working_directory=ctx.working_directory,
+            model=ctx.llm_config.get("question_gen_model")
         )
 
         self._connect_worker_signals(worker)
@@ -539,7 +573,8 @@ class MainWindow(QMainWindow):
             answers=ctx.answers,
             qa_pairs=ctx.qa_pairs,
             provider_name=ctx.llm_config.get("task_planning", "claude"),
-            working_directory=ctx.working_directory
+            working_directory=ctx.working_directory,
+            model=ctx.llm_config.get("task_planning_model")
         )
 
         self._connect_worker_signals(worker)
@@ -572,7 +607,8 @@ class MainWindow(QMainWindow):
         worker = ExecutionWorker(
             provider_name=ctx.llm_config.get("coder", "claude"),
             working_directory=ctx.working_directory,
-            current_iteration=ctx.current_iteration
+            current_iteration=ctx.current_iteration,
+            model=ctx.llm_config.get("coder_model")
         )
 
         self._connect_worker_signals(worker)
@@ -633,7 +669,9 @@ class MainWindow(QMainWindow):
             fixer_provider_name=ctx.llm_config.get("fixer", "claude"),
             working_directory=ctx.working_directory,
             iterations=ctx.debug_iterations,
-            start_iteration=ctx.current_debug_iteration
+            start_iteration=ctx.current_debug_iteration,
+            reviewer_model=ctx.llm_config.get("reviewer_model"),
+            fixer_model=ctx.llm_config.get("fixer_model")
         )
 
         self._connect_worker_signals(worker)
@@ -694,7 +732,8 @@ class MainWindow(QMainWindow):
             provider_name=ctx.llm_config.get("git_ops", "claude"),
             working_directory=ctx.working_directory,
             auto_push=auto_push,
-            git_remote=ctx.git_remote
+            git_remote=ctx.git_remote,
+            model=ctx.llm_config.get("git_ops_model")
         )
 
         self._connect_worker_signals(worker)
@@ -783,6 +822,100 @@ class MainWindow(QMainWindow):
     def on_worker_finished(self):
         """Handle worker completion."""
         self.current_worker = None
+
+    @Slot()
+    def on_save_settings(self):
+        """Handle save settings action."""
+        # Get current settings from UI
+        llm_config = self.llm_selector_panel.get_config()
+        exec_config = self.config_panel.get_config()
+
+        # Create ProjectSettings object
+        settings = ProjectSettings(
+            question_gen=llm_config.question_gen,
+            task_planning=llm_config.task_planning,
+            coder=llm_config.coder,
+            reviewer=llm_config.reviewer,
+            fixer=llm_config.fixer,
+            git_ops=llm_config.git_ops,
+            question_gen_model=llm_config.question_gen_model,
+            task_planning_model=llm_config.task_planning_model,
+            coder_model=llm_config.coder_model,
+            reviewer_model=llm_config.reviewer_model,
+            fixer_model=llm_config.fixer_model,
+            git_ops_model=llm_config.git_ops_model,
+            max_main_iterations=exec_config.max_main_iterations,
+            debug_loop_iterations=exec_config.debug_loop_iterations,
+            max_questions=exec_config.max_questions,
+            auto_push=exec_config.auto_push,
+            working_directory=exec_config.working_directory,
+            git_remote=exec_config.git_remote
+        )
+
+        # Open file dialog
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Project Settings",
+            "",
+            "JSON Files (*.json);;All Files (*)"
+        )
+
+        if file_path:
+            try:
+                ProjectSettingsManager.save_to_file(settings, file_path)
+                self.log_viewer.append_log(f"Settings saved to: {file_path}", "success")
+                QMessageBox.information(self, "Success", "Settings saved successfully!")
+            except Exception as e:
+                self.log_viewer.append_log(f"Failed to save settings: {e}", "error")
+                QMessageBox.critical(self, "Error", f"Failed to save settings:\n{e}")
+
+    @Slot()
+    def on_load_settings(self):
+        """Handle load settings action."""
+        # Open file dialog
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load Project Settings",
+            "",
+            "JSON Files (*.json);;All Files (*)"
+        )
+
+        if file_path:
+            try:
+                settings = ProjectSettingsManager.load_from_file(file_path)
+
+                # Apply settings to UI
+                llm_config_dict = {
+                    "question_gen": settings.question_gen,
+                    "task_planning": settings.task_planning,
+                    "coder": settings.coder,
+                    "reviewer": settings.reviewer,
+                    "fixer": settings.fixer,
+                    "git_ops": settings.git_ops,
+                    "question_gen_model": settings.question_gen_model,
+                    "task_planning_model": settings.task_planning_model,
+                    "coder_model": settings.coder_model,
+                    "reviewer_model": settings.reviewer_model,
+                    "fixer_model": settings.fixer_model,
+                    "git_ops_model": settings.git_ops_model,
+                }
+                self.llm_selector_panel.set_config(llm_config_dict)
+
+                exec_config = ExecutionConfig(
+                    max_main_iterations=settings.max_main_iterations,
+                    debug_loop_iterations=settings.debug_loop_iterations,
+                    max_questions=settings.max_questions,
+                    auto_push=settings.auto_push,
+                    working_directory=settings.working_directory,
+                    git_remote=settings.git_remote
+                )
+                self.config_panel.set_config(exec_config)
+
+                self.log_viewer.append_log(f"Settings loaded from: {file_path}", "success")
+                QMessageBox.information(self, "Success", "Settings loaded successfully!")
+            except Exception as e:
+                self.log_viewer.append_log(f"Failed to load settings: {e}", "error")
+                QMessageBox.critical(self, "Error", f"Failed to load settings:\n{e}")
 
     def closeEvent(self, event):
         """Handle window close."""

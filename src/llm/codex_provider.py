@@ -1,6 +1,6 @@
 """Codex CLI provider implementation."""
 
-from typing import List
+from typing import List, Tuple, Optional
 from .base_provider import BaseLLMProvider, LLMProviderRegistry
 
 
@@ -8,6 +8,13 @@ class CodexProvider(BaseLLMProvider):
     """
     Codex CLI provider using `codex exec --full-auto` command.
     """
+
+    MODELS = [
+        ("gpt-5.2-codex", "GPT-5.2 Codex"),
+        ("gpt-5.1-codex-max", "GPT-5.1 Codex Max"),
+        ("gpt-5.1-codex-mini", "GPT-5.1 Codex Mini"),
+        ("gpt-5.2", "GPT-5.2"),
+    ]
 
     @property
     def name(self) -> str:
@@ -17,31 +24,21 @@ class CodexProvider(BaseLLMProvider):
     def display_name(self) -> str:
         return "Codex"
 
-    def build_command(self, prompt: str) -> List[str]:
+    def get_models(self) -> List[Tuple[str, str]]:
+        """Return available Codex models."""
+        return self.MODELS
+
+    def build_command(self, prompt: str, model: Optional[str] = None) -> List[str]:
         """Build codex CLI command."""
-        return ["codex", "exec", "--full-auto", prompt]
+        cmd = ["codex", "exec", "--full-auto"]
+        if model:
+            cmd.extend(["--model", model])
+        cmd.append(prompt)
+        return cmd
 
     def get_output_instruction(self, output_type: str) -> str:
-        """Return format instruction for Codex."""
-        instructions = {
-            "json": (
-                "IMPORTANT: Respond with valid JSON only. "
-                "Do not include markdown code fences. "
-                "Do not include any explanatory text before or after the JSON. "
-                "The response must start with { and end with }."
-            ),
-            "markdown_tasks": (
-                "IMPORTANT: Respond with a markdown task list only. "
-                "Use `- [ ]` for incomplete tasks and `- [x]` for completed tasks. "
-                "Do not include any other text or explanations."
-            ),
-            "review": (
-                "Write your review findings inside ```review ... ``` code blocks. "
-                "Be specific about file locations and line numbers when possible."
-            ),
-            "freeform": "",
-        }
-        return instructions.get(output_type, "")
+        """Return format instruction for Codex using centralized standards."""
+        return self.get_standard_output_instructions().get(output_type, "")
 
     def get_setup_instructions(self) -> str:
         return (

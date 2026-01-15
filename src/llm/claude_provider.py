@@ -1,6 +1,6 @@
 """Claude CLI provider implementation."""
 
-from typing import List
+from typing import List, Tuple, Optional
 from .base_provider import BaseLLMProvider, LLMProviderRegistry
 
 
@@ -11,6 +11,12 @@ class ClaudeProvider(BaseLLMProvider):
     Requires running `claude --dangerously-skip-permissions` once before use.
     """
 
+    MODELS = [
+        ("claude-sonnet-4-5-20250929", "Claude Sonnet 4.5"),
+        ("claude-haiku-4-5-20251001", "Claude Haiku 4.5"),
+        ("claude-opus-4-1-20250805", "Claude Opus 4.1"),
+    ]
+
     @property
     def name(self) -> str:
         return "claude"
@@ -19,31 +25,21 @@ class ClaudeProvider(BaseLLMProvider):
     def display_name(self) -> str:
         return "Claude"
 
-    def build_command(self, prompt: str) -> List[str]:
-        """Build claude CLI command."""
-        return ["claude", "-p", prompt]
+    def get_models(self) -> List[Tuple[str, str]]:
+        """Return available Claude models."""
+        return self.MODELS
+
+    def build_command(self, prompt: str, model: Optional[str] = None) -> List[str]:
+        """Build claude CLI command with auto-approval."""
+        cmd = ["claude", "--dangerously-skip-permissions"]
+        if model:
+            cmd.extend(["--model", model])
+        cmd.extend(["-p", prompt])
+        return cmd
 
     def get_output_instruction(self, output_type: str) -> str:
-        """Return format instruction for Claude."""
-        instructions = {
-            "json": (
-                "IMPORTANT: Respond with valid JSON only. "
-                "Do not include markdown code fences. "
-                "Do not include any explanatory text before or after the JSON. "
-                "The response must start with { and end with }."
-            ),
-            "markdown_tasks": (
-                "IMPORTANT: Respond with a markdown task list only. "
-                "Use `- [ ]` for incomplete tasks and `- [x]` for completed tasks. "
-                "Do not include any other text or explanations."
-            ),
-            "review": (
-                "Write your review findings inside ```review ... ``` code blocks. "
-                "Be specific about file locations and line numbers when possible."
-            ),
-            "freeform": "",
-        }
-        return instructions.get(output_type, "")
+        """Return format instruction for Claude using centralized standards."""
+        return self.get_standard_output_instructions().get(output_type, "")
 
     def get_setup_instructions(self) -> str:
         return (

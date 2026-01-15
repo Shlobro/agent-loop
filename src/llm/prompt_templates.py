@@ -19,68 +19,103 @@ class PromptTemplates:
     # =========================================================================
     # Phase 1: Question Generation (Legacy - batch mode)
     # =========================================================================
-    QUESTION_GENERATION = '''TASK: Create a questions.json file immediately.
+    QUESTION_GENERATION = '''Generate 5-10 clarifying questions for a software development project.
 
-PROJECT DESCRIPTION: {description}
+PROJECT OBJECTIVE:
+{description}
 
-IMMEDIATE ACTION REQUIRED:
-1. Create a file called {working_directory}/questions.json
-2. Write valid JSON with clarifying questions about this project
+=== YOUR TASK ===
+Output a JSON object with 5-10 strategic clarifying questions that will help implement this project.
 
-JSON FORMAT (use exactly this structure):
+Each question must help decide HOW to implement the project. Cover areas like:
+- Platform type (web, desktop, CLI, mobile)
+- Programming language/framework
+- Database technology
+- Key features and priorities
+- Authentication approach
+- Deployment environment
+
+GOOD QUESTIONS - use these patterns:
+✓ "What database should be used?" → ["PostgreSQL", "MongoDB", "SQLite", "Firebase", "None"]
+✓ "What type of application?" → ["Web app", "Desktop app", "CLI tool", "Mobile app"]
+✓ "Which programming language?" → ["Python", "JavaScript", "Java", "Go", "C#"]
+
+=== MANDATORY REQUIREMENTS ===
+1. Each question MUST have 3-5 concrete multiple choice options (NOT empty arrays!)
+2. Options must be realistic implementation choices
+3. Questions must be actionable for planning the code
+4. Questions must be about the PROJECT, not individual files
+
+=== OUTPUT FORMAT ===
+Your response MUST be ONLY valid JSON. No explanatory text before or after.
+Your FIRST character must be {{ and your LAST character must be }}.
+Do NOT include markdown code fences.
+Do NOT say "Here is the JSON" or any other text.
+
+Output this EXACT structure:
 {{
   "questions": [
-    {{"id": "q1", "question": "Your question here?", "options": ["Option 1", "Option 2", "Option 3"]}},
+    {{"id": "q1", "question": "Your question?", "options": ["Option 1", "Option 2", "Option 3"]}},
     {{"id": "q2", "question": "Another question?", "options": ["A", "B", "C", "D"]}}
   ]
 }}
 
-Generate 5-10 questions covering: platform, language/framework, scale, integrations, deployment, features, UI, data storage.
-
-DO THIS NOW. Create the file immediately. Do not ask for clarification. Do not wait for input.'''
+BEGIN JSON OUTPUT NOW (first character must be {{):'''
 
     # =========================================================================
     # Phase 1: Single Question Generation (Iterative mode)
     # =========================================================================
-    SINGLE_QUESTION_GENERATION = '''TASK: Create a single_question.json file with ONE clarifying question.
+    SINGLE_QUESTION_GENERATION = '''Generate ONE clarifying question for a software development project.
 
-PROJECT DESCRIPTION:
+PROJECT OBJECTIVE:
 {description}
 
 {previous_qa_section}
 
-YOUR TASK:
-Generate exactly ONE new clarifying question about this project that has NOT been asked yet.
-Think about what important information is still missing to fully understand the requirements.
+=== YOUR TASK ===
+Output a JSON object with ONE strategic clarifying question that will help implement this project.
 
-Consider asking about (if not already covered):
-- Target platform (web, mobile, desktop, CLI)
-- Programming language/framework preferences
-- Scale expectations (users, data volume)
-- External integrations (APIs, services)
-- Deployment environment
-- Key features and priorities
-- User interface requirements
-- Data storage needs
-- Authentication/authorization
-- Performance requirements
-- Budget/timeline constraints
+The question must be about the SOFTWARE PROJECT implementation (NOT about individual files).
 
-IMMEDIATE ACTION REQUIRED:
-Create a file called {working_directory}/single_question.json with this exact format:
+GOOD QUESTIONS - use these patterns:
+✓ "What database technology should be used for data storage?"
+   options: ["PostgreSQL", "MongoDB", "SQLite", "Firebase", "No database needed"]
+
+✓ "What type of application should this be?"
+   options: ["Web application", "Desktop application", "CLI tool", "Mobile app"]
+
+✓ "Which programming language should be used for implementation?"
+   options: ["Python", "JavaScript/Node.js", "Java", "Go", "C#"]
+
+✓ "How should users authenticate?"
+   options: ["Email/password", "OAuth (Google/GitHub)", "API keys", "No authentication needed"]
+   
+Other examples of good questions will be about the UI/UX. the objective. make sure it will lead the user to cover all aspects of a full product spec
+
+BAD QUESTIONS - do NOT ask these:
+✗ "What is the purpose of this file?" (we're asking about the project, not a file!)
+✗ Questions already answered in the project description above
+✗ Questions already asked in the previous Q&A section
+
+=== MANDATORY REQUIREMENTS ===
+1. Provide 3-5 concrete options (array CANNOT be empty!)
+2. Options must be realistic implementation choices
+3. Question must be actionable for planning the code
+4. Do NOT repeat previous questions
+
+=== OUTPUT FORMAT ===
+Your response MUST be ONLY valid JSON. No explanatory text before or after.
+Your FIRST character must be {{ and your LAST character must be }}.
+Do NOT include markdown code fences.
+Do NOT say "Here is the JSON" or "I've created" or any other text.
+
+Output this EXACT structure:
 {{
-  "question": "Your clarifying question here?",
-  "options": ["Option A", "Option B", "Option C", "Option D"]
+  "question": "Your specific question about the project implementation?",
+  "options": ["Concrete option 1", "Concrete option 2", "Concrete option 3", "Concrete option 4"]
 }}
 
-RULES:
-- Ask only ONE question
-- Make the question specific and actionable
-- Provide 3-5 reasonable options that cover common choices
-- Do NOT repeat any question that was already asked
-- Focus on gathering information that will help plan the implementation
-
-DO THIS NOW. Create the file immediately.'''
+BEGIN JSON OUTPUT NOW (first character must be {{):'''
 
     # =========================================================================
     # Phase 2: Task Planning
@@ -93,18 +128,21 @@ PROJECT DESCRIPTION:
 USER ANSWERS TO CLARIFYING QUESTIONS:
 {answers}
 
-Create a comprehensive task list for implementing this project. Output ONLY a markdown checklist.
+OUTPUT REQUIREMENTS - READ CAREFULLY:
+Your response MUST be ONLY a markdown checklist. Do NOT include any introductory text, explanations, or commentary.
+Do NOT say "I'll help" or "Here's the plan" or anything similar.
+Your FIRST character must be a dash (-).
 
-RULES:
+TASK LIST RULES:
 1. Use `- [ ]` for each task (unchecked checkbox)
 2. Order tasks by dependency (prerequisites first)
 3. Be specific and actionable - each task should be completable in one coding session
 4. Include setup, implementation, testing, and documentation tasks
-5. Output ONLY the markdown task list, nothing else
-6. Do not use nested tasks or sub-items
-7. Each task should be self-contained
+5. Do not use nested tasks or sub-items
+6. Each task should be self-contained
+7. Create 10-30 tasks depending on project complexity
 
-Example format:
+CORRECT OUTPUT FORMAT (start immediately with tasks):
 - [ ] Initialize project structure with package.json and dependencies
 - [ ] Create database models for User entity
 - [ ] Implement user registration API endpoint
@@ -114,7 +152,9 @@ Example format:
 - [ ] Implement JWT token generation
 - [ ] Add authentication middleware
 - [ ] Write integration tests for auth flow
-- [ ] Create README with setup instructions'''
+- [ ] Create README with setup instructions
+
+BEGIN YOUR OUTPUT NOW (first character must be `-`):'''
 
     # =========================================================================
     # Phase 3: Main Execution
@@ -133,11 +173,11 @@ INSTRUCTIONS:
 3. Implement that task completely and thoroughly
 4. After implementing, update the recent-changes.md file with what you changed
 5. Mark the task as complete in tasks.md by changing `- [ ]` to `- [x]`
-6. If you discover additional tasks that need to be done, add them to tasks.md
+6. If you discover additional tasks that need to be done, add them to tasks.md but do not execute them
 
 CRITICAL RULES:
-- Only work on ONE task per invocation
-- Only remove ONE unchecked task per iteration (by marking it complete)
+- Only work on ONE task and complete it do not complete more than 1 task
+- Only mark one task as complete once you have fully completed it
 - Be thorough - the task should be fully complete before marking done
 - If you cannot complete a task, leave it unchecked and explain in recent-changes.md
 - Always update both tasks.md and recent-changes.md'''

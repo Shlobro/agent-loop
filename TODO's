@@ -10,7 +10,7 @@ when i reach the limit with gemini i get this [15:48:21] [DEB] Final task file c
 when i reach the limit in claude i get something like this in a terminal: "PS C:\Users\shlob> claude -p "<prompt>"
 You've hit your limit · resets 4pm (Asia/Jerusalem)". ofc it's important to recognize in any time zone so try and detect the You've hit your limit when using claude. and let the user know and let him switch to a different llm
 
-
+we have to add another review option of UI/UX
 
 we need to make sure there are these flag files for each step (like if all tasks complete exit the main loop) if the llm found nothing worng in the debugging phase he should output somehwere all clear or something so we can skip the next iteration if all the debuggers passed no problem.
 
@@ -26,7 +26,7 @@ I should be able to change what llm is on what stage while it's running so if i 
 
 should the task planning happen in a loop at the start??? meaning should we allow the llm to iterate a few times and break down tasks further if needed?
 
-
+once all tasks are complete i should be able to run another prompt. currently if there is a bug or it finishes all buttons and inputs are disabled
 
 enforcing the .md format and less than 1000 lines of code...... perhaps make a CLAUDE.md and an AGENTS.md and a GEMINI.md files at the start of the program with the rules? we can have defaults and allow the user to edit them for this project before the main loop starts.
 

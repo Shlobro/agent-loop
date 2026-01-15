@@ -16,11 +16,13 @@ class ExecutionWorker(BaseWorker):
 
     def __init__(self, provider_name: str = "claude",
                  working_directory: str = None,
-                 current_iteration: int = 0):
+                 current_iteration: int = 0,
+                 model: str = None):
         super().__init__()
         self.provider_name = provider_name
         self.working_directory = working_directory
         self.current_iteration = current_iteration
+        self.model = model
 
     def execute(self):
         """Execute a single task."""
@@ -94,7 +96,8 @@ class ExecutionWorker(BaseWorker):
             provider=provider,
             prompt=prompt,
             working_directory=self.working_directory,
-            timeout=600  # 10 minutes for execution tasks
+            timeout=600,  # 10 minutes for execution tasks
+            model=self.model
         )
 
         # Forward signals

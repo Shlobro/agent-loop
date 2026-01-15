@@ -1,7 +1,7 @@
 """Abstract base class for LLM CLI providers."""
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 
 
 class BaseLLMProvider(ABC):
@@ -20,17 +20,75 @@ class BaseLLMProvider(ABC):
         pass
 
     @abstractmethod
-    def build_command(self, prompt: str) -> List[str]:
+    def get_models(self) -> List[Tuple[str, str]]:
+        """
+        Return available models for this provider.
+
+        Returns:
+            List of (model_id, display_name) tuples
+        """
+        pass
+
+    def get_default_model(self) -> str:
+        """Return the default model ID for this provider."""
+        models = self.get_models()
+        return models[0][0] if models else ""
+
+    @abstractmethod
+    def build_command(self, prompt: str, model: Optional[str] = None) -> List[str]:
         """
         Build the CLI command for invoking the LLM.
 
         Args:
             prompt: The prompt to send to the LLM
+            model: Optional model ID to use (if None, uses provider default)
 
         Returns:
             List suitable for subprocess.Popen()
         """
         pass
+
+    @classmethod
+    def get_standard_output_instructions(cls) -> Dict[str, str]:
+        """
+        Return standard output instructions shared across all providers.
+        Providers can override or extend these in their get_output_instruction() method.
+
+        Returns:
+            Dictionary mapping output_type to instruction string
+        """
+        return {
+            "json": (
+                "IMPORTANT: Respond with valid JSON only. "
+                "Do not include markdown code fences. "
+                "Do not include any explanatory text before or after the JSON. "
+                "The response must start with { and end with }."
+            ),
+            "markdown_tasks": (
+                "CRITICAL: You MUST output ONLY a markdown checklist. "
+                "Format: Each line must start with `- [ ]` (unchecked task). "
+                "DO NOT include ANY introductory text, explanations, headers, or commentary. "
+                "DO NOT say 'I can help' or 'Here is'. "
+                "Start your response immediately with the first task line beginning with `- [ ]`. "
+                "Example of CORRECT output:\n"
+                "- [ ] Initialize project with package.json\n"
+                "- [ ] Create database schema\n"
+                "- [ ] Implement API endpoints"
+            ),
+            "review": (
+                "Write your review findings inside ```review ... ``` code blocks. "
+                "Be specific about file locations and line numbers when possible."
+            ),
+            "silent": (
+                "\n=== ABSOLUTE REQUIREMENT ===\n"
+                "You MUST NOT output ANY text to stdout/console/response.\n"
+                "BANNED phrases: 'Done!', 'I've created', 'The file', 'Successfully', 'I have', or ANY similar text.\n"
+                "Your ONLY action: Use file writing tools to create the requested file.\n"
+                "After creating the file: ZERO output. Complete silence.\n"
+                "Outputting any text = FAILURE."
+            ),
+            "freeform": "",
+        }
 
     @abstractmethod
     def get_output_instruction(self, output_type: str) -> str:
@@ -38,7 +96,7 @@ class BaseLLMProvider(ABC):
         Return instruction string for enforcing output format.
 
         Args:
-            output_type: One of 'json', 'markdown_tasks', 'review', 'freeform'
+            output_type: One of 'json', 'markdown_tasks', 'review', 'silent', 'freeform'
 
         Returns:
             Instruction string to append to prompts

@@ -27,7 +27,9 @@ class ReviewWorker(BaseWorker):
                  fixer_provider_name: str = "claude",
                  working_directory: str = None,
                  iterations: int = 5,
-                 start_iteration: int = 0):
+                 start_iteration: int = 0,
+                 reviewer_model: str = None,
+                 fixer_model: str = None):
         super().__init__()
         self.reviewer_provider_name = reviewer_provider_name
         self.fixer_provider_name = fixer_provider_name
@@ -35,6 +37,8 @@ class ReviewWorker(BaseWorker):
         self.iterations = iterations
         self.start_iteration = start_iteration
         self.current_iteration = start_iteration
+        self.reviewer_model = reviewer_model
+        self.fixer_model = fixer_model
 
     def execute(self):
         """Run the review loop."""
@@ -102,7 +106,8 @@ class ReviewWorker(BaseWorker):
         reviewer_worker = LLMWorker(
             provider=reviewer_provider,
             prompt=review_prompt,
-            working_directory=self.working_directory
+            working_directory=self.working_directory,
+            model=self.reviewer_model
         )
 
         reviewer_worker.signals.llm_output.connect(
@@ -145,7 +150,8 @@ class ReviewWorker(BaseWorker):
         fixer_worker = LLMWorker(
             provider=fixer_provider,
             prompt=fixer_prompt,
-            working_directory=self.working_directory
+            working_directory=self.working_directory,
+            model=self.fixer_model
         )
 
         fixer_worker.signals.llm_output.connect(

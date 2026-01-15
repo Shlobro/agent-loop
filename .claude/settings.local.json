@@ -13,7 +13,8 @@
       "Bash(cd:*)",
       "Bash(tree:*)",
       "Bash(python -m py_compile:*)",
-      "Bash(python -c:*)"
+      "Bash(python -c:*)",
+      "Bash(find:*)"
     ]
   }
 }

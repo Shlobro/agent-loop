@@ -18,13 +18,15 @@ class PlanningWorker(BaseWorker):
     def __init__(self, description: str, answers: Dict[str, str],
                  qa_pairs: list = None,
                  provider_name: str = "claude",
-                 working_directory: str = None):
+                 working_directory: str = None,
+                 model: str = None):
         super().__init__()
         self.description = description
         self.answers = answers
         self.qa_pairs = qa_pairs or []
         self.provider_name = provider_name
         self.working_directory = working_directory
+        self.model = model
 
     def execute(self):
         """Generate task list and save to tasks.md."""
@@ -70,7 +72,8 @@ class PlanningWorker(BaseWorker):
         llm_worker = LLMWorker(
             provider=provider,
             prompt=prompt,
-            working_directory=self.working_directory
+            working_directory=self.working_directory,
+            model=self.model
         )
 
         # Forward LLM output signals

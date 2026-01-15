@@ -14,12 +14,14 @@ class GitWorker(BaseWorker):
     def __init__(self, provider_name: str = "claude",
                  working_directory: str = None,
                  auto_push: bool = False,
-                 git_remote: str = ""):
+                 git_remote: str = "",
+                 model: str = None):
         super().__init__()
         self.provider_name = provider_name
         self.working_directory = working_directory
         self.auto_push = auto_push
         self.git_remote = git_remote
+        self.model = model
 
     def execute(self):
         """Run git operations."""
@@ -41,7 +43,8 @@ class GitWorker(BaseWorker):
         commit_worker = LLMWorker(
             provider=provider,
             prompt=commit_prompt,
-            working_directory=self.working_directory
+            working_directory=self.working_directory,
+            model=self.model
         )
 
         commit_worker.signals.llm_output.connect(
@@ -68,7 +71,8 @@ class GitWorker(BaseWorker):
             push_worker = LLMWorker(
                 provider=provider,
                 prompt=push_prompt,
-                working_directory=self.working_directory
+                working_directory=self.working_directory,
+                model=self.model
             )
 
             push_worker.signals.llm_output.connect(

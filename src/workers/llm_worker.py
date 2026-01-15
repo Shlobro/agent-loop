@@ -20,22 +20,25 @@ class LLMWorker(BaseWorker):
 
     def __init__(self, provider: BaseLLMProvider, prompt: str,
                  working_directory: Optional[str] = None,
-                 timeout: int = DEFAULT_TIMEOUT):
+                 timeout: int = DEFAULT_TIMEOUT,
+                 model: Optional[str] = None):
         super().__init__()
         self.provider = provider
         self.prompt = prompt
         self.working_directory = working_directory
         self.timeout = timeout
+        self.model = model
         self.process: Optional[subprocess.Popen] = None
         self._output_lines = []
 
     def execute(self) -> str:
         """Execute the LLM command and return the output."""
-        command = self.provider.build_command(self.prompt)
+        command = self.provider.build_command(self.prompt, model=self.model)
         # Log the exact command being executed for debugging
         command_str = ' '.join(f'"{arg}"' if ' ' in arg or '"' in arg else arg for arg in command)
         self.log(f"Executing command: {command_str}", "info")
-        self.log(f"Provider: {self.provider.display_name}, Timeout: {self.timeout}s", "debug")
+        model_info = f", Model: {self.model}" if self.model else ""
+        self.log(f"Provider: {self.provider.display_name}{model_info}, Timeout: {self.timeout}s", "debug")
 
         # Check if provider uses stdin for prompt
         uses_stdin = getattr(self.provider, 'uses_stdin', False)
