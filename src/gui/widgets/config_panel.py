@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal
 from dataclasses import dataclass
 from pathlib import Path
+import subprocess
 
 
 @dataclass
@@ -16,6 +17,7 @@ class ExecutionConfig:
     debug_loop_iterations: int
     auto_push: bool
     working_directory: str
+    git_remote: str = ""
 
 
 class ConfigPanel(QWidget):
@@ -63,6 +65,16 @@ class ConfigPanel(QWidget):
         self.auto_push_checkbox.stateChanged.connect(self._on_config_changed)
         form.addRow(self.auto_push_checkbox)
 
+        # Git remote URL
+        self.git_remote_edit = QLineEdit()
+        self.git_remote_edit.setPlaceholderText("e.g., https://github.com/user/repo.git")
+        self.git_remote_edit.setToolTip(
+            "Git remote URL (GitHub, GitLab, etc.). "
+            "Will be set as 'origin' remote before pushing."
+        )
+        self.git_remote_edit.textChanged.connect(self._on_config_changed)
+        form.addRow("Git Remote URL:", self.git_remote_edit)
+
         # Working directory
         dir_layout = QHBoxLayout()
         self.working_dir_edit = QLineEdit()
@@ -85,8 +97,31 @@ class ConfigPanel(QWidget):
 
     def _on_working_dir_changed(self):
         """Handle working directory change."""
-        self.working_directory_changed.emit(self.working_dir_edit.text())
+        path = self.working_dir_edit.text()
+        self.working_directory_changed.emit(path)
         self.config_changed.emit()
+
+        # Auto-detect git remote if not already set
+        if path and not self.git_remote_edit.text().strip():
+            remote = self._detect_git_remote(path)
+            if remote:
+                self.git_remote_edit.setText(remote)
+
+    def _detect_git_remote(self, directory: str) -> str:
+        """Detect the git remote URL for origin in the given directory."""
+        try:
+            result = subprocess.run(
+                ["git", "remote", "get-url", "origin"],
+                cwd=directory,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except (subprocess.SubprocessError, OSError):
+            pass
+        return ""
 
     def _on_browse_clicked(self):
         """Open directory browser dialog."""
@@ -109,7 +144,8 @@ class ConfigPanel(QWidget):
             max_main_iterations=self.max_iterations_spin.value(),
             debug_loop_iterations=self.debug_iterations_spin.value(),
             auto_push=self.auto_push_checkbox.isChecked(),
-            working_directory=self.working_dir_edit.text().strip()
+            working_directory=self.working_dir_edit.text().strip(),
+            git_remote=self.git_remote_edit.text().strip()
         )
 
     def set_config(self, config: ExecutionConfig):
@@ -118,6 +154,7 @@ class ConfigPanel(QWidget):
         self.debug_iterations_spin.setValue(config.debug_loop_iterations)
         self.auto_push_checkbox.setChecked(config.auto_push)
         self.working_dir_edit.setText(config.working_directory)
+        self.git_remote_edit.setText(config.git_remote or "")
 
     def set_working_directory(self, path: str):
         """Set the working directory."""
@@ -137,4 +174,5 @@ class ConfigPanel(QWidget):
         self.max_iterations_spin.setEnabled(enabled)
         self.debug_iterations_spin.setEnabled(enabled)
         self.auto_push_checkbox.setEnabled(enabled)
+        self.git_remote_edit.setEnabled(enabled)
         self.browse_button.setEnabled(enabled)

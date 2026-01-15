@@ -66,6 +66,7 @@ class StateContext:
     pause_requested: bool = False
     working_directory: str = ""
     auto_push: bool = False
+    git_remote: str = ""
     # LLM configuration per stage
     llm_config: Dict[str, str] = field(default_factory=lambda: {
         "question_gen": "gemini",
@@ -92,15 +93,16 @@ class StateMachine(QObject):
     workflow_completed = Signal(bool)  # success
 
     # Valid transitions mapping
+    # NOTE: GIT_OPERATIONS can transition back to MAIN_EXECUTION for per-task workflow
     TRANSITIONS = {
         Phase.IDLE: [Phase.QUESTION_GENERATION, Phase.MAIN_EXECUTION, Phase.CANCELLED],
         Phase.QUESTION_GENERATION: [Phase.AWAITING_ANSWERS, Phase.ERROR, Phase.CANCELLED, Phase.PAUSED],
         Phase.AWAITING_ANSWERS: [Phase.TASK_PLANNING, Phase.CANCELLED, Phase.PAUSED],
         Phase.TASK_PLANNING: [Phase.MAIN_EXECUTION, Phase.ERROR, Phase.CANCELLED, Phase.PAUSED],
-        Phase.MAIN_EXECUTION: [Phase.DEBUG_REVIEW, Phase.GIT_OPERATIONS, Phase.ERROR, Phase.CANCELLED, Phase.PAUSED],
+        Phase.MAIN_EXECUTION: [Phase.DEBUG_REVIEW, Phase.GIT_OPERATIONS, Phase.COMPLETED, Phase.ERROR, Phase.CANCELLED, Phase.PAUSED],
         Phase.DEBUG_REVIEW: [Phase.GIT_OPERATIONS, Phase.ERROR, Phase.CANCELLED, Phase.PAUSED],
-        Phase.GIT_OPERATIONS: [Phase.AWAITING_GIT_APPROVAL, Phase.COMPLETED, Phase.ERROR, Phase.CANCELLED, Phase.PAUSED],
-        Phase.AWAITING_GIT_APPROVAL: [Phase.COMPLETED, Phase.CANCELLED],
+        Phase.GIT_OPERATIONS: [Phase.MAIN_EXECUTION, Phase.AWAITING_GIT_APPROVAL, Phase.COMPLETED, Phase.ERROR, Phase.CANCELLED, Phase.PAUSED],
+        Phase.AWAITING_GIT_APPROVAL: [Phase.MAIN_EXECUTION, Phase.COMPLETED, Phase.CANCELLED],
         Phase.COMPLETED: [Phase.IDLE],
         Phase.PAUSED: [Phase.QUESTION_GENERATION, Phase.AWAITING_ANSWERS, Phase.TASK_PLANNING,
                        Phase.MAIN_EXECUTION, Phase.DEBUG_REVIEW, Phase.GIT_OPERATIONS, Phase.CANCELLED],
@@ -272,6 +274,7 @@ class StateMachine(QObject):
                 "current_review_type": self._context.current_review_type,
                 "working_directory": self._context.working_directory,
                 "auto_push": self._context.auto_push,
+                "git_remote": self._context.git_remote,
                 "llm_config": self._context.llm_config,
             }
         }
@@ -293,6 +296,7 @@ class StateMachine(QObject):
         self._context.current_review_type = ctx.get("current_review_type", "")
         self._context.working_directory = ctx.get("working_directory", "")
         self._context.auto_push = ctx.get("auto_push", False)
+        self._context.git_remote = ctx.get("git_remote", "")
         self._context.llm_config = ctx.get("llm_config", self._context.llm_config)
 
         self.phase_changed.emit(self._phase, self._sub_phase)

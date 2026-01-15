@@ -321,7 +321,7 @@ Example: "Implement user authentication with JWT tokens"'''
 
     GIT_PUSH = '''Push the committed changes to the remote repository.
 
-Run: `git push`
+{remote_setup}Run: `git push -u origin HEAD`
 
 If push fails due to remote changes, do NOT force push.
 Instead, report the error and suggest the user resolve it manually.'''
@@ -380,3 +380,17 @@ Instead, report the error and suggest the user resolve it manually.'''
             review_type=review_type,
             review_content=review_content
         )
+
+    @classmethod
+    def format_git_push_prompt(cls, git_remote: str = "") -> str:
+        """Format the git push prompt with optional remote setup."""
+        if git_remote:
+            remote_setup = f'''First, set up the remote (if not already configured):
+1. Check if origin exists: `git remote -v`
+2. If origin doesn't exist, add it: `git remote add origin {git_remote}`
+3. If origin exists but points elsewhere, update it: `git remote set-url origin {git_remote}`
+
+'''
+        else:
+            remote_setup = ""
+        return cls.GIT_PUSH.format(remote_setup=remote_setup)

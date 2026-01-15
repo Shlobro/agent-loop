@@ -11,7 +11,9 @@
       "WebSearch",
       "WebFetch(domain:www.pythonguis.com)",
       "Bash(cd:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(python -c:*)"
     ]
   }
 }

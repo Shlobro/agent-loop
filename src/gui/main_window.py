@@ -210,6 +210,7 @@ class MainWindow(QMainWindow):
             max_iterations=config.max_main_iterations,
             debug_iterations=config.debug_loop_iterations,
             auto_push=config.auto_push,
+            git_remote=config.git_remote,
             llm_config=llm_config
         )
 
@@ -220,6 +221,21 @@ class MainWindow(QMainWindow):
         # Clear log
         self.log_viewer.clear()
         self.log_viewer.append_log("Starting workflow...", "info")
+        self.log_viewer.append_log("=" * 50, "info")
+        self.log_viewer.append_log("WORKFLOW CONFIGURATION:", "info")
+        self.log_viewer.append_log(f"  Working Directory: {working_dir}", "info")
+        self.log_viewer.append_log(f"  Max Main Iterations: {config.max_main_iterations}", "info")
+        self.log_viewer.append_log(f"  Debug Loop Iterations: {config.debug_loop_iterations}", "info")
+        self.log_viewer.append_log(f"  Auto Push: {config.auto_push}", "info")
+        self.log_viewer.append_log(f"  Git Remote: {config.git_remote or '(not set)'}", "info")
+        self.log_viewer.append_log("LLM PROVIDERS:", "info")
+        self.log_viewer.append_log(f"  Question Gen: {llm_config.get('question_gen', 'N/A')}", "info")
+        self.log_viewer.append_log(f"  Task Planning: {llm_config.get('task_planning', 'N/A')}", "info")
+        self.log_viewer.append_log(f"  Coder: {llm_config.get('coder', 'N/A')}", "info")
+        self.log_viewer.append_log(f"  Reviewer: {llm_config.get('reviewer', 'N/A')}", "info")
+        self.log_viewer.append_log(f"  Fixer: {llm_config.get('fixer', 'N/A')}", "info")
+        self.log_viewer.append_log(f"  Git Ops: {llm_config.get('git_ops', 'N/A')}", "info")
+        self.log_viewer.append_log("=" * 50, "info")
 
         # Start Phase 1: Question Generation
         self.state_machine.transition_to(Phase.QUESTION_GENERATION)
@@ -342,7 +358,8 @@ class MainWindow(QMainWindow):
                 max_main_iterations=ctx.max_iterations,
                 debug_loop_iterations=ctx.debug_iterations,
                 auto_push=ctx.auto_push,
-                working_directory=ctx.working_directory
+                working_directory=ctx.working_directory,
+                git_remote=ctx.git_remote
             ))
 
             self.file_manager = FileManager(ctx.working_directory)
@@ -356,10 +373,13 @@ class MainWindow(QMainWindow):
     @Slot(dict)
     def on_answers_submitted(self, answers: dict):
         """Handle question answers submission."""
-        self.log_viewer.append_log(f"Received {len(answers)} answers", "info")
+        self.log_viewer.append_log(f"Received {len(answers)} answers from user", "info")
+        for q_id, answer in answers.items():
+            self.log_viewer.append_log(f"  {q_id}: {answer[:60]}{'...' if len(answer) > 60 else ''}", "debug")
         self.state_machine.update_context(answers=answers)
 
         # Move to task planning
+        self.log_viewer.append_log("Transitioning to Task Planning phase...", "info")
         self.state_machine.transition_to(Phase.TASK_PLANNING)
         self.run_task_planning()
 
@@ -415,23 +435,29 @@ class MainWindow(QMainWindow):
         self.log_viewer.append_success("Task list created")
 
         # Move to main execution
+        self.log_viewer.append_log("Transitioning to Main Execution phase...", "info")
         self.state_machine.transition_to(Phase.MAIN_EXECUTION)
         self.run_main_execution()
 
     def run_main_execution(self):
-        """Run Phase 3: Main Execution Loop."""
+        """Run Phase 3: Execute a single task."""
         ctx = self.state_machine.context
+
+        # Check max iterations limit
+        if ctx.current_iteration >= ctx.max_iterations:
+            self.log_viewer.append_log(f"Max iterations ({ctx.max_iterations}) reached", "warning")
+            self.state_machine.transition_to(Phase.COMPLETED)
+            return
 
         worker = ExecutionWorker(
             provider_name=ctx.llm_config.get("coder", "claude"),
             working_directory=ctx.working_directory,
-            max_iterations=ctx.max_iterations,
-            start_iteration=ctx.current_iteration
+            current_iteration=ctx.current_iteration
         )
 
         self._connect_worker_signals(worker)
         worker.signals.iteration_complete.connect(self.on_iteration_complete)
-        worker.signals.result.connect(self.on_execution_complete)
+        worker.signals.result.connect(self.on_single_task_complete)
 
         self.current_worker = worker
         self.thread_pool.start(worker)
@@ -444,19 +470,37 @@ class MainWindow(QMainWindow):
         self.status_panel.set_iteration(iteration, ctx.max_iterations)
 
     @Slot(object)
-    def on_execution_complete(self, result: dict):
-        """Handle main execution completion."""
+    def on_single_task_complete(self, result: dict):
+        """Handle single task execution completion - then proceed to review and git."""
+        self.log_viewer.append_log(f"Single task execution result: {result}", "debug")
+
         if result.get("stopped_early"):
+            self.log_viewer.append_log("Execution stopped early", "warning")
             if self.state_machine.context.pause_requested:
                 self.state_machine.transition_to(Phase.PAUSED)
             return
 
+        # Update iteration count
+        self.state_machine.update_context(current_iteration=result.get("iteration", 0))
+
+        # Check if all tasks are done
+        if result.get("all_tasks_done"):
+            self.log_viewer.append_log("All tasks completed!", "success")
+            self.state_machine.transition_to(Phase.COMPLETED)
+            return
+
+        # Task was worked on - now run review loop for this task's changes
+        self.log_viewer.append_log(f"Task iteration {result.get('iteration')} complete", "success")
+
         # Check if we should run review loop
         if self.state_machine.context.debug_iterations > 0:
+            self.log_viewer.append_log(f"Running Debug/Review for this task ({self.state_machine.context.debug_iterations} iterations)...", "info")
             self.state_machine.transition_to(Phase.DEBUG_REVIEW)
             self.run_review_loop()
         else:
-            # Skip to git
+            # Skip review, go directly to git for this task
+            self.log_viewer.append_log("Skipping Debug/Review phase (0 iterations configured)", "info")
+            self.log_viewer.append_log("Transitioning to Git Operations for this task...", "info")
             self.state_machine.transition_to(Phase.GIT_OPERATIONS)
             self.run_git_operations()
 
@@ -487,13 +531,19 @@ class MainWindow(QMainWindow):
 
     @Slot(object)
     def on_review_loop_complete(self, result: dict):
-        """Handle review loop completion."""
+        """Handle review loop completion for current task."""
+        self.log_viewer.append_log(f"Review loop result: {result}", "debug")
+
         if result.get("stopped_early"):
+            self.log_viewer.append_log("Review loop stopped early", "warning")
             if self.state_machine.context.pause_requested:
                 self.state_machine.transition_to(Phase.PAUSED)
             return
 
-        # Move to git operations
+        self.log_viewer.append_log(f"Review loop completed: {result.get('review_iterations_completed', 0)} iterations", "success")
+
+        # Move to git operations for this task
+        self.log_viewer.append_log("Transitioning to Git Operations for this task...", "info")
         self.state_machine.transition_to(Phase.GIT_OPERATIONS)
         self.run_git_operations()
 
@@ -501,23 +551,30 @@ class MainWindow(QMainWindow):
         """Run Phase 5: Git Operations."""
         ctx = self.state_machine.context
         auto_push = ctx.auto_push
+        self.log_viewer.append_log(f"Initial auto_push setting: {auto_push}", "debug")
 
         # If not auto-push and we remember choice, use that
         if not auto_push and self.remember_push_choice:
             auto_push = self.auto_push_remembered
+            self.log_viewer.append_log(f"Using remembered push choice: {auto_push}", "debug")
 
         # If still not auto-push, ask user
         if not auto_push and not self.remember_push_choice:
+            self.log_viewer.append_log("Prompting user for push approval...", "info")
             should_push, remember = GitApprovalDialog.get_approval(self)
             if remember:
                 self.remember_push_choice = True
                 self.auto_push_remembered = should_push
             auto_push = should_push
+            self.log_viewer.append_log(f"User chose: push={should_push}, remember={remember}", "info")
+
+        self.log_viewer.append_log(f"Final push decision: {auto_push}", "info")
 
         worker = GitWorker(
             provider_name=ctx.llm_config.get("git_ops", "claude"),
             working_directory=ctx.working_directory,
-            auto_push=auto_push
+            auto_push=auto_push,
+            git_remote=ctx.git_remote
         )
 
         self._connect_worker_signals(worker)
@@ -528,19 +585,58 @@ class MainWindow(QMainWindow):
 
     @Slot(object)
     def on_git_complete(self, result: dict):
-        """Handle git operations completion."""
+        """Handle git operations completion - then check for more tasks."""
+        self.log_viewer.append_log(f"Git operations result: {result}", "debug")
+
         if result.get("committed"):
-            self.log_viewer.append_success("Changes committed")
+            self.log_viewer.append_success("Changes committed to local repository")
+        else:
+            self.log_viewer.append_warning("No commit was made")
+
         if result.get("pushed"):
-            self.log_viewer.append_success("Changes pushed to remote")
+            self.log_viewer.append_success("Changes pushed to remote repository")
+        else:
+            self.log_viewer.append_log("Changes were NOT pushed to remote", "info")
+
+        # Clear recent-changes.md for the next task (so reviews are scoped to that task's changes)
+        self._clear_recent_changes()
+
+        # Check if there are more incomplete tasks
+        from ..utils.markdown_parser import has_incomplete_tasks
+        ctx = self.state_machine.context
+
+        if self.file_manager:
+            tasks_content = self.file_manager.read_tasks()
+            if has_incomplete_tasks(tasks_content):
+                # More tasks remain - cycle back to main execution
+                self.log_viewer.append_log("=" * 50, "info")
+                self.log_viewer.append_log("More tasks remaining - starting next task...", "info")
+                self.log_viewer.append_log("=" * 50, "info")
+                self.state_machine.transition_to(Phase.MAIN_EXECUTION)
+                self.run_main_execution()
+                return
+
+        # All tasks done - workflow complete
+        self.log_viewer.append_log("All tasks have been completed!", "success")
 
         # Clean up session file
         try:
             self.session_manager.delete_session()
-        except Exception:
-            pass
+            self.log_viewer.append_log("Session file cleaned up", "debug")
+        except Exception as e:
+            self.log_viewer.append_log(f"Failed to delete session: {e}", "debug")
 
+        self.log_viewer.append_log("Transitioning to Completed phase...", "info")
         self.state_machine.transition_to(Phase.COMPLETED)
+
+    def _clear_recent_changes(self):
+        """Clear recent-changes.md after git push so next task starts fresh."""
+        if self.file_manager:
+            try:
+                self.file_manager.write_recent_changes("# Recent Changes\n\n")
+                self.log_viewer.append_log("Cleared recent-changes.md for next task", "debug")
+            except Exception as e:
+                self.log_viewer.append_log(f"Failed to clear recent-changes.md: {e}", "warning")
 
     def _connect_worker_signals(self, worker):
         """Connect common worker signals."""
@@ -555,6 +651,12 @@ class MainWindow(QMainWindow):
         """Handle worker error."""
         exc_type, exc_value, tb_str = error_info
         self.log_viewer.append_error(f"Error: {exc_value}")
+        self.log_viewer.append_log(f"Exception type: {exc_type.__name__ if exc_type else 'Unknown'}", "debug")
+        if tb_str:
+            # Log first few lines of traceback
+            tb_lines = tb_str.strip().split('\n')
+            for line in tb_lines[-5:]:  # Last 5 lines
+                self.log_viewer.append_log(f"  {line}", "debug")
         self.state_machine.set_error(str(exc_value))
 
     @Slot()

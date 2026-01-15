@@ -1,11 +1,53 @@
-the way questions work should be changed.
-one question at a time each time have the llm think of the next question reading the current description and questions. this loop should run for 20 questions with the option perhaps for the llm to write to a file that will act as a flag of when to exit early
-
-there needs to be a box in the UI to enter the remote (like github) so that the git commands work
+the way questions work should be changed. one question at a time each time have the llm think of the next question reading the current description and questions that have already been asked. this loop should run for 20 questions with the option perhaps for the llm to write to a file that will act as a flag of when to exit early. maybe we should have the user decide when to stop getting more questions
 
 
+------there needs to be a box in the UI to enter the remote (like github) so that the git commands work
 
-I need way more verbose output so i can follow wtf is going on.
+
+------from what I'm seeing it seems to be I might be wrong but it seems like it finishes all the tasks and only then starts the debug loop instead of debugging after every change and git pushing after every loop. what should happen is complete a task. do a debug loop (which can be going over the changes a few times even though this is overkill) push to github and only then move to the next task
+
+
+------need way more verbose output so i can follow wtf is going on.
 
 
 and option to save the current state to continue some other time.
+
+
+we need to make sure there are these flag files for each step (like if all tasks complete exit the main loop) if the llm found nothing worng in the debugging phase he should output somehwere all clear or something so we can skip the next iteration if all the debuggers passed no problem.
+
+
+I need more GUI feedback of what's going on. when generating questions there should be nice text in the questions section saying Generating questions..... like the entire clarifying questions section should be transformed to current phase and some detail of whats going on. more UI freindly then the logger. but like in the debug phase it should show the findings of each debugger as it is happening.
+
+
+where the original project description was where the user entered the descreption after the question phase we should generate a full description taking into account the questions and display that there. there should also be the checklist of tasks that we are going through which should be marked as the ai get's through these tasks so the user can see visual progress
+
+
+I should be able to change what llm is on what stage while it's running so if i want to change the debugger to codex for some reason mid run i should be able to do so
+
+
+should the task planning happen in a loop at the start??? meaning should we allow the llm to iterate a few times and break down tasks further if needed?
+
+
+
+enforcing the .md format and less than 1000 lines of code...... perhaps make a CLAUDE.md and an AGENTS.md and a GEMINI.md files at the start of the program with the rules? we can have defaults and allow the user to edit them for this project before the main loop starts.
+
+if the debuggers change anything they should also update the recent changes
+
+With UI programs we have the issue of the agent running it and then waiting for it to quit sometimes? does this mean we need user input?
+
+the recent changes should not be over 500 lines long. this should be handled by the code to start erasing old lines to keep it at 500 lines
+
+need an option in the UI to add things to the list of what needs to be done
+
+
+
+
+
+
+
+
+if it's a UI thingy is there a way to extract screenshots from the UI to debug
+
+
+
+should we have a more explicit way for agents to add tasks like have a dedicated call to the llm to check it out? meaning at the end of each full iteration have a look and see if any new tasks come up?
