@@ -1,7 +1,7 @@
 """Panel for execution configuration options."""
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QFormLayout, QSpinBox, QCheckBox,
+    QWidget, QVBoxLayout, QFormLayout, QSpinBox, QCheckBox, QLabel,
     QLineEdit, QPushButton, QHBoxLayout, QGroupBox, QFileDialog
 )
 from PySide6.QtCore import Signal
@@ -18,9 +18,9 @@ class ExecutionConfig:
     """Execution configuration settings."""
     max_main_iterations: int
     debug_loop_iterations: int
-    auto_push: bool
     working_directory: str
     git_remote: str = ""
+    git_mode: str = "local"
     max_questions: int = 20
     review_types: List[str] = field(
         default_factory=lambda: [r.value for r in PromptTemplates.get_all_review_types()]
@@ -37,6 +37,8 @@ class ConfigPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._git_mode = "local"
+        self._controls_enabled = True
         self.setup_ui()
 
     def setup_ui(self):
@@ -73,17 +75,8 @@ class ConfigPanel(QWidget):
         self.debug_iterations_spin.valueChanged.connect(self._on_config_changed)
         form.addRow("Debug Loop Iterations:", self.debug_iterations_spin)
 
-        # Auto-push checkbox
-        self.auto_push_checkbox = QCheckBox("Auto-push to Git")
-        self.auto_push_checkbox.setChecked(False)
-        self.auto_push_checkbox.setToolTip(
-            "If checked, automatically push after commit. "
-            "If unchecked, you'll be asked before pushing."
-        )
-        self.auto_push_checkbox.stateChanged.connect(self._on_config_changed)
-        form.addRow(self.auto_push_checkbox)
-
         # Git remote URL
+        self.git_remote_label = QLabel("Git Remote URL:")
         self.git_remote_edit = QLineEdit()
         self.git_remote_edit.setPlaceholderText("e.g., https://github.com/user/repo.git")
         self.git_remote_edit.setToolTip(
@@ -91,7 +84,9 @@ class ConfigPanel(QWidget):
             "Will be set as 'origin' remote before pushing."
         )
         self.git_remote_edit.textChanged.connect(self._on_config_changed)
-        form.addRow("Git Remote URL:", self.git_remote_edit)
+        form.addRow(self.git_remote_label, self.git_remote_edit)
+        self.git_remote_label.setVisible(False)
+        self.git_remote_edit.setVisible(False)
 
         # Working directory
         dir_layout = QHBoxLayout()
@@ -131,12 +126,6 @@ class ConfigPanel(QWidget):
         self.working_directory_changed.emit(path)
         self.config_changed.emit()
 
-        # Auto-detect git remote if not already set
-        if path and not self.git_remote_edit.text().strip():
-            remote = self._detect_git_remote(path)
-            if remote:
-                self.git_remote_edit.setText(remote)
-
     def _detect_git_remote(self, directory: str) -> str:
         """Detect the git remote URL for origin in the given directory."""
         try:
@@ -173,9 +162,9 @@ class ConfigPanel(QWidget):
         return ExecutionConfig(
             max_main_iterations=self.max_iterations_spin.value(),
             debug_loop_iterations=self.debug_iterations_spin.value(),
-            auto_push=self.auto_push_checkbox.isChecked(),
             working_directory=self.working_dir_edit.text().strip(),
             git_remote=self.git_remote_edit.text().strip(),
+            git_mode=self._git_mode,
             max_questions=self.max_questions_spin.value(),
             review_types=self.get_review_types()
         )
@@ -185,9 +174,9 @@ class ConfigPanel(QWidget):
         self.max_questions_spin.setValue(config.max_questions)
         self.max_iterations_spin.setValue(config.max_main_iterations)
         self.debug_iterations_spin.setValue(config.debug_loop_iterations)
-        self.auto_push_checkbox.setChecked(config.auto_push)
         self.working_dir_edit.setText(config.working_directory)
         self.git_remote_edit.setText(config.git_remote or "")
+        self.set_git_mode(config.git_mode)
         selected = set(config.review_types or [])
         for review_type, checkbox in self.review_checkboxes.items():
             checkbox.setChecked(review_type in selected)
@@ -215,11 +204,27 @@ class ConfigPanel(QWidget):
 
     def set_enabled(self, enabled: bool):
         """Enable or disable all controls."""
+        self._controls_enabled = enabled
         self.max_questions_spin.setEnabled(enabled)
         self.max_iterations_spin.setEnabled(enabled)
         self.debug_iterations_spin.setEnabled(enabled)
-        self.auto_push_checkbox.setEnabled(enabled)
-        self.git_remote_edit.setEnabled(enabled)
         self.browse_button.setEnabled(enabled)
         for checkbox in self.review_checkboxes.values():
             checkbox.setEnabled(enabled)
+
+    def set_git_mode(self, mode: str):
+        """Update the git mode and refresh related controls."""
+        self._git_mode = mode
+        self._on_config_changed()
+
+    def set_git_remote(self, remote: str):
+        """Store the git remote URL without showing it in the UI."""
+        self.git_remote_edit.setText(remote)
+
+    def get_git_remote(self) -> str:
+        """Return the current git remote URL."""
+        return self.git_remote_edit.text().strip()
+
+    def get_git_mode(self) -> str:
+        """Return the current git mode."""
+        return self._git_mode

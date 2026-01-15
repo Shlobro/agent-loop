@@ -71,7 +71,7 @@ class StateContext:
     stop_requested: bool = False
     pause_requested: bool = False
     working_directory: str = ""
-    auto_push: bool = False
+    git_mode: str = "local"
     git_remote: str = ""
     # Iterative question generation
     max_questions: int = 20
@@ -289,7 +289,7 @@ class StateMachine(QObject):
                 "current_review_type": self._context.current_review_type,
                 "review_types": self._context.review_types,
                 "working_directory": self._context.working_directory,
-                "auto_push": self._context.auto_push,
+                "git_mode": self._context.git_mode,
                 "git_remote": self._context.git_remote,
                 "max_questions": self._context.max_questions,
                 "current_question_num": self._context.current_question_num,
@@ -321,7 +321,7 @@ class StateMachine(QObject):
             [r.value for r in PromptTemplates.get_all_review_types()]
         )
         self._context.working_directory = ctx.get("working_directory", "")
-        self._context.auto_push = ctx.get("auto_push", False)
+        self._context.git_mode = ctx.get("git_mode", "local")
         self._context.git_remote = ctx.get("git_remote", "")
         self._context.max_questions = ctx.get("max_questions", 20)
         self._context.current_question_num = ctx.get("current_question_num", 0)

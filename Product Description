@@ -31,28 +31,31 @@ LLMs are explicitly told:
 “You may only remove ONE unchecked task per iteration.”
 
 there should be a for loop here the user should input the amount of times the debug loop should run default should be 5
-another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff from an Architecture prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
+another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff (if git mode is enabled) or recent-changes.md/workspace diffs (if git mode is disabled) from an Architecture prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
 another prompt sent to an llm in headless mode should be something like: "look at review.md, decide if you agree or disagree. if you agree fix the what is mentioned there."
 then the file should be truncated.
-another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff from an Efficiency prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
+another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff (if git mode is enabled) or recent-changes.md/workspace diffs (if git mode is disabled) from an Efficiency prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
 another prompt sent to an llm in headless mode should be something like: "look at review.md, decide if you agree or disagree. if you agree fix the what is mentioned there."
 then the file should be truncated.
-another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff from an Error Handling prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
+another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff (if git mode is enabled) or recent-changes.md/workspace diffs (if git mode is disabled) from an Error Handling prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
 another prompt sent to an llm in headless mode should be something like: "look at review.md, decide if you agree or disagree. if you agree fix the what is mentioned there."
 then the file should be truncated.
-another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff from a safety prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
+another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff (if git mode is enabled) or recent-changes.md/workspace diffs (if git mode is disabled) from a safety prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
 another prompt sent to an llm in headless mode should be something like: "look at review.md, decide if you agree or disagree. if you agree fix the what is mentioned there."
 then the file should be truncated.
-another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff from a Testing prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
+another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff (if git mode is enabled) or recent-changes.md/workspace diffs (if git mode is disabled) from a Testing prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
 another prompt sent to an llm in headless mode should be something like: "look at review.md, decide if you agree or disagree. if you agree fix the what is mentioned there."
 then the file should be truncated.
-another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff from a Documentation prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
+another prompt sent to an llm in headless mode should be something like: "review the recent changes using git diff (if git mode is enabled) or recent-changes.md/workspace diffs (if git mode is disabled) from a Documentation prespective, if you find anything that should be fixed suggest why it should be changed and how. insert your findings into review.md"
 another prompt sent to an llm in headless mode should be something like: "look at review.md, decide if you agree or disagree. if you agree fix the what is mentioned there."
 then the file should be truncated.
 this is the end of the debug loop
 
 
-another prompt should be sent to an LLM where it tells the llm to git add git commit and git push
+another prompt should be sent to an LLM where it tells the llm to do git actions if (and only if) the user enabled git. Git must be fully user-controlled:
+- "Git mode: Off" (skip all git steps entirely)
+- "Git mode: Local only" (git add/commit, no push)
+- "Git mode: Local + push" (git add/commit/push)
 
 
 
@@ -110,6 +113,6 @@ Git: Python executes git add ., git commit -m "Implemented [Task]", git push.
 
 
 another suggestion from gemini:
-Git Safety: Add a checkbox in the UI: "Auto-push to Git". If unchecked, the loop pauses after the commit step and waits for user approval.
+Git Safety: Add a checkbox in the UI: "Auto-push to Git". If unchecked, the loop pauses after the commit step and waits for user approval. If Git mode is Off, hide/disable this checkbox and skip all git-related prompts and actions.
 
 

@@ -32,7 +32,7 @@ class ProjectSettings:
     max_main_iterations: int = 50
     debug_loop_iterations: int = 5
     max_questions: int = 20
-    auto_push: bool = False
+    git_mode: str = "local"
 
     # Project Configuration
     working_directory: str = ""
@@ -79,7 +79,8 @@ class ProjectSettingsManager:
             with path.open('r', encoding='utf-8') as f:
                 settings_dict = json.load(f)
 
-            return ProjectSettings(**settings_dict)
+            normalized = ProjectSettingsManager._normalize_settings_dict(settings_dict)
+            return ProjectSettings(**normalized)
         except json.JSONDecodeError as e:
             raise RuntimeError(f"Invalid settings file format: {e}")
         except TypeError as e:
@@ -95,4 +96,17 @@ class ProjectSettingsManager:
     @staticmethod
     def dict_to_settings(settings_dict: Dict[str, Any]) -> ProjectSettings:
         """Convert dictionary to ProjectSettings."""
-        return ProjectSettings(**settings_dict)
+        normalized = ProjectSettingsManager._normalize_settings_dict(settings_dict)
+        return ProjectSettings(**normalized)
+
+    @staticmethod
+    def _normalize_settings_dict(settings_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize settings dict for backward compatibility."""
+        field_names = {f.name for f in ProjectSettings.__dataclass_fields__.values()}
+        normalized = {k: v for k, v in settings_dict.items() if k in field_names}
+
+        if "git_mode" not in normalized:
+            auto_push = settings_dict.get("auto_push", False)
+            normalized["git_mode"] = "push" if auto_push else "local"
+
+        return normalized

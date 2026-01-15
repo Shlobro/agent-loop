@@ -1,4 +1,4 @@
-add option to save the current state to continue some other time.
+add option to save the current state to continue some other time. this should include everything. where i am in the loops all the settings, 100% save and continue later. should be a different than just saving the settings that already exists.
 
 even if all tasks are complete we still need to run the reviewers one last time (unless the review loop was set to 0)
 
@@ -15,8 +15,6 @@ we have to add another review option of UI/UX (besides the debugging and all the
 we need to make sure there are these flag files for each step (like if all tasks complete exit the main loop) if the llm found nothing wording in the debugging phase he should output somewhere all clear or something so we can skip the next iteration if all the debuggers passed no problem.
 
 make sure we are dealing with cases where i launch the program again, meaning everything is reset. make sure questions json is empty and so on.
-
-****I need more GUI feedback of what's going on. when generating questions there should be nice text in the questions section saying Generating questions..... like the entire clarifying questions section after the questions phase should be transformed to current phase and some detail of whats going on. more UI friendly then the logger. for example in the debug phase it should show the findings of each debugger as it is happening. basically the clarifying questions section should be gotten rid of after the questions phase and be turned into a super UI stats of whats going on. what is the current phase. what is the agent working on exactly at the moment, what reviewer is running, whad did the reviwer find. should be least text as possible while giving the most information of what is going on at the momnent as possible.
 
 where the original project description was where the user entered the description after the question phase we should generate a full description taking into account the questions and display that there. there should also be the checklist of tasks that we are going through which should be marked as the ai get's through these tasks so the user can see visual progress
 
@@ -52,9 +50,6 @@ Long term we need to add support for all LLM's and models that people use and be
 
 review should start with general review and then go into specifics
 
-there should be an options menu where you can choose what reviewers run and what don't with checkboxes.
-
-the entire git part of the story should be user optional. the user should be able to skip commiting at all if he wants. or he can choose to only have local version control
 
 I should be able to continue if the workflow is complete either by just saying keep running for x iterations and it will skip the whole question part or by giving it a new feature.
 

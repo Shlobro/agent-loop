@@ -13,13 +13,13 @@ class GitWorker(BaseWorker):
 
     def __init__(self, provider_name: str = "claude",
                  working_directory: str = None,
-                 auto_push: bool = False,
+                 push_enabled: bool = False,
                  git_remote: str = "",
                  model: str = None):
         super().__init__()
         self.provider_name = provider_name
         self.working_directory = working_directory
-        self.auto_push = auto_push
+        self.push_enabled = push_enabled
         self.git_remote = git_remote
         self.model = model
 
@@ -28,7 +28,7 @@ class GitWorker(BaseWorker):
         self.update_status("Performing git operations...")
         self.log(f"=== GIT OPERATIONS PHASE START ===", "phase")
         self.log(f"Working directory: {self.working_directory}", "info")
-        self.log(f"Auto-push enabled: {self.auto_push}", "info")
+        self.log(f"Push enabled: {self.push_enabled}", "info")
 
         provider = LLMProviderRegistry.get(self.provider_name)
         self.log(f"Using LLM provider: {provider.display_name}", "info")
@@ -60,12 +60,12 @@ class GitWorker(BaseWorker):
 
         self.log("Changes committed successfully", "success")
 
-        # Step 2: Push if auto_push is enabled
+        # Step 2: Push if enabled
         pushed = False
-        if self.auto_push:
+        if self.push_enabled:
             self.update_status("Pushing changes...")
             self.log("Step 2: Pushing to remote...", "info")
-            self.log("Auto-push is enabled, will attempt git push", "debug")
+            self.log("Push is enabled, will attempt git push", "debug")
 
             push_prompt = PromptTemplates.format_git_push_prompt(self.git_remote)
             self.log(f"Git remote URL: {self.git_remote or '(not set)'}", "debug")
@@ -89,9 +89,8 @@ class GitWorker(BaseWorker):
             else:
                 self.log("Git push was cancelled", "warning")
         else:
-            self.update_status("Skipping push (auto-push off)")
-            self.log("Step 2: Skipping push (auto-push disabled)", "info")
-            self.log("To enable auto-push, check the 'Auto Push' option before starting", "debug")
+            self.update_status("Skipping push (push disabled)")
+            self.log("Step 2: Skipping push (push disabled)", "info")
 
         self.log(f"=== GIT OPERATIONS PHASE END ===", "phase")
         self.log(f"Result: committed={True}, pushed={pushed}", "info")

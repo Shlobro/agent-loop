@@ -2,10 +2,10 @@
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QSplitter, QPushButton, QMessageBox, QApplication, QFileDialog
+    QSplitter, QPushButton, QMessageBox, QApplication, QFileDialog, QInputDialog
 )
 from PySide6.QtCore import Qt, Slot, QThreadPool
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QActionGroup
 
 from .widgets.description_panel import DescriptionPanel
 from .widgets.question_panel import QuestionPanel
@@ -13,8 +13,6 @@ from .widgets.llm_selector_panel import LLMSelectorPanel
 from .widgets.config_panel import ConfigPanel, ExecutionConfig
 from .widgets.log_viewer import LogViewer
 from .widgets.status_panel import StatusPanel
-from .dialogs.git_approval_dialog import GitApprovalDialog
-
 from ..core.state_machine import StateMachine, Phase, SubPhase
 from ..core.file_manager import FileManager
 from ..core.session_manager import SessionManager
@@ -53,9 +51,8 @@ class MainWindow(QMainWindow):
         # Current worker reference (for cancellation)
         self.current_worker = None
 
-        # Session preferences
-        self.remember_push_choice = False
-        self.auto_push_remembered = False
+        # Git mode preference
+        self.git_mode = "local"
 
         # Activity panel state
         self.activity_state = {
@@ -103,6 +100,25 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
+        # Git menu
+        git_menu = menu_bar.addMenu("&Git")
+        self.git_mode_group = QActionGroup(self)
+        self.git_mode_group.setExclusive(True)
+        self.git_mode_actions = {}
+
+        def add_git_action(label: str, mode: str):
+            action = QAction(label, self, checkable=True)
+            action.triggered.connect(lambda _checked=False, m=mode: self.set_git_mode(m))
+            self.git_mode_group.addAction(action)
+            git_menu.addAction(action)
+            self.git_mode_actions[mode] = action
+
+        add_git_action("No Git Actions", "off")
+        add_git_action("Local Commit Only", "local")
+        add_git_action("Remote + Push", "push")
+
+        self.git_mode_actions[self.git_mode].setChecked(True)
+
     def setup_ui(self):
         """Initialize and layout all UI components."""
         central = QWidget()
@@ -141,6 +157,7 @@ class MainWindow(QMainWindow):
         config_layout.addWidget(self.llm_selector_panel)
 
         self.config_panel = ConfigPanel()
+        self.config_panel.set_git_mode(self.git_mode)
         config_layout.addWidget(self.config_panel)
 
         config_layout.addStretch()
@@ -205,6 +222,44 @@ class MainWindow(QMainWindow):
 
         # Config panel
         self.config_panel.working_directory_changed.connect(self.on_working_dir_changed)
+
+    def set_git_mode(self, mode: str):
+        """Set git mode and update related UI."""
+        if mode == self.git_mode:
+            return
+
+        previous = self.git_mode
+        if mode == "push":
+            current_remote = self.config_panel.get_git_remote()
+            remote, ok = QInputDialog.getText(
+                self,
+                "Git Remote",
+                "Enter Git remote URL:",
+                text=current_remote
+            )
+            if not ok:
+                self._apply_git_mode(previous)
+                return
+            remote = remote.strip()
+            if not remote:
+                QMessageBox.warning(
+                    self,
+                    "Missing Git Remote",
+                    "Remote + Push requires a Git remote URL."
+                )
+                self._apply_git_mode(previous)
+                return
+            self.config_panel.set_git_remote(remote)
+
+        self._apply_git_mode(mode)
+
+    def _apply_git_mode(self, mode: str):
+        """Apply git mode without prompting."""
+        self.git_mode = mode
+        if hasattr(self, "git_mode_actions") and mode in self.git_mode_actions:
+            self.git_mode_actions[mode].setChecked(True)
+        if hasattr(self, "config_panel"):
+            self.config_panel.set_git_mode(mode)
 
     def update_button_states(self):
         """Update button enabled states based on current phase."""
@@ -291,6 +346,14 @@ class MainWindow(QMainWindow):
                                 "Please select a valid working directory.")
             return
 
+        if self.git_mode == "push" and not self.config_panel.get_config().git_remote:
+            QMessageBox.warning(
+                self,
+                "Missing Git Remote",
+                "Git mode is set to 'Remote + Push'. Please enter a Git remote URL."
+            )
+            return
+
         # Initialize state
         working_dir = self.config_panel.get_working_directory()
         config = self.config_panel.get_config()
@@ -307,7 +370,7 @@ class MainWindow(QMainWindow):
             current_question_text="",
             current_question_options=[],
             answers={},
-            auto_push=config.auto_push,
+            git_mode=self.git_mode,
             git_remote=config.git_remote,
             review_types=config.review_types,
             llm_config=llm_config
@@ -330,7 +393,7 @@ class MainWindow(QMainWindow):
         review_types = config.review_types or []
         review_labels = ", ".join([r.replace('_', ' ').title() for r in review_types]) or "(none)"
         self.log_viewer.append_log(f"  Review Types: {review_labels}", "info")
-        self.log_viewer.append_log(f"  Auto Push: {config.auto_push}", "info")
+        self.log_viewer.append_log(f"  Git Mode: {self.git_mode}", "info")
         self.log_viewer.append_log(f"  Git Remote: {config.git_remote or '(not set)'}", "info")
         self.log_viewer.append_log("LLM PROVIDERS:", "info")
         self.log_viewer.append_log(f"  Question Gen: {llm_config.get('question_gen', 'N/A')}", "info")
@@ -539,11 +602,12 @@ class MainWindow(QMainWindow):
             self.config_panel.set_config(ExecutionConfig(
                 max_main_iterations=ctx.max_iterations,
                 debug_loop_iterations=ctx.debug_iterations,
-                auto_push=ctx.auto_push,
                 working_directory=ctx.working_directory,
                 git_remote=ctx.git_remote,
+                git_mode=ctx.git_mode,
                 max_questions=ctx.max_questions
             ))
+            self._apply_git_mode(ctx.git_mode)
 
             self.file_manager = FileManager(ctx.working_directory)
 
@@ -1043,30 +1107,19 @@ class MainWindow(QMainWindow):
     def run_git_operations(self):
         """Run Phase 5: Git Operations."""
         ctx = self.state_machine.context
-        auto_push = ctx.auto_push
-        self.log_viewer.append_log(f"Initial auto_push setting: {auto_push}", "debug")
+        git_mode = ctx.git_mode
+        if git_mode == "off":
+            self.log_viewer.append_log("Git mode is Off - skipping git operations", "info")
+            self.on_git_complete({"committed": False, "pushed": False, "skipped": True})
+            return
 
-        # If not auto-push and we remember choice, use that
-        if not auto_push and self.remember_push_choice:
-            auto_push = self.auto_push_remembered
-            self.log_viewer.append_log(f"Using remembered push choice: {auto_push}", "debug")
-
-        # If still not auto-push, ask user
-        if not auto_push and not self.remember_push_choice:
-            self.log_viewer.append_log("Prompting user for push approval...", "info")
-            should_push, remember = GitApprovalDialog.get_approval(self)
-            if remember:
-                self.remember_push_choice = True
-                self.auto_push_remembered = should_push
-            auto_push = should_push
-            self.log_viewer.append_log(f"User chose: push={should_push}, remember={remember}", "info")
-
-        self.log_viewer.append_log(f"Final push decision: {auto_push}", "info")
+        push_enabled = git_mode == "push"
+        self.log_viewer.append_log(f"Git mode: {git_mode}", "info")
 
         worker = GitWorker(
             provider_name=ctx.llm_config.get("git_ops", "claude"),
             working_directory=ctx.working_directory,
-            auto_push=auto_push,
+            push_enabled=push_enabled,
             git_remote=ctx.git_remote,
             model=ctx.llm_config.get("git_ops_model")
         )
@@ -1183,7 +1236,7 @@ class MainWindow(QMainWindow):
             max_main_iterations=exec_config.max_main_iterations,
             debug_loop_iterations=exec_config.debug_loop_iterations,
             max_questions=exec_config.max_questions,
-            auto_push=exec_config.auto_push,
+            git_mode=exec_config.git_mode,
             working_directory=exec_config.working_directory,
             git_remote=exec_config.git_remote,
             review_types=exec_config.review_types
@@ -1242,12 +1295,13 @@ class MainWindow(QMainWindow):
                     max_main_iterations=settings.max_main_iterations,
                     debug_loop_iterations=settings.debug_loop_iterations,
                     max_questions=settings.max_questions,
-                    auto_push=settings.auto_push,
                     working_directory=settings.working_directory,
                     git_remote=settings.git_remote,
+                    git_mode=settings.git_mode,
                     review_types=settings.review_types
                 )
                 self.config_panel.set_config(exec_config)
+                self._apply_git_mode(settings.git_mode)
 
                 self.log_viewer.append_log(f"Settings loaded from: {file_path}", "success")
                 QMessageBox.information(self, "Success", "Settings loaded successfully!")
