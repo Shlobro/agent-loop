@@ -1025,27 +1025,15 @@ class MainWindow(QMainWindow):
         # Check if all tasks are done
         if result.get("all_tasks_done"):
             self.log_viewer.append_log("All tasks completed!", "success")
-            self.state_machine.transition_to(Phase.COMPLETED)
+
+            self._run_review_or_git(is_final=True)
             return
 
         # Task was worked on - now run review loop for this task's changes
         self.log_viewer.append_log(f"Task iteration {result.get('iteration')} complete", "success")
 
         # Check if we should run review loop
-        if self.state_machine.context.debug_iterations > 0 and self.state_machine.context.review_types:
-            self.log_viewer.append_log(f"Running Debug/Review for this task ({self.state_machine.context.debug_iterations} iterations)...", "info")
-            self.state_machine.transition_to(Phase.DEBUG_REVIEW)
-            self.run_review_loop()
-        else:
-            # Skip review, go directly to git for this task
-            if self.state_machine.context.debug_iterations == 0:
-                reason = "0 iterations configured"
-            else:
-                reason = "no review types selected"
-            self.log_viewer.append_log(f"Skipping Debug/Review phase ({reason})", "info")
-            self.log_viewer.append_log("Transitioning to Git Operations for this task...", "info")
-            self.state_machine.transition_to(Phase.GIT_OPERATIONS)
-            self.run_git_operations()
+        self._run_review_or_git(is_final=False)
 
     def run_review_loop(self):
         """Run Phase 4: Debug/Review Loop."""
@@ -1135,14 +1123,16 @@ class MainWindow(QMainWindow):
         """Handle git operations completion - then check for more tasks."""
         self.log_viewer.append_log(f"Git operations result: {result}", "debug")
 
-        if result.get("committed"):
+        if result.get("skipped"):
+            self.log_viewer.append_log("Git operations skipped (no changes detected)", "info")
+        elif result.get("committed"):
             self.log_viewer.append_success("Changes committed to local repository")
         else:
             self.log_viewer.append_warning("No commit was made")
 
         if result.get("pushed"):
             self.log_viewer.append_success("Changes pushed to remote repository")
-        else:
+        elif not result.get("skipped"):
             self.log_viewer.append_log("Changes were NOT pushed to remote", "info")
 
         # Clear recent-changes.md for the next task (so reviews are scoped to that task's changes)
@@ -1184,6 +1174,35 @@ class MainWindow(QMainWindow):
                 self.log_viewer.append_log("Cleared recent-changes.md for next task", "debug")
             except Exception as e:
                 self.log_viewer.append_log(f"Failed to clear recent-changes.md: {e}", "warning")
+
+    def _should_run_review_loop(self) -> bool:
+        """Return True if review loop is configured to run."""
+        ctx = self.state_machine.context
+        return ctx.debug_iterations > 0 and bool(ctx.review_types)
+
+    def _run_review_or_git(self, is_final: bool):
+        """Route to review loop or git operations for the current task."""
+        ctx = self.state_machine.context
+        scope_label = "final " if is_final else ""
+        git_scope_label = "final changes" if is_final else "this task"
+
+        if self._should_run_review_loop():
+            self.log_viewer.append_log(
+                f"Running {scope_label}Debug/Review ({ctx.debug_iterations} iterations)...",
+                "info"
+            )
+            self.state_machine.transition_to(Phase.DEBUG_REVIEW)
+            self.run_review_loop()
+            return
+
+        if ctx.debug_iterations == 0:
+            reason = "0 iterations configured"
+        else:
+            reason = "no review types selected"
+        self.log_viewer.append_log(f"Skipping {scope_label}Debug/Review phase ({reason})", "info")
+        self.log_viewer.append_log(f"Transitioning to Git Operations for {git_scope_label}...", "info")
+        self.state_machine.transition_to(Phase.GIT_OPERATIONS)
+        self.run_git_operations()
 
     def _connect_worker_signals(self, worker):
         """Connect common worker signals."""

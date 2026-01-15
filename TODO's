@@ -1,6 +1,6 @@
 add option to save the current state to continue some other time. this should include everything. where i am in the loops all the settings, 100% save and continue later. should be a different than just saving the settings that already exists.
 
-even if all tasks are complete we still need to run the reviewers one last time (unless the review loop was set to 0)
+
 
 if the review loop is set to 0 warn the user about it when he click start, he may choose to not start yet to change this or have 0 review (simular to how putting 0 questions works)
 

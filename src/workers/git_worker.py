@@ -1,5 +1,7 @@
 """Worker for Phase 5: Git Operations."""
 
+import subprocess
+
 from .base_worker import BaseWorker
 from .llm_worker import LLMWorker
 from ..llm.base_provider import LLMProviderRegistry
@@ -29,6 +31,20 @@ class GitWorker(BaseWorker):
         self.log(f"=== GIT OPERATIONS PHASE START ===", "phase")
         self.log(f"Working directory: {self.working_directory}", "info")
         self.log(f"Push enabled: {self.push_enabled}", "info")
+
+        try:
+            status = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=self.working_directory,
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if status.returncode == 0 and not status.stdout.strip():
+                self.log("No changes detected - skipping git operations", "info")
+                return {"committed": False, "pushed": False, "skipped": True}
+        except OSError as e:
+            self.log(f"Failed to check git status: {e}", "warning")
 
         provider = LLMProviderRegistry.get(self.provider_name)
         self.log(f"Using LLM provider: {provider.display_name}", "info")
