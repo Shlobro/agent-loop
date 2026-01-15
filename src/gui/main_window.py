@@ -18,7 +18,7 @@ from ..core.state_machine import StateMachine, Phase, SubPhase
 from ..core.file_manager import FileManager
 from ..core.session_manager import SessionManager
 
-from ..workers.question_worker import QuestionWorker
+from ..workers.question_worker import SingleQuestionWorker
 from ..workers.planning_worker import PlanningWorker
 from ..workers.execution_worker import ExecutionWorker
 from ..workers.review_worker import ReviewWorker
@@ -150,7 +150,8 @@ class MainWindow(QMainWindow):
         self.state_machine.workflow_completed.connect(self.on_workflow_completed)
 
         # Question panel
-        self.question_panel.answers_submitted.connect(self.on_answers_submitted)
+        self.question_panel.answer_submitted.connect(self.on_single_answer_submitted)
+        self.question_panel.stop_requested.connect(self.on_stop_questions_requested)
 
         # Config panel
         self.config_panel.working_directory_changed.connect(self.on_working_dir_changed)
@@ -209,6 +210,12 @@ class MainWindow(QMainWindow):
             working_directory=working_dir,
             max_iterations=config.max_main_iterations,
             debug_iterations=config.debug_loop_iterations,
+            max_questions=config.max_questions,
+            current_question_num=0,
+            qa_pairs=[],
+            current_question_text="",
+            current_question_options=[],
+            answers={},
             auto_push=config.auto_push,
             git_remote=config.git_remote,
             llm_config=llm_config
@@ -225,6 +232,7 @@ class MainWindow(QMainWindow):
         self.log_viewer.append_log("WORKFLOW CONFIGURATION:", "info")
         self.log_viewer.append_log(f"  Working Directory: {working_dir}", "info")
         self.log_viewer.append_log(f"  Max Main Iterations: {config.max_main_iterations}", "info")
+        self.log_viewer.append_log(f"  Max Questions: {config.max_questions}", "info")
         self.log_viewer.append_log(f"  Debug Loop Iterations: {config.debug_loop_iterations}", "info")
         self.log_viewer.append_log(f"  Auto Push: {config.auto_push}", "info")
         self.log_viewer.append_log(f"  Git Remote: {config.git_remote or '(not set)'}", "info")
@@ -238,6 +246,8 @@ class MainWindow(QMainWindow):
         self.log_viewer.append_log("=" * 50, "info")
 
         # Start Phase 1: Question Generation
+        self.question_panel.clear_question()
+        self.question_panel.set_readonly(True)
         self.state_machine.transition_to(Phase.QUESTION_GENERATION)
         self.run_question_generation()
 
@@ -257,6 +267,10 @@ class MainWindow(QMainWindow):
             self.run_review_loop()
         elif phase == Phase.GIT_OPERATIONS:
             self.run_git_operations()
+        elif phase == Phase.QUESTION_GENERATION:
+            self.run_question_generation()
+        elif phase == Phase.AWAITING_ANSWERS:
+            self._restore_question_ui()
 
     @Slot()
     def on_pause_clicked(self):
@@ -359,57 +373,162 @@ class MainWindow(QMainWindow):
                 debug_loop_iterations=ctx.debug_iterations,
                 auto_push=ctx.auto_push,
                 working_directory=ctx.working_directory,
-                git_remote=ctx.git_remote
+                git_remote=ctx.git_remote,
+                max_questions=ctx.max_questions
             ))
 
             self.file_manager = FileManager(ctx.working_directory)
 
             self.log_viewer.append_log("Session restored", "success")
+            if self.state_machine.phase == Phase.AWAITING_ANSWERS:
+                self._restore_question_ui()
             self.update_button_states()
 
         except Exception as e:
             self.log_viewer.append_error(f"Failed to load session: {e}")
 
-    @Slot(dict)
-    def on_answers_submitted(self, answers: dict):
-        """Handle question answers submission."""
-        self.log_viewer.append_log(f"Received {len(answers)} answers from user", "info")
-        for q_id, answer in answers.items():
-            self.log_viewer.append_log(f"  {q_id}: {answer[:60]}{'...' if len(answer) > 60 else ''}", "debug")
-        self.state_machine.update_context(answers=answers)
+    @Slot(str, str)
+    def on_single_answer_submitted(self, question_text: str, answer: str):
+        """Handle a single question answer submission."""
+        ctx = self.state_machine.context
+        question = question_text or ctx.current_question_text
+        if not question:
+            self.log_viewer.append_log("No question text available for answer submission", "warning")
+            return
 
-        # Move to task planning
-        self.log_viewer.append_log("Transitioning to Task Planning phase...", "info")
-        self.state_machine.transition_to(Phase.TASK_PLANNING)
-        self.run_task_planning()
+        qa_pairs = list(ctx.qa_pairs)
+        qa_pairs.append({
+            "question": question,
+            "answer": answer
+        })
+
+        next_num = ctx.current_question_num + 1
+        self.state_machine.update_context(
+            qa_pairs=qa_pairs,
+            current_question_num=next_num,
+            current_question_text="",
+            current_question_options=[]
+        )
+
+        self.question_panel.show_previous_qa(qa_pairs)
+        self.log_viewer.append_log(f"Recorded answer {next_num}/{ctx.max_questions}", "info")
+
+        if next_num >= ctx.max_questions:
+            self._finish_question_phase()
+            return
+
+        self.question_panel.set_readonly(True)
+        self.state_machine.transition_to(Phase.QUESTION_GENERATION)
+        self._generate_next_question()
+
+    @Slot()
+    def on_stop_questions_requested(self):
+        """Handle user request to stop question loop early."""
+        self.log_viewer.append_log("User stopped question loop early", "info")
+        self._finish_question_phase()
 
     # =========================================================================
     # Worker execution methods
     # =========================================================================
 
     def run_question_generation(self):
-        """Run Phase 1: Question Generation."""
+        """Run Phase 1: Question Generation (iterative)."""
+        self._generate_next_question()
+
+    def _generate_next_question(self):
+        """Generate the next single question."""
         ctx = self.state_machine.context
 
-        worker = QuestionWorker(
+        if ctx.current_question_num >= ctx.max_questions:
+            self._finish_question_phase()
+            return
+
+        if self.state_machine.phase == Phase.QUESTION_GENERATION:
+            self.state_machine.set_sub_phase(SubPhase.GENERATING_SINGLE_QUESTION)
+        else:
+            self.state_machine.transition_to(Phase.QUESTION_GENERATION, SubPhase.GENERATING_SINGLE_QUESTION)
+        self.question_panel.set_readonly(True)
+        self.log_viewer.append_log(
+            f"Generating question {ctx.current_question_num + 1} of {ctx.max_questions}...",
+            "info"
+        )
+
+        worker = SingleQuestionWorker(
             description=ctx.description,
+            previous_qa=ctx.qa_pairs,
             provider_name=ctx.llm_config.get("question_gen", "claude"),
             working_directory=ctx.working_directory
         )
 
         self._connect_worker_signals(worker)
-        worker.signals.questions_ready.connect(self.on_questions_ready)
+        worker.signals.single_question_ready.connect(self.on_single_question_ready)
 
         self.current_worker = worker
         self.thread_pool.start(worker)
 
     @Slot(dict)
-    def on_questions_ready(self, questions: dict):
-        """Handle generated questions."""
-        self.question_panel.load_questions(questions)
-        self.state_machine.update_context(questions_json=questions)
-        self.state_machine.transition_to(Phase.AWAITING_ANSWERS)
-        self.log_viewer.append_success(f"Generated {len(questions.get('questions', []))} questions")
+    def on_single_question_ready(self, question_data: dict):
+        """Handle single question generated by LLM."""
+        ctx = self.state_machine.context
+        question_text = (question_data.get("question") or "").strip()
+        options = question_data.get("options", [])
+
+        if not question_text:
+            self.log_viewer.append_log("Received empty question text from LLM", "error")
+            self._finish_question_phase()
+            return
+
+        self.state_machine.update_context(
+            current_question_text=question_text,
+            current_question_options=options
+        )
+
+        self.question_panel.show_question(
+            question_text,
+            options,
+            ctx.current_question_num + 1,
+            ctx.max_questions
+        )
+        self.question_panel.show_previous_qa(ctx.qa_pairs)
+        self.question_panel.set_readonly(False)
+        self.state_machine.transition_to(Phase.AWAITING_ANSWERS, SubPhase.AWAITING_SINGLE_ANSWER)
+        self.log_viewer.append_success("Generated 1 question")
+
+    def _restore_question_ui(self):
+        """Restore the current question UI from state context."""
+        ctx = self.state_machine.context
+        if ctx.current_question_text:
+            self.question_panel.show_question(
+                ctx.current_question_text,
+                ctx.current_question_options,
+                ctx.current_question_num + 1,
+                ctx.max_questions
+            )
+            self.question_panel.show_previous_qa(ctx.qa_pairs)
+            self.question_panel.set_readonly(False)
+            self.state_machine.set_sub_phase(SubPhase.AWAITING_SINGLE_ANSWER)
+        else:
+            self._generate_next_question()
+
+    def _finish_question_phase(self):
+        """Finalize question loop and move to task planning."""
+        ctx = self.state_machine.context
+        answers = {
+            f"q{i + 1}": qa.get("answer", "")
+            for i, qa in enumerate(ctx.qa_pairs)
+        }
+        self.state_machine.update_context(
+            answers=answers,
+            current_question_text="",
+            current_question_options=[]
+        )
+        self.question_panel.set_readonly(True)
+        self.log_viewer.append_log(
+            f"Collected {len(ctx.qa_pairs)} question answers, moving to task planning...",
+            "info"
+        )
+        self.state_machine.transition_to(Phase.TASK_PLANNING)
+        self.run_task_planning()
 
     def run_task_planning(self):
         """Run Phase 2: Task Planning."""
@@ -418,6 +537,7 @@ class MainWindow(QMainWindow):
         worker = PlanningWorker(
             description=ctx.description,
             answers=ctx.answers,
+            qa_pairs=ctx.qa_pairs,
             provider_name=ctx.llm_config.get("task_planning", "claude"),
             working_directory=ctx.working_directory
         )

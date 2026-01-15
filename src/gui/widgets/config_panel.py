@@ -18,6 +18,7 @@ class ExecutionConfig:
     auto_push: bool
     working_directory: str
     git_remote: str = ""
+    max_questions: int = 20
 
 
 class ConfigPanel(QWidget):
@@ -38,6 +39,17 @@ class ConfigPanel(QWidget):
 
         group = QGroupBox("Configuration")
         form = QFormLayout(group)
+
+        # Number of clarifying questions to generate
+        self.max_questions_spin = QSpinBox()
+        self.max_questions_spin.setRange(1, 100)
+        self.max_questions_spin.setValue(20)
+        self.max_questions_spin.setToolTip(
+            "Maximum number of clarifying questions to generate. "
+            "You can stop early at any time."
+        )
+        self.max_questions_spin.valueChanged.connect(self._on_config_changed)
+        form.addRow("Max Questions:", self.max_questions_spin)
 
         # Max iterations for main loop
         self.max_iterations_spin = QSpinBox()
@@ -145,11 +157,13 @@ class ConfigPanel(QWidget):
             debug_loop_iterations=self.debug_iterations_spin.value(),
             auto_push=self.auto_push_checkbox.isChecked(),
             working_directory=self.working_dir_edit.text().strip(),
-            git_remote=self.git_remote_edit.text().strip()
+            git_remote=self.git_remote_edit.text().strip(),
+            max_questions=self.max_questions_spin.value()
         )
 
     def set_config(self, config: ExecutionConfig):
         """Set configuration from ExecutionConfig object."""
+        self.max_questions_spin.setValue(config.max_questions)
         self.max_iterations_spin.setValue(config.max_main_iterations)
         self.debug_iterations_spin.setValue(config.debug_loop_iterations)
         self.auto_push_checkbox.setChecked(config.auto_push)
@@ -171,6 +185,7 @@ class ConfigPanel(QWidget):
 
     def set_enabled(self, enabled: bool):
         """Enable or disable all controls."""
+        self.max_questions_spin.setEnabled(enabled)
         self.max_iterations_spin.setEnabled(enabled)
         self.debug_iterations_spin.setEnabled(enabled)
         self.auto_push_checkbox.setEnabled(enabled)

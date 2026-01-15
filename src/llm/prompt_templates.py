@@ -17,7 +17,7 @@ class PromptTemplates:
     """Central repository for all LLM prompt templates."""
 
     # =========================================================================
-    # Phase 1: Question Generation
+    # Phase 1: Question Generation (Legacy - batch mode)
     # =========================================================================
     QUESTION_GENERATION = '''TASK: Create a questions.json file immediately.
 
@@ -38,6 +38,49 @@ JSON FORMAT (use exactly this structure):
 Generate 5-10 questions covering: platform, language/framework, scale, integrations, deployment, features, UI, data storage.
 
 DO THIS NOW. Create the file immediately. Do not ask for clarification. Do not wait for input.'''
+
+    # =========================================================================
+    # Phase 1: Single Question Generation (Iterative mode)
+    # =========================================================================
+    SINGLE_QUESTION_GENERATION = '''TASK: Create a single_question.json file with ONE clarifying question.
+
+PROJECT DESCRIPTION:
+{description}
+
+{previous_qa_section}
+
+YOUR TASK:
+Generate exactly ONE new clarifying question about this project that has NOT been asked yet.
+Think about what important information is still missing to fully understand the requirements.
+
+Consider asking about (if not already covered):
+- Target platform (web, mobile, desktop, CLI)
+- Programming language/framework preferences
+- Scale expectations (users, data volume)
+- External integrations (APIs, services)
+- Deployment environment
+- Key features and priorities
+- User interface requirements
+- Data storage needs
+- Authentication/authorization
+- Performance requirements
+- Budget/timeline constraints
+
+IMMEDIATE ACTION REQUIRED:
+Create a file called {working_directory}/single_question.json with this exact format:
+{{
+  "question": "Your clarifying question here?",
+  "options": ["Option A", "Option B", "Option C", "Option D"]
+}}
+
+RULES:
+- Ask only ONE question
+- Make the question specific and actionable
+- Provide 3-5 reasonable options that cover common choices
+- Do NOT repeat any question that was already asked
+- Focus on gathering information that will help plan the implementation
+
+DO THIS NOW. Create the file immediately.'''
 
     # =========================================================================
     # Phase 2: Task Planning
@@ -345,19 +388,61 @@ Instead, report the error and suggest the user resolve it manually.'''
 
     @classmethod
     def format_question_prompt(cls, description: str, working_directory: str = ".") -> str:
-        """Format the question generation prompt."""
+        """Format the question generation prompt (legacy batch mode)."""
         return cls.QUESTION_GENERATION.format(
             description=description,
             working_directory=working_directory
         )
 
     @classmethod
-    def format_planning_prompt(cls, description: str, answers: dict) -> str:
-        """Format the task planning prompt."""
-        # Format answers as readable text
-        answers_text = "\n".join(
-            f"- {q_id}: {answer}" for q_id, answer in answers.items()
+    def format_single_question_prompt(cls, description: str, previous_qa: list,
+                                       working_directory: str = ".") -> str:
+        """Format the single question generation prompt (iterative mode).
+
+        Args:
+            description: The project description
+            previous_qa: List of {"question": ..., "answer": ...} dicts
+            working_directory: The working directory path
+        """
+        if previous_qa:
+            qa_lines = ["QUESTIONS ALREADY ASKED AND ANSWERED:"]
+            for i, qa in enumerate(previous_qa, 1):
+                qa_lines.append(f"Q{i}: {qa['question']}")
+                qa_lines.append(f"A{i}: {qa['answer']}")
+                qa_lines.append("")
+            previous_qa_section = "\n".join(qa_lines)
+        else:
+            previous_qa_section = "(No questions have been asked yet. This is the first question.)"
+
+        return cls.SINGLE_QUESTION_GENERATION.format(
+            description=description,
+            previous_qa_section=previous_qa_section,
+            working_directory=working_directory
         )
+
+    @classmethod
+    def format_planning_prompt(cls, description: str, answers: dict,
+                                qa_pairs: list = None) -> str:
+        """Format the task planning prompt.
+
+        Args:
+            description: The project description
+            answers: Dict of {question_id: answer} (legacy format)
+            qa_pairs: List of {"question": ..., "answer": ...} (new format, preferred)
+        """
+        # Prefer qa_pairs if available (new iterative format)
+        if qa_pairs:
+            qa_lines = []
+            for i, qa in enumerate(qa_pairs, 1):
+                qa_lines.append(f"Q{i}: {qa['question']}")
+                qa_lines.append(f"A{i}: {qa['answer']}")
+                qa_lines.append("")
+            answers_text = "\n".join(qa_lines)
+        else:
+            # Legacy format - just question IDs
+            answers_text = "\n".join(
+                f"- {q_id}: {answer}" for q_id, answer in answers.items()
+            )
         return cls.TASK_PLANNING.format(
             description=description,
             answers=answers_text

@@ -29,7 +29,8 @@ class WorkerSignals(QObject):
     llm_complete = Signal(str)  # Final LLM response
 
     # Phase-specific signals
-    questions_ready = Signal(dict)  # Parsed questions JSON
+    questions_ready = Signal(dict)  # Parsed questions JSON (legacy batch mode)
+    single_question_ready = Signal(dict)  # Single question: {"question": ..., "options": [...]}
     tasks_ready = Signal(str)  # tasks.md content
     task_completed = Signal(str)  # Completed task description
     review_complete = Signal(str, str)  # (review_type, result)

@@ -16,11 +16,13 @@ class PlanningWorker(BaseWorker):
     """
 
     def __init__(self, description: str, answers: Dict[str, str],
+                 qa_pairs: list = None,
                  provider_name: str = "claude",
                  working_directory: str = None):
         super().__init__()
         self.description = description
         self.answers = answers
+        self.qa_pairs = qa_pairs or []
         self.provider_name = provider_name
         self.working_directory = working_directory
 
@@ -30,7 +32,10 @@ class PlanningWorker(BaseWorker):
         self.log(f"=== TASK PLANNING PHASE START ===", "phase")
         self.log(f"Working directory: {self.working_directory}", "info")
         self.log(f"Project description: {self.description[:200]}{'...' if len(self.description) > 200 else ''}", "info")
-        self.log(f"User provided {len(self.answers)} answers to clarifying questions", "info")
+        if self.qa_pairs:
+            self.log(f"User provided {len(self.qa_pairs)} Q&A pairs", "info")
+        else:
+            self.log(f"User provided {len(self.answers)} answers to clarifying questions", "info")
 
         provider = LLMProviderRegistry.get(self.provider_name)
         self.log(f"Using LLM provider: {provider.display_name}", "info")
@@ -38,16 +43,26 @@ class PlanningWorker(BaseWorker):
         # Build prompt
         base_prompt = PromptTemplates.format_planning_prompt(
             self.description,
-            self.answers
+            self.answers,
+            qa_pairs=self.qa_pairs
         )
         prompt = provider.format_prompt(base_prompt, "markdown_tasks")
         self.log(f"Built planning prompt ({len(prompt)} chars)", "debug")
 
         # Log answers summary
-        for q_id, answer in list(self.answers.items())[:5]:
-            self.log(f"  {q_id}: {answer[:50]}{'...' if len(answer) > 50 else ''}", "debug")
-        if len(self.answers) > 5:
-            self.log(f"  ... and {len(self.answers) - 5} more answers", "debug")
+        if self.qa_pairs:
+            for i, qa in enumerate(self.qa_pairs[:5], 1):
+                question = qa.get("question", "")[:50]
+                answer = qa.get("answer", "")[:50]
+                self.log(f"  Q{i}: {question}{'...' if len(qa.get('question', '')) > 50 else ''}", "debug")
+                self.log(f"  A{i}: {answer}{'...' if len(qa.get('answer', '')) > 50 else ''}", "debug")
+            if len(self.qa_pairs) > 5:
+                self.log(f"  ... and {len(self.qa_pairs) - 5} more Q&A pairs", "debug")
+        else:
+            for q_id, answer in list(self.answers.items())[:5]:
+                self.log(f"  {q_id}: {answer[:50]}{'...' if len(answer) > 50 else ''}", "debug")
+            if len(self.answers) > 5:
+                self.log(f"  ... and {len(self.answers) - 5} more answers", "debug")
 
         # Run LLM
         self.log(f"Calling {provider.display_name} for task planning...", "info")

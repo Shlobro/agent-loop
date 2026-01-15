@@ -1,39 +1,33 @@
 """Panel for displaying and answering LLM-generated questions."""
 
+from typing import List, Dict
+
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QScrollArea, QLabel,
-    QButtonGroup, QRadioButton, QPushButton, QGroupBox, QFrame
+    QWidget, QVBoxLayout, QLabel, QButtonGroup, QRadioButton,
+    QPushButton, QGroupBox, QHBoxLayout, QTextEdit, QScrollArea,
+    QFrame
 )
 from PySide6.QtCore import Signal, Qt
-from typing import Dict, List, Any
 
 
 class QuestionPanel(QWidget):
     """
-    Dynamically renders questions from JSON and collects user answers.
-
-    Expected JSON format:
-    {
-        "questions": [
-            {"id": "q1", "question": "What platform?", "options": ["CLI", "GUI", "Web"]}
-        ]
-    }
+    Displays one question at a time and collects a single answer.
     """
 
-    answers_submitted = Signal(dict)  # {question_id: selected_option}
-    answers_changed = Signal()  # Emitted when any answer changes
+    answer_submitted = Signal(str, str)  # (question_text, answer_text)
+    stop_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.questions_data: List[Dict[str, Any]] = []
-        self.button_groups: Dict[str, QButtonGroup] = {}
+        self.current_question_text = ""
+        self.option_group = None
         self.setup_ui()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # Group box with larger title
         self.group = QGroupBox("Clarifying Questions")
         self.group.setStyleSheet("""
             QGroupBox {
@@ -50,7 +44,6 @@ class QuestionPanel(QWidget):
         group_layout = QVBoxLayout(self.group)
         group_layout.setSpacing(10)
 
-        # Placeholder label (shown when no questions)
         self.placeholder_label = QLabel(
             "Questions will appear here after you start the process.\n"
             "The LLM will generate questions to clarify your requirements."
@@ -59,78 +52,90 @@ class QuestionPanel(QWidget):
         self.placeholder_label.setStyleSheet("color: gray; padding: 30px; font-size: 13px;")
         group_layout.addWidget(self.placeholder_label)
 
-        # Scroll area for questions
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setFrameShape(QFrame.NoFrame)
-        self.scroll_area.hide()
+        self.content_frame = QFrame()
+        self.content_frame.setFrameShape(QFrame.NoFrame)
+        self.content_layout = QVBoxLayout(self.content_frame)
+        self.content_layout.setSpacing(8)
 
-        self.scroll_content = QWidget()
-        self.scroll_layout = QVBoxLayout(self.scroll_content)
-        self.scroll_layout.setAlignment(Qt.AlignTop)
-        self.scroll_area.setWidget(self.scroll_content)
+        self.counter_label = QLabel("")
+        self.counter_label.setStyleSheet("color: gray; font-size: 12px;")
+        self.content_layout.addWidget(self.counter_label)
 
-        group_layout.addWidget(self.scroll_area)
+        self.question_label = QLabel("")
+        self.question_label.setWordWrap(True)
+        self.question_label.setStyleSheet("font-size: 13px; font-weight: bold; padding: 4px 0;")
+        self.content_layout.addWidget(self.question_label)
 
-        # Submit button (larger and more prominent)
-        self.submit_button = QPushButton("Submit Answers")
-        self.submit_button.setMinimumHeight(40)
-        self.submit_button.setStyleSheet("""
-            QPushButton {
-                font-size: 14px;
-                font-weight: bold;
-                padding: 10px 20px;
-            }
-        """)
+        self.options_container = QWidget()
+        self.options_layout = QVBoxLayout(self.options_container)
+        self.options_layout.setSpacing(6)
+        self.content_layout.addWidget(self.options_container)
+
+        self.freeform_label = QLabel("Or type your own answer:")
+        self.freeform_label.setStyleSheet("font-size: 12px;")
+        self.content_layout.addWidget(self.freeform_label)
+
+        self.freeform_edit = QTextEdit()
+        self.freeform_edit.setPlaceholderText("Type your answer here...")
+        self.freeform_edit.setMinimumHeight(70)
+        self.freeform_edit.textChanged.connect(self._on_answer_changed)
+        self.content_layout.addWidget(self.freeform_edit)
+
+        button_row = QHBoxLayout()
+        self.submit_button = QPushButton("Submit Answer")
+        self.submit_button.setMinimumHeight(36)
         self.submit_button.clicked.connect(self._on_submit)
         self.submit_button.setEnabled(False)
-        self.submit_button.hide()
-        group_layout.addWidget(self.submit_button)
+        button_row.addWidget(self.submit_button)
+
+        self.stop_button = QPushButton("Stop Getting More Questions")
+        self.stop_button.setMinimumHeight(36)
+        self.stop_button.clicked.connect(self.stop_requested.emit)
+        button_row.addWidget(self.stop_button)
+
+        self.content_layout.addLayout(button_row)
+
+        self.previous_group = QGroupBox("Previous Answers")
+        self.previous_group.setStyleSheet("font-size: 12px; font-weight: bold;")
+        previous_layout = QVBoxLayout(self.previous_group)
+
+        self.previous_scroll = QScrollArea()
+        self.previous_scroll.setWidgetResizable(True)
+        self.previous_scroll.setFrameShape(QFrame.NoFrame)
+        previous_layout.addWidget(self.previous_scroll)
+
+        self.previous_label = QLabel("")
+        self.previous_label.setWordWrap(True)
+        self.previous_label.setStyleSheet("font-size: 12px; padding: 4px;")
+        self.previous_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+
+        previous_content = QWidget()
+        previous_content_layout = QVBoxLayout(previous_content)
+        previous_content_layout.setContentsMargins(0, 0, 0, 0)
+        previous_content_layout.addWidget(self.previous_label)
+        self.previous_scroll.setWidget(previous_content)
+
+        self.content_layout.addWidget(self.previous_group)
+
+        group_layout.addWidget(self.content_frame)
+        self.content_frame.hide()
+        self.previous_group.hide()
 
         layout.addWidget(self.group)
 
-    def load_questions(self, questions_json: Dict[str, Any]):
-        """Parse JSON and create radio button groups for each question."""
-        self.clear_questions()
-        self.questions_data = questions_json.get("questions", [])
+    def show_question(self, question_text: str, options: List[str],
+                      question_num: int, total: int):
+        """Display a single question and reset the inputs."""
+        self.current_question_text = question_text
+        self.counter_label.setText(f"Question {question_num} of {total}")
+        self.question_label.setText(question_text)
 
-        if not self.questions_data:
-            return
+        self._clear_options()
+        self.option_group = QButtonGroup(self)
+        self.option_group.setExclusive(True)
+        self.option_group.buttonClicked.connect(self._on_answer_changed)
 
-        # Hide placeholder, show scroll area
-        self.placeholder_label.hide()
-        self.scroll_area.show()
-        self.submit_button.show()
-
-        for q in self.questions_data:
-            q_id = q["id"]
-            q_text = q["question"]
-            options = q.get("options", [])
-
-            # Create frame for this question
-            q_frame = QFrame()
-            q_frame.setFrameShape(QFrame.StyledPanel)
-            q_frame.setStyleSheet("""
-                QFrame {
-                    background-color: palette(base);
-                    border-radius: 6px;
-                    padding: 12px;
-                    margin: 4px;
-                }
-            """)
-            q_layout = QVBoxLayout(q_frame)
-            q_layout.setSpacing(8)
-
-            # Question label (larger font)
-            label = QLabel(f"<b style='font-size: 13px;'>{q_text}</b>")
-            label.setWordWrap(True)
-            label.setStyleSheet("font-size: 13px; padding: 5px 0;")
-            q_layout.addWidget(label)
-
-            # Radio buttons for options (larger)
-            group = QButtonGroup(self)
-            group.buttonClicked.connect(self._on_answer_changed)
-
+        if options:
             for option in options:
                 radio = QRadioButton(option)
                 radio.setStyleSheet("""
@@ -144,76 +149,90 @@ class QuestionPanel(QWidget):
                         height: 16px;
                     }
                 """)
-                group.addButton(radio)
-                q_layout.addWidget(radio)
+                self.option_group.addButton(radio)
+                self.options_layout.addWidget(radio)
+        else:
+            no_options = QLabel("No preset options provided.")
+            no_options.setStyleSheet("color: gray; font-size: 12px;")
+            self.options_layout.addWidget(no_options)
 
-            self.button_groups[q_id] = group
-            self.scroll_layout.addWidget(q_frame)
-
-        # Add stretch at the end
-        self.scroll_layout.addStretch()
-
-        # Enable submit if all questions answered
-        self._update_submit_button()
-
-    def clear_questions(self):
-        """Remove all question widgets."""
-        # Clear the scroll layout
-        while self.scroll_layout.count():
-            item = self.scroll_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        self.button_groups.clear()
-        self.questions_data = []
-
-        # Show placeholder again
-        self.placeholder_label.show()
-        self.scroll_area.hide()
-        self.submit_button.hide()
+        self.freeform_edit.clear()
         self.submit_button.setEnabled(False)
 
-    def _on_answer_changed(self):
-        """Handle answer selection change."""
-        self._update_submit_button()
-        self.answers_changed.emit()
+        self.placeholder_label.hide()
+        self.content_frame.show()
 
-    def _update_submit_button(self):
-        """Enable submit button only when all questions are answered."""
-        all_answered = all(
-            group.checkedButton() is not None
-            for group in self.button_groups.values()
-        )
-        self.submit_button.setEnabled(all_answered)
+    def show_previous_qa(self, qa_pairs: List[Dict[str, str]]):
+        """Show the list of prior Q&A pairs."""
+        if not qa_pairs:
+            self.previous_group.hide()
+            return
 
-    def _on_submit(self):
-        """Handle submit button click."""
-        answers = self.get_answers()
-        self.answers_submitted.emit(answers)
+        lines = []
+        for i, qa in enumerate(qa_pairs, 1):
+            question = qa.get("question", "")
+            answer = qa.get("answer", "")
+            lines.append(f"Q{i}: {question}")
+            lines.append(f"A{i}: {answer}")
+            lines.append("")
 
-    def get_answers(self) -> Dict[str, str]:
-        """Return current answers as {question_id: selected_option}."""
-        answers = {}
-        for q_id, group in self.button_groups.items():
-            checked = group.checkedButton()
-            if checked:
-                answers[q_id] = checked.text()
-        return answers
+        self.previous_label.setText("\n".join(lines).strip())
+        self.previous_group.show()
 
-    def has_all_answers(self) -> bool:
-        """Check if all questions have been answered."""
-        return all(
-            group.checkedButton() is not None
-            for group in self.button_groups.values()
-        )
+    def clear_question(self):
+        """Reset the panel to its empty state."""
+        self.current_question_text = ""
+        self._clear_options()
+        self.freeform_edit.clear()
+        self.submit_button.setEnabled(False)
+        self.content_frame.hide()
+        self.previous_group.hide()
+        self.placeholder_label.show()
 
     def set_readonly(self, readonly: bool):
         """Enable or disable interaction."""
-        for group in self.button_groups.values():
-            for button in group.buttons():
+        if self.option_group:
+            for button in self.option_group.buttons():
                 button.setEnabled(not readonly)
-        self.submit_button.setEnabled(not readonly and self.has_all_answers())
+        self.freeform_edit.setReadOnly(readonly)
+        if readonly:
+            self.submit_button.setEnabled(False)
+        else:
+            self._update_submit_button()
+        self.stop_button.setEnabled(not readonly)
 
-    def get_questions_count(self) -> int:
-        """Return number of questions loaded."""
-        return len(self.questions_data)
+    def _clear_options(self):
+        """Clear current option widgets."""
+        if self.option_group:
+            self.option_group.deleteLater()
+            self.option_group = None
+        while self.options_layout.count():
+            item = self.options_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+    def _on_answer_changed(self):
+        """Handle changes in selected option or freeform input."""
+        self._update_submit_button()
+
+    def _update_submit_button(self):
+        """Enable submit if any answer is provided."""
+        self.submit_button.setEnabled(bool(self.get_current_answer()))
+
+    def _on_submit(self):
+        """Handle submit button click."""
+        answer = self.get_current_answer()
+        if not answer:
+            return
+        self.answer_submitted.emit(self.current_question_text, answer)
+
+    def get_current_answer(self) -> str:
+        """Return the selected option or freeform input (freeform takes priority)."""
+        freeform = self.freeform_edit.toPlainText().strip()
+        if freeform:
+            return freeform
+        if self.option_group:
+            checked = self.option_group.checkedButton()
+            if checked:
+                return checked.text().strip()
+        return ""

@@ -2,7 +2,7 @@
 
 from enum import Enum, auto
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from PySide6.QtCore import QObject, Signal
 
 
@@ -25,8 +25,10 @@ class Phase(Enum):
 class SubPhase(Enum):
     """Sub-phases for detailed tracking."""
     NONE = auto()
-    # Question generation
-    GENERATING_QUESTIONS = auto()
+    # Question generation (iterative)
+    GENERATING_QUESTIONS = auto()  # Legacy - batch generation
+    GENERATING_SINGLE_QUESTION = auto()  # Generating one question
+    AWAITING_SINGLE_ANSWER = auto()  # Waiting for user to answer current question
     # Main execution
     READING_TASKS = auto()
     EXECUTING_TASK = auto()
@@ -67,6 +69,12 @@ class StateContext:
     working_directory: str = ""
     auto_push: bool = False
     git_remote: str = ""
+    # Iterative question generation
+    max_questions: int = 20
+    current_question_num: int = 0
+    qa_pairs: List[Dict[str, str]] = field(default_factory=list)  # [{"question": ..., "answer": ...}]
+    current_question_text: str = ""  # The current question being displayed
+    current_question_options: List[str] = field(default_factory=list)  # Options for current question
     # LLM configuration per stage
     llm_config: Dict[str, str] = field(default_factory=lambda: {
         "question_gen": "gemini",
@@ -96,8 +104,8 @@ class StateMachine(QObject):
     # NOTE: GIT_OPERATIONS can transition back to MAIN_EXECUTION for per-task workflow
     TRANSITIONS = {
         Phase.IDLE: [Phase.QUESTION_GENERATION, Phase.MAIN_EXECUTION, Phase.CANCELLED],
-        Phase.QUESTION_GENERATION: [Phase.AWAITING_ANSWERS, Phase.ERROR, Phase.CANCELLED, Phase.PAUSED],
-        Phase.AWAITING_ANSWERS: [Phase.TASK_PLANNING, Phase.CANCELLED, Phase.PAUSED],
+        Phase.QUESTION_GENERATION: [Phase.AWAITING_ANSWERS, Phase.TASK_PLANNING, Phase.ERROR, Phase.CANCELLED, Phase.PAUSED],
+        Phase.AWAITING_ANSWERS: [Phase.QUESTION_GENERATION, Phase.TASK_PLANNING, Phase.CANCELLED, Phase.PAUSED],
         Phase.TASK_PLANNING: [Phase.MAIN_EXECUTION, Phase.ERROR, Phase.CANCELLED, Phase.PAUSED],
         Phase.MAIN_EXECUTION: [Phase.DEBUG_REVIEW, Phase.GIT_OPERATIONS, Phase.COMPLETED, Phase.ERROR, Phase.CANCELLED, Phase.PAUSED],
         Phase.DEBUG_REVIEW: [Phase.GIT_OPERATIONS, Phase.ERROR, Phase.CANCELLED, Phase.PAUSED],
@@ -237,6 +245,8 @@ class StateMachine(QObject):
         names = {
             SubPhase.NONE: "",
             SubPhase.GENERATING_QUESTIONS: "Generating Questions",
+            SubPhase.GENERATING_SINGLE_QUESTION: "Generating Question",
+            SubPhase.AWAITING_SINGLE_ANSWER: "Awaiting Answer",
             SubPhase.READING_TASKS: "Reading Tasks",
             SubPhase.EXECUTING_TASK: "Executing Task",
             SubPhase.ARCHITECTURE_REVIEW: "Architecture Review",
@@ -275,6 +285,11 @@ class StateMachine(QObject):
                 "working_directory": self._context.working_directory,
                 "auto_push": self._context.auto_push,
                 "git_remote": self._context.git_remote,
+                "max_questions": self._context.max_questions,
+                "current_question_num": self._context.current_question_num,
+                "qa_pairs": self._context.qa_pairs,
+                "current_question_text": self._context.current_question_text,
+                "current_question_options": self._context.current_question_options,
                 "llm_config": self._context.llm_config,
             }
         }
@@ -297,6 +312,11 @@ class StateMachine(QObject):
         self._context.working_directory = ctx.get("working_directory", "")
         self._context.auto_push = ctx.get("auto_push", False)
         self._context.git_remote = ctx.get("git_remote", "")
+        self._context.max_questions = ctx.get("max_questions", 20)
+        self._context.current_question_num = ctx.get("current_question_num", 0)
+        self._context.qa_pairs = ctx.get("qa_pairs", [])
+        self._context.current_question_text = ctx.get("current_question_text", "")
+        self._context.current_question_options = ctx.get("current_question_options", [])
         self._context.llm_config = ctx.get("llm_config", self._context.llm_config)
 
         self.phase_changed.emit(self._phase, self._sub_phase)

@@ -1,16 +1,15 @@
-the way questions work should be changed. one question at a time each time have the llm think of the next question reading the current description and questions that have already been asked. this loop should run for 20 questions with the option perhaps for the llm to write to a file that will act as a flag of when to exit early. maybe we should have the user decide when to stop getting more questions
-
-
-------there needs to be a box in the UI to enter the remote (like github) so that the git commands work
-
-
-------from what I'm seeing it seems to be I might be wrong but it seems like it finishes all the tasks and only then starts the debug loop instead of debugging after every change and git pushing after every loop. what should happen is complete a task. do a debug loop (which can be going over the changes a few times even though this is overkill) push to github and only then move to the next task
-
-
-------need way more verbose output so i can follow wtf is going on.
-
+the way the single question generation is running is slow since for each question i have to wait for the LLM. I want a system where there are 2 questions ahead of the current one ready at all times. so at the start generate 3 of them and after the user answers the first one the llm should already be working on the fourth one. ofc it is importnat that the when the llm is working on the next question it knows about all the answered questions and the questions in the queue that have not been answered yet (so that we don't get duplicates). if the suer cancels early then the unanswered questions in the queue should be thrown away. also when i get to the last question it should not be submmitted right away i should be able to ask for another question if i want to or submit questions and answers and move on to the next step
+besides for the tasks.md file alongside it the same LLM that makes the task file should also make the description.md file that takes the user submitted answers and the user submitted description and creates a file describing the product
 
 and option to save the current state to continue some other time.
+
+
+when i reach the limit with gemini i get this [15:48:21] [DEB] Final task file content: # Tasks YOLO mode is enabled. All tool calls will be automatically approved. Loaded cached credentials. Error when talking to Gemini API Full report available at: C:\Users\shlob\AppData\Local\Temp\gemini-client-error-Turn.run-sendMessageStream-2026-01-15T13-48-21-578Z.json TerminalQuotaError: You have exhausted your capacity on this model. Your quota will reset after 21h55m25s. at classifyGoogleError (file:///C:/Users/shlob/AppData/Roaming/npm/node_modules/@google/gemini-cli/node_modules/@g...
+[15:48:21] [DEB] Single task execution result: {'task_completed': False, 'all_tasks_done': True, 'iteration': 0, 'stopped_early': False}. this is something i need to be able to catch at any phase and let the user know and let him switch to a different llm
+
+when i reach the limit in claude i get something like this in a terminal: "PS C:\Users\shlob> claude -p "<prompt>"
+You've hit your limit · resets 4pm (Asia/Jerusalem)". ofc it's important to recognize in any time zone so try and detect the You've hit your limit when using claude. and let the user know and let him switch to a different llm
+
 
 
 we need to make sure there are these flag files for each step (like if all tasks complete exit the main loop) if the llm found nothing worng in the debugging phase he should output somehwere all clear or something so we can skip the next iteration if all the debuggers passed no problem.
@@ -35,19 +34,32 @@ if the debuggers change anything they should also update the recent changes
 
 With UI programs we have the issue of the agent running it and then waiting for it to quit sometimes? does this mean we need user input?
 
-the recent changes should not be over 500 lines long. this should be handled by the code to start erasing old lines to keep it at 500 lines
+recent changes should NOT be reset after each iteration instead the recent changes should not be over 500 lines long. this should be handled by the code to start erasing old lines to keep it at 500 lines
 
 need an option in the UI to add things to the list of what needs to be done
 
+should the questions.json be updated after the user inputs his answers?
 
+is it clear to the reviewers in the prompt we are sending them to leave the review file empty if there are no complaints? i keep seeing in the review file "all good nothing to fix" instead of keeping it empty
 
+why does it feel like everything is running slow? is all working on timeouts? or as soon as an agent is done it moves on to the next stage?
 
+if a review loop finishes with all the review files empty we don't need to run the loop again
 
+I mean long term we are going to want to not have to be stuck on one LLM for reviewing the code. i want to be able to have more than one review loop but have multiple llms do it (like claude for checking and codex for fixing and after that gemini for checking and claude for fixing) this needs to be easily adjustable in the UI
 
+Long term we need to add support for all LLM's and models that people use and be able to use API keys and stuff like that.
 
+review should start with general review and then go into specifics
+
+there should be an options menu where you can choose what reviewers run and what don't with checkboxes.
+
+the entire git part of the story shloud be user optional. the user should be able to skip commiting at all if he wants. or he can choose to only have local version control
+
+I should be able to continue if the workflow is complete either by just saying keep running for x iterations and it will skip the whole question part or by giving it a new feature.
 
 if it's a UI thingy is there a way to extract screenshots from the UI to debug
 
-
+should we have the LLM decide what debuggers should run before they run?
 
 should we have a more explicit way for agents to add tasks like have a dedicated call to the llm to check it out? meaning at the end of each full iteration have a look and see if any new tasks come up?
