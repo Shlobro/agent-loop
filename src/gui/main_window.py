@@ -57,6 +57,16 @@ class MainWindow(QMainWindow):
         self.remember_push_choice = False
         self.auto_push_remembered = False
 
+        # Activity panel state
+        self.activity_state = {
+            "phase": "",
+            "action": "",
+            "agent": "",
+            "review": "",
+            "findings": "",
+        }
+        self._last_phase = None
+
         # Setup UI
         self.setup_menu_bar()
         self.setup_ui()
@@ -217,6 +227,47 @@ class MainWindow(QMainWindow):
         self.llm_selector_panel.set_enabled(is_idle)
         self.config_panel.set_enabled(is_idle)
 
+    def _reset_activity_state(self):
+        """Clear activity panel state for a fresh run."""
+        self.activity_state = {
+            "phase": "",
+            "action": "",
+            "agent": "",
+            "review": "",
+            "findings": "",
+        }
+        self._last_phase = None
+
+    def _should_show_activity(self, phase: Phase) -> bool:
+        """Return True if the activity panel should be visible for this phase."""
+        return phase not in (Phase.IDLE, Phase.QUESTION_GENERATION, Phase.AWAITING_ANSWERS)
+
+    def _get_agent_label(self, phase: Phase) -> str:
+        """Build a compact agent label for the current phase."""
+        ctx = self.state_machine.context
+        config = ctx.llm_config
+        if phase == Phase.TASK_PLANNING:
+            return f"Planner: {config.get('task_planning', 'N/A')}"
+        if phase == Phase.MAIN_EXECUTION:
+            return f"Coder: {config.get('coder', 'N/A')}"
+        if phase == Phase.DEBUG_REVIEW:
+            return f"Reviewer: {config.get('reviewer', 'N/A')}"
+        if phase in (Phase.GIT_OPERATIONS, Phase.AWAITING_GIT_APPROVAL):
+            return f"Git Ops: {config.get('git_ops', 'N/A')}"
+        return ""
+
+    def _refresh_activity_panel(self):
+        """Render the activity panel with the current activity state."""
+        if not self._should_show_activity(self.state_machine.phase):
+            return
+        self.question_panel.show_activity(
+            phase=self.activity_state.get("phase", ""),
+            action=self.activity_state.get("action", ""),
+            agent=self.activity_state.get("agent", ""),
+            review=self.activity_state.get("review", ""),
+            findings=self.activity_state.get("findings", ""),
+        )
+
     @Slot()
     def on_start_clicked(self):
         """Begin or resume the workflow."""
@@ -260,6 +311,7 @@ class MainWindow(QMainWindow):
             git_remote=config.git_remote,
             llm_config=llm_config
         )
+        self._reset_activity_state()
 
         # Initialize file manager
         self.file_manager = FileManager(working_dir)
@@ -372,6 +424,8 @@ class MainWindow(QMainWindow):
         """Handle phase change."""
         phase_name = self.state_machine.get_phase_display_name()
         sub_name = self.state_machine.get_sub_phase_display_name()
+        phase_changed = phase != self._last_phase
+        self._last_phase = phase
 
         self.status_panel.set_phase(phase_name)
         if sub_name:
@@ -379,6 +433,56 @@ class MainWindow(QMainWindow):
 
         self.log_viewer.append_phase(phase_name)
         self.update_button_states()
+
+        if self._should_show_activity(phase):
+            if phase_changed:
+                self.activity_state["phase"] = phase_name
+                self.activity_state["action"] = ""
+                self.activity_state["review"] = ""
+                self.activity_state["findings"] = ""
+            else:
+                self.activity_state["phase"] = phase_name
+            self.activity_state["agent"] = self._get_agent_label(phase)
+            if sub_name and not self.activity_state["action"]:
+                self.activity_state["action"] = sub_name
+            self._refresh_activity_panel()
+
+    @Slot(str)
+    def on_worker_status(self, status: str):
+        """Handle worker status updates for UI panels."""
+        self.status_panel.set_sub_status(status)
+
+        if not self._should_show_activity(self.state_machine.phase):
+            return
+
+        self.activity_state["action"] = status
+
+        if self.state_machine.phase == Phase.DEBUG_REVIEW:
+            ctx = self.state_machine.context
+            if status.startswith("Fixing:"):
+                self.activity_state["agent"] = f"Fixer: {ctx.llm_config.get('fixer', 'N/A')}"
+            elif status.startswith("Review:"):
+                self.activity_state["agent"] = f"Reviewer: {ctx.llm_config.get('reviewer', 'N/A')}"
+                review_name = status.replace("Review:", "").strip()
+                if review_name:
+                    self.activity_state["review"] = review_name
+                    self.activity_state["findings"] = ""
+
+        self._refresh_activity_panel()
+
+    @Slot(str, int)
+    def on_review_summary(self, review_type: str, issue_count: int):
+        """Show review findings in the activity panel as they arrive."""
+        if not self._should_show_activity(self.state_machine.phase):
+            return
+
+        review_name = review_type.replace('_', ' ').title()
+        self.activity_state["review"] = review_name
+        if issue_count <= 0:
+            self.activity_state["findings"] = "No issues"
+        else:
+            self.activity_state["findings"] = f"{issue_count} issue(s)"
+        self._refresh_activity_panel()
 
     @Slot(bool)
     def on_workflow_completed(self, success: bool):
@@ -896,7 +1000,13 @@ class MainWindow(QMainWindow):
     def on_review_complete(self, review_type: str, result: str):
         """Handle individual review completion."""
         self.state_machine.update_context(current_review_type=review_type)
-        self.status_panel.set_sub_status(f"Completed: {review_type.replace('_', ' ').title()}")
+        review_label = review_type.replace('_', ' ').title()
+        self.status_panel.set_sub_status(f"Completed: {review_label}")
+
+        if self._should_show_activity(self.state_machine.phase):
+            self.activity_state["review"] = review_label
+            self.activity_state["action"] = f"Completed: {review_label}"
+            self._refresh_activity_panel()
 
     @Slot(object)
     def on_review_loop_complete(self, result: dict):
@@ -1012,7 +1122,8 @@ class MainWindow(QMainWindow):
         """Connect common worker signals."""
         worker.signals.log.connect(self.log_viewer.append_log)
         worker.signals.llm_output.connect(self.log_viewer.append_llm_output)
-        worker.signals.status.connect(self.status_panel.set_sub_status)
+        worker.signals.status.connect(self.on_worker_status)
+        worker.signals.review_summary.connect(self.on_review_summary)
         worker.signals.error.connect(self.on_worker_error)
         worker.signals.finished.connect(self.on_worker_finished)
 

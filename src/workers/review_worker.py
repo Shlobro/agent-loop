@@ -126,6 +126,7 @@ class ReviewWorker(BaseWorker):
 
         if not review_content.strip():
             self.log(f"No {review_name} issues found - review.md is empty", "success")
+            self.signals.review_summary.emit(review_type.value, 0)
             self.signals.review_complete.emit(review_type.value, "no_issues")
             return
 
@@ -133,6 +134,7 @@ class ReviewWorker(BaseWorker):
         review_lines = review_content.strip().split('\n')
         issue_count = sum(1 for line in review_lines if line.strip().startswith(('1.', '2.', '3.', '4.', '5.', '-')))
         self.log(f"Review found ~{issue_count} items ({len(review_content)} chars)", "info")
+        self.signals.review_summary.emit(review_type.value, issue_count)
         # Show preview of findings
         preview = review_content[:300].replace('\n', ' | ')
         self.log(f"Review preview: {preview}{'...' if len(review_content) > 300 else ''}", "debug")

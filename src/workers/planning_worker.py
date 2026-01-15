@@ -56,6 +56,7 @@ class PlanningWorker(BaseWorker):
 
     def _generate_description(self, provider):
         """Generate and save description.md file."""
+        self.update_status("Writing description...")
         self.log("Generating project description document...", "info")
 
         base_prompt = PromptTemplates.format_description_prompt(
@@ -97,6 +98,7 @@ class PlanningWorker(BaseWorker):
 
     def _generate_tasks(self, provider):
         """Generate and save tasks.md file."""
+        self.update_status("Drafting task list...")
         self.log("Generating task list...", "info")
 
         # Build prompt

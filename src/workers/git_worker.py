@@ -34,6 +34,7 @@ class GitWorker(BaseWorker):
         self.log(f"Using LLM provider: {provider.display_name}", "info")
 
         # Step 1: Git add and commit
+        self.update_status("Committing changes...")
         self.log("Step 1: Running git add and commit...", "info")
         self.log("LLM will stage all changes and create a commit message", "debug")
 
@@ -62,6 +63,7 @@ class GitWorker(BaseWorker):
         # Step 2: Push if auto_push is enabled
         pushed = False
         if self.auto_push:
+            self.update_status("Pushing changes...")
             self.log("Step 2: Pushing to remote...", "info")
             self.log("Auto-push is enabled, will attempt git push", "debug")
 
@@ -87,6 +89,7 @@ class GitWorker(BaseWorker):
             else:
                 self.log("Git push was cancelled", "warning")
         else:
+            self.update_status("Skipping push (auto-push off)")
             self.log("Step 2: Skipping push (auto-push disabled)", "info")
             self.log("To enable auto-push, check the 'Auto Push' option before starting", "debug")
 

@@ -34,4 +34,5 @@ class WorkerSignals(QObject):
     tasks_ready = Signal(str)  # tasks.md content
     task_completed = Signal(str)  # Completed task description
     review_complete = Signal(str, str)  # (review_type, result)
+    review_summary = Signal(str, int)  # (review_type, issue_count)
     iteration_complete = Signal(int)  # Iteration number

@@ -71,9 +71,14 @@ class ExecutionWorker(BaseWorker):
         self.log(f"Iteration {iteration} - Tasks: {completed}/{total} completed", "phase")
 
         # Log current task state
+        task_preview = ""
         incomplete_tasks = [line.strip() for line in tasks_content.split('\n')
                            if line.strip().startswith('- [ ]')]
         if incomplete_tasks:
+            task_preview = incomplete_tasks[0][6:].strip()
+            if len(task_preview) > 80:
+                task_preview = f"{task_preview[:77]}..."
+            self.update_status(f"Task {iteration}: {task_preview}")
             self.log(f"Working on task: {incomplete_tasks[0][:100]}", "info")
             self.log(f"Remaining incomplete tasks: {len(incomplete_tasks)}", "debug")
 
@@ -89,7 +94,10 @@ class ExecutionWorker(BaseWorker):
         self.log(f"Built execution prompt ({len(prompt)} chars)", "debug")
 
         # Run LLM
-        self.update_status(f"Executing task (iteration {iteration})...")
+        if task_preview:
+            self.update_status(f"Executing: {task_preview}")
+        else:
+            self.update_status(f"Executing task (iteration {iteration})...")
         self.log(f"Invoking LLM for task execution...", "info")
 
         llm_worker = LLMWorker(

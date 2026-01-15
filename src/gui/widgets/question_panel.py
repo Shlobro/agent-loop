@@ -26,6 +26,7 @@ class QuestionPanel(QWidget):
         self.option_group = None
         self.custom_option_radio = None
         self.is_last_question = False
+        self.activity_mode = False
         self.setup_ui()
 
     def setup_ui(self):
@@ -55,6 +56,32 @@ class QuestionPanel(QWidget):
         self.placeholder_label.setAlignment(Qt.AlignCenter)
         self.placeholder_label.setStyleSheet("color: gray; padding: 30px; font-size: 13px;")
         group_layout.addWidget(self.placeholder_label)
+
+        self.activity_frame = QFrame()
+        self.activity_frame.setFrameShape(QFrame.NoFrame)
+        self.activity_layout = QVBoxLayout(self.activity_frame)
+        self.activity_layout.setSpacing(6)
+
+        self.activity_phase_label = QLabel("")
+        self.activity_action_label = QLabel("")
+        self.activity_agent_label = QLabel("")
+        self.activity_review_label = QLabel("")
+        self.activity_findings_label = QLabel("")
+
+        activity_labels = [
+            self.activity_phase_label,
+            self.activity_action_label,
+            self.activity_agent_label,
+            self.activity_review_label,
+            self.activity_findings_label,
+        ]
+        for label in activity_labels:
+            label.setStyleSheet("font-size: 12px; color: #444444;")
+            label.setWordWrap(True)
+            self.activity_layout.addWidget(label)
+
+        self.activity_frame.hide()
+        group_layout.addWidget(self.activity_frame)
 
         self.content_frame = QFrame()
         self.content_frame.setFrameShape(QFrame.NoFrame)
@@ -153,6 +180,7 @@ class QuestionPanel(QWidget):
     def show_question(self, question_text: str, options: List[str],
                       question_num: int, total: int, is_last: bool = False):
         """Display a single question and reset the inputs."""
+        self._set_mode_questions()
         self.current_question_text = question_text
         self.is_last_question = is_last
 
@@ -252,6 +280,7 @@ class QuestionPanel(QWidget):
 
     def clear_question(self):
         """Reset the panel to its empty state."""
+        self._set_mode_questions()
         self.current_question_text = ""
         self._clear_options()
         self.freeform_edit.clear()
@@ -265,6 +294,7 @@ class QuestionPanel(QWidget):
 
     def show_waiting_for_decision(self, qa_pairs: list, max_questions: int):
         """Show a waiting state when max questions reached and waiting for user decision."""
+        self._set_mode_questions()
         self.current_question_text = ""
         self.is_last_question = False
         self._clear_options()
@@ -298,8 +328,9 @@ class QuestionPanel(QWidget):
         # Show previous Q&A
         self.show_previous_qa(qa_pairs)
 
-    def show_generating_message(self, message: str = "Generating questions, please wait..."):
+    def show_generating_message(self, message: str = "Generating questions....."):
         """Show a waiting message while a new question is being generated."""
+        self._set_mode_questions()
         self.current_question_text = ""
         self.is_last_question = False
         self._clear_options()
@@ -320,6 +351,22 @@ class QuestionPanel(QWidget):
         self.request_more_button.hide()
         self.start_planning_button.show()
         self.start_planning_button.setEnabled(True)
+
+    def show_activity(self, phase: str = "", action: str = "", agent: str = "",
+                      review: str = "", findings: str = ""):
+        """Show a compact activity status view in place of questions."""
+        self.activity_mode = True
+        self.group.setTitle("Live Status")
+        self.placeholder_label.hide()
+        self.content_frame.hide()
+        self.previous_group.hide()
+        self.activity_frame.show()
+
+        self._set_activity_line(self.activity_phase_label, "Phase", phase)
+        self._set_activity_line(self.activity_action_label, "Now", action)
+        self._set_activity_line(self.activity_agent_label, "Agent", agent)
+        self._set_activity_line(self.activity_review_label, "Review", review)
+        self._set_activity_line(self.activity_findings_label, "Findings", findings)
 
     def set_readonly(self, readonly: bool):
         """Enable or disable interaction."""
@@ -398,3 +445,20 @@ class QuestionPanel(QWidget):
             self.freeform_label.setEnabled(use_custom)
             if use_custom:
                 self.freeform_edit.setFocus()
+
+    def _set_mode_questions(self):
+        """Switch the panel back to question mode."""
+        if not self.activity_mode:
+            self.group.setTitle("Clarifying Questions")
+            return
+        self.activity_mode = False
+        self.group.setTitle("Clarifying Questions")
+        self.activity_frame.hide()
+
+    def _set_activity_line(self, label: QLabel, prefix: str, value: str):
+        """Update a single activity line with minimal text."""
+        if value:
+            label.setText(f"{prefix}: {value}")
+            label.show()
+        else:
+            label.hide()
