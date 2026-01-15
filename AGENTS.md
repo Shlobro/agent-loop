@@ -1,24 +1,10 @@
-# Repository Guidelines
-
-## Project Structure & Module Organization
-`main.py` is the PySide6 GUI entry point. Core workflow logic lives in `src/core/` (state machine, file/session handling). UI code is in `src/gui/` with `widgets/` and `dialogs/` for reusable panels. LLM integration and prompt templates are in `src/llm/`, and async execution uses QRunnable workers in `src/workers/`. Utility parsers live in `src/utils/`. Runtime artifacts such as `tasks.md`, `recent-changes.md`, and `review.md` are created in the working directory during runs.
-
-## Build, Test, and Development Commands
-Use a local venv and install dependencies:
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-python main.py
-```
-LLM CLIs must be available on PATH if you use the built-in providers:
-`claude --dangerously-skip-permissions` (one-time), `gemini "<prompt>" --yolo`, or `codex exec --full-auto "<prompt>"`.
-
-## Coding Style & Naming Conventions
-Follow the existing Python style: 4-space indentation, module-level docstrings, and type hints on public APIs. Use `snake_case` for functions/modules, `PascalCase` for classes, and `UPPER_CASE` for constants and enums. Keep Qt signal definitions centralized (see `src/workers/signals.py`) and emit them from worker classes.
-
-## Testing Guidelines
-There is no automated test suite in the repository yet. If you add tests, prefer `pytest` with `tests/` at the repo root and `test_*.py` naming. Focus on deterministic logic in `src/core/` and `src/llm/` first; avoid GUI-only tests unless necessary.
-
-## Commit & Pull Request Guidelines
-Git history uses short, sentence-style messages without scopes or prefixes (for example, `added the option to enter a remote for git`). Keep commits similarly concise and descriptive. For pull requests, include a brief summary, steps to run (`python main.py`), and screenshots for any UI changes. Call out any new LLM provider setup requirements or dependency additions.
+- always start by reading "agentHarness_developer_guide.md" and looking for any other relevant .md files according to what you are trying to do.
+- always read the .md file in every folder you work in. if there is no .md file in this folder create it if it is in the backend folder for example then it should be called backend_developer_guide.md, if you are creating the .md file make sure it is written in a way that is geared towards developers, it should explain all the files and subfolders in that folder in a way that a developer that has never seen the code will know how to work with the code. these files should never be over 500 lines long.
+- when changing any file or doing any edits make sure to update the .md file in that folder and in the ancestor folders as well. these .md files should never be longer than 500 lines long. the point of these .md files are to allow a new developer to understand everything without needing to read the code itself. they are not to document changes. only changes that require additional information for a developer that has never seen the code should be added into the .md files.
+- no code file generated or edited should exceed 1000 lines of code ever. if while editing or creating a file, the file exceeds 1000 lines this file must be split up into multiple files.
+- whenever creating a new file, think very carefully which folder this file should be put in, if needed make a new folder so that there is clear separation between folders.
+- each folder should only have 1 .md file. never create summary files or visualization .md files.
+- never build the android project allow the user to build and provide any build errors
+- never mention legacy functionality or recent changes in the MD files they are only needed to get engineers into what is happening right now in the code.
+- keep system temp directories (for example `%TEMP%/`) ignored via `.gitignore`.
+- always ask if a commit message is good before commiting.
