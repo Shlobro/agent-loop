@@ -29,7 +29,8 @@ class ClaudeProvider(BaseLLMProvider):
         """Return available Claude models."""
         return self.MODELS
 
-    def build_command(self, prompt: str, model: Optional[str] = None) -> List[str]:
+    def build_command(self, prompt: str, model: Optional[str] = None,
+                      working_directory: Optional[str] = None) -> List[str]:
         """Build claude CLI command with auto-approval."""
         cmd = ["claude", "--dangerously-skip-permissions"]
         if model:

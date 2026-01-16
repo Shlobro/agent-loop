@@ -3,6 +3,7 @@
 import subprocess
 import sys
 import threading
+from pathlib import Path
 from typing import Optional
 
 from .base_worker import BaseWorker
@@ -33,7 +34,20 @@ class LLMWorker(BaseWorker):
 
     def execute(self) -> str:
         """Execute the LLM command and return the output."""
-        command = self.provider.build_command(self.prompt, model=self.model)
+        output_path = self._get_output_last_message_path()
+        if output_path:
+            try:
+                output_path.unlink()
+            except FileNotFoundError:
+                pass
+            except OSError as e:
+                self.log(f"Failed to clear output file {output_path}: {e}", "warning")
+
+        command = self.provider.build_command(
+            self.prompt,
+            model=self.model,
+            working_directory=self.working_directory
+        )
         # Log the exact command being executed for debugging
         command_str = ' '.join(f'"{arg}"' if ' ' in arg or '"' in arg else arg for arg in command)
         self.log(f"Executing command: {command_str}", "info")
@@ -100,6 +114,18 @@ class LLMWorker(BaseWorker):
             output_thread.join(timeout=5)
 
             full_output = ''.join(self._output_lines)
+            if output_path and output_path.exists():
+                try:
+                    file_output = output_path.read_text(encoding="utf-8")
+                except OSError as e:
+                    self.log(f"Failed to read output file {output_path}: {e}", "warning")
+                    file_output = ""
+                if file_output.strip():
+                    self._output_lines.append(file_output)
+                    if full_output and not full_output.endswith("\n"):
+                        full_output += "\n"
+                    full_output += file_output
+                    self.log(f"Loaded output from {output_path}", "debug")
 
             # Log process result for debugging
             self.log(f"Process exited with code {self.process.returncode}, output length: {len(full_output)} chars", "info")
@@ -156,6 +182,15 @@ class LLMWorker(BaseWorker):
                     self.log(f"Process killed", "debug")
             except Exception as e:
                 self.log(f"Error during process termination: {e}", "debug")
+
+    def _get_output_last_message_path(self) -> Optional[Path]:
+        path_getter = getattr(self.provider, "get_output_last_message_path", None)
+        if not callable(path_getter):
+            return None
+        output_path = path_getter(self.working_directory)
+        if not output_path:
+            return None
+        return Path(output_path)
 
 
 class RetryingLLMWorker(LLMWorker):

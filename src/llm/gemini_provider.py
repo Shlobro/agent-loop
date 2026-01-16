@@ -36,7 +36,8 @@ class GeminiProvider(BaseLLMProvider):
         """Gemini accepts prompt via stdin to avoid escaping issues."""
         return True
 
-    def build_command(self, prompt: str, model: Optional[str] = None) -> List[str]:
+    def build_command(self, prompt: str, model: Optional[str] = None,
+                      working_directory: Optional[str] = None) -> List[str]:
         """Build gemini CLI command.
 
         The prompt will be passed via stdin by the LLMWorker.

@@ -1,7 +1,6 @@
 """Worker for Phase 1: Question Generation."""
 
 import json
-import re
 from pathlib import Path
 from typing import List, Dict
 
@@ -10,6 +9,7 @@ from .llm_worker import LLMWorker
 from ..llm.base_provider import LLMProviderRegistry
 from ..llm.prompt_templates import PromptTemplates
 from ..core.exceptions import LLMOutputParseError
+from ..utils.json_parser import parse_questions_json
 
 
 class QuestionWorker(BaseWorker):
@@ -19,13 +19,17 @@ class QuestionWorker(BaseWorker):
     The LLM writes questions to questions.json file, which is then parsed.
     """
 
-    MAX_PARSE_RETRIES = 2
     QUESTIONS_FILENAME = "questions.json"
+    DESCRIPTION_FILENAME = "description.md"
 
-    def __init__(self, description: str, provider_name: str = "gemini",
-                 working_directory: str = None, model: str = None):
+    def __init__(self, description: str, question_count: int,
+                 previous_qa: List[Dict[str, str]] | None = None,
+                 provider_name: str = "gemini", working_directory: str = None,
+                 model: str = None):
         super().__init__()
         self.description = description
+        self.question_count = question_count
+        self.previous_qa = previous_qa or []
         self.provider_name = provider_name
         self.working_directory = working_directory
         self.model = model
@@ -36,324 +40,192 @@ class QuestionWorker(BaseWorker):
         self.log(f"=== QUESTION GENERATION PHASE START ===", "phase")
         self.log(f"Working directory: {self.working_directory}", "info")
         self.log(f"Project description: {self.description[:200]}{'...' if len(self.description) > 200 else ''}", "info")
-
-        provider = LLMProviderRegistry.get(self.provider_name)
-        self.log(f"Using LLM provider: {provider.display_name}", "info")
-
-        # Build prompt - LLM will output JSON to stdout
-        base_prompt = PromptTemplates.format_question_prompt(
-            self.description,
-            self.working_directory
-        )
-        prompt = provider.format_prompt(base_prompt, "json")
-        self.log(f"Built question prompt ({len(prompt)} chars)", "debug")
-
-        last_error = None
-
-        for attempt in range(1, self.MAX_PARSE_RETRIES + 1):
-            self.check_cancelled()
-
-            # Run LLM
-            self.log(f"Calling {provider.display_name} for question generation (attempt {attempt}/{self.MAX_PARSE_RETRIES})...", "info")
-
-            llm_worker = LLMWorker(
-                provider=provider,
-                prompt=prompt,
-                working_directory=self.working_directory,
-                model=self.model
-            )
-
-            # Forward LLM output signals
-            llm_worker.signals.llm_output.connect(
-                lambda line: self.signals.llm_output.emit(line)
-            )
-            # Forward log signals so command is visible
-            llm_worker.signals.log.connect(
-                lambda msg, level: self.signals.log.emit(msg, level)
-            )
-
-            # Run synchronously (we're already in a worker thread)
-            llm_worker.run()
-
-            # Get the result
-            if llm_worker._is_cancelled:
-                self.log(f"LLM worker was cancelled", "warning")
-                self.check_cancelled()
-
-            # Parse the LLM output directly as JSON
-            llm_output = ''.join(llm_worker._output_lines)
-            if llm_output.strip():
-                self.log(f"LLM output ({len(llm_output)} chars): {llm_output[:500]}{'...' if len(llm_output) > 500 else ''}", "info")
-            else:
-                self.log(f"LLM produced no output", "warning")
-
-            # Try to parse JSON directly from output
-            try:
-                questions = self._parse_json_output(llm_output)
-                question_list = questions.get('questions', [])
-                self.log(f"Generated {len(question_list)} questions", "success")
-
-                # Log question summary
-                for i, q in enumerate(question_list[:5], 1):
-                    q_text = q.get('question', 'N/A')[:60]
-                    opts = len(q.get('options', []))
-                    self.log(f"  Q{i}: {q_text}{'...' if len(q.get('question', '')) > 60 else ''} ({opts} options)", "debug")
-                if len(question_list) > 5:
-                    self.log(f"  ... and {len(question_list) - 5} more questions", "debug")
-
-                self.log(f"=== QUESTION GENERATION PHASE END ===", "phase")
-                self.signals.questions_ready.emit(questions)
-                return questions
-
-            except LLMOutputParseError as e:
-                last_error = e
-                self.log(f"Failed to parse questions (attempt {attempt}): {e}", "warning")
-
-                if attempt < self.MAX_PARSE_RETRIES:
-                    self.log(f"Retrying with more explicit instructions...", "info")
-                    # Add more explicit instruction for retry
-                    prompt = provider.format_prompt(
-                        f"{base_prompt}\n\n"
-                        f"CRITICAL: Your previous output was not valid JSON. "
-                        f"Output ONLY valid JSON starting with {{ and ending with }}. "
-                        f"No explanatory text. No markdown fences. Just the JSON.",
-                        "json"
-                    )
-
-        self.log(f"All {self.MAX_PARSE_RETRIES} attempts failed to generate valid questions", "error")
-        raise last_error or LLMOutputParseError("Failed to generate valid questions")
-
-    def _parse_json_output(self, output: str) -> dict:
-        """Parse JSON directly from LLM output."""
-        self.log(f"Attempting to parse JSON from output", "debug")
-
-        # Strip any markdown code fences
-        output = output.strip()
-        if output.startswith("```json"):
-            output = output[7:]
-        if output.startswith("```"):
-            output = output[3:]
-        if output.endswith("```"):
-            output = output[:-3]
-        output = output.strip()
-
-        # Find JSON object boundaries
-        start_idx = output.find('{')
-        end_idx = output.rfind('}')
-
-        if start_idx == -1 or end_idx == -1:
-            self.log(f"No JSON object found in output", "warning")
-            raise LLMOutputParseError("No JSON object found in LLM output")
-
-        json_str = output[start_idx:end_idx+1]
-        self.log(f"Extracted JSON substring ({len(json_str)} chars)", "debug")
-
-        try:
-            data = json.loads(json_str)
-            self.log(f"Successfully parsed JSON", "debug")
-
-            # Validate structure
-            if "questions" not in data:
-                self.log(f"JSON missing 'questions' key. Keys found: {list(data.keys())}", "warning")
-                raise LLMOutputParseError("JSON output missing 'questions' key")
-
-            if not isinstance(data["questions"], list):
-                self.log(f"'questions' is not an array, got: {type(data['questions'])}", "warning")
-                raise LLMOutputParseError("'questions' must be an array")
-
-            if len(data["questions"]) == 0:
-                self.log(f"'questions' array is empty", "warning")
-                raise LLMOutputParseError("'questions' array is empty")
-
-            self.log(f"JSON validation passed", "debug")
-
-            # Now write the parsed JSON to the file for compatibility
-            questions_path = Path(self.working_directory) / self.QUESTIONS_FILENAME
-            questions_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-            self.log(f"Wrote parsed JSON to {self.QUESTIONS_FILENAME}", "debug")
-
-            return data
-
-        except json.JSONDecodeError as e:
-            self.log(f"JSON parse error at line {e.lineno}, col {e.colno}: {e.msg}", "warning")
-            self.log(f"JSON substring: {json_str[:200]}{'...' if len(json_str) > 200 else ''}", "debug")
-            raise LLMOutputParseError(f"Invalid JSON in LLM output: {e}")
-
-
-class SingleQuestionWorker(BaseWorker):
-    """
-    Phase 1 worker: Generates a single clarifying question from user description
-    and prior Q&A pairs.
-    """
-
-    MAX_PARSE_RETRIES = 2
-    QUESTION_FILENAME = "single_question.json"
-
-    def __init__(self, description: str, previous_qa: List[Dict[str, str]],
-                 provider_name: str = "gemini", working_directory: str = None,
-                 model: str = None):
-        super().__init__()
-        self.description = description
-        self.previous_qa = previous_qa or []
-        self.provider_name = provider_name
-        self.working_directory = working_directory
-        self.model = model
-
-    def execute(self):
-        """Generate one question and return parsed JSON from single_question.json file."""
-        self.update_status("Generating clarifying question...")
-        self.log("=== SINGLE QUESTION GENERATION START ===", "phase")
-        self.log(f"Working directory: {self.working_directory}", "info")
-        self.log(f"Project description: {self.description[:200]}{'...' if len(self.description) > 200 else ''}", "info")
+        self.log(f"Question count: {self.question_count}", "info")
         self.log(f"Previous Q&A count: {len(self.previous_qa)}", "info")
 
         provider = LLMProviderRegistry.get(self.provider_name)
         self.log(f"Using LLM provider: {provider.display_name}", "info")
 
-        base_prompt = PromptTemplates.format_single_question_prompt(
-            self.description,
-            self.previous_qa,
-            self.working_directory
+        # Build prompt - LLM writes JSON to file when possible, stdout otherwise
+        base_prompt = PromptTemplates.format_question_prompt(
+            description=self.description,
+            question_count=self.question_count,
+            previous_qa=self.previous_qa,
+            working_directory=self.working_directory
         )
-        prompt = provider.format_prompt(base_prompt, "json")
-        self.log(f"Built single question prompt ({len(prompt)} chars)", "debug")
+        output_type = "freeform" if provider.name == "codex" else "json"
+        prompt = provider.format_prompt(base_prompt, output_type)
+        self.log(f"Built question prompt ({len(prompt)} chars)", "debug")
 
-        last_error = None
+        self.check_cancelled()
 
-        for attempt in range(1, self.MAX_PARSE_RETRIES + 1):
+        # Run LLM once
+        self.log(f"Calling {provider.display_name} for question generation...", "info")
+
+        llm_worker = LLMWorker(
+            provider=provider,
+            prompt=prompt,
+            working_directory=self.working_directory,
+            model=self.model
+        )
+
+        # Forward LLM output signals
+        llm_worker.signals.llm_output.connect(
+            lambda line: self.signals.llm_output.emit(line)
+        )
+        # Forward log signals so command is visible
+        llm_worker.signals.log.connect(
+            lambda msg, level: self.signals.log.emit(msg, level)
+        )
+
+        # Run synchronously (we're already in a worker thread)
+        llm_worker.run()
+
+        if llm_worker._is_cancelled:
+            self.log("LLM worker was cancelled", "warning")
             self.check_cancelled()
 
-            self.log(
-                f"Calling {provider.display_name} for single question (attempt {attempt}/{self.MAX_PARSE_RETRIES})...",
-                "info"
-            )
-
-            llm_worker = LLMWorker(
-                provider=provider,
-                prompt=prompt,
-                working_directory=self.working_directory,
-                model=self.model
-            )
-
-            llm_worker.signals.llm_output.connect(
-                lambda line: self.signals.llm_output.emit(line)
-            )
-            llm_worker.signals.log.connect(
-                lambda msg, level: self.signals.log.emit(msg, level)
-            )
-
-            llm_worker.run()
-
-            if llm_worker._is_cancelled:
-                self.log("LLM worker was cancelled", "warning")
-                self.check_cancelled()
-
-            llm_output = ''.join(llm_worker._output_lines)
-            if llm_output.strip():
-                self.log(f"LLM output ({len(llm_output)} chars): {llm_output[:500]}{'...' if len(llm_output) > 500 else ''}", "info")
-            else:
-                self.log("LLM produced no output", "warning")
-
-            try:
-                question_data = self._parse_single_question_output(llm_output)
-                self.log("Generated single question successfully", "success")
-                self.log(f"Question: {question_data.get('question', '')[:80]}", "debug")
-                self.log(f"Options: {len(question_data.get('options', []))}", "debug")
-
-                self.log("=== SINGLE QUESTION GENERATION END ===", "phase")
-                self.signals.single_question_ready.emit(question_data)
-                return question_data
-
-            except LLMOutputParseError as e:
-                last_error = e
-                self.log(f"Failed to parse single question (attempt {attempt}): {e}", "warning")
-
-                if attempt < self.MAX_PARSE_RETRIES:
-                    self.log("Retrying with more explicit instructions...", "info")
-                    prompt = provider.format_prompt(
-                        f"{base_prompt}\n\n"
-                        f"CRITICAL: Your previous output was not valid JSON. "
-                        f"Output ONLY valid JSON starting with {{ and ending with }}. "
-                        f"No explanatory text. No markdown fences. Just the JSON.",
-                        "json"
-                    )
-
-        self.log(f"All {self.MAX_PARSE_RETRIES} attempts failed to generate valid question", "error")
-        raise last_error or LLMOutputParseError("Failed to generate valid single question")
-
-    def _parse_single_question_output(self, output: str) -> dict:
-        """Parse JSON directly from LLM output."""
-        self.log(f"Attempting to parse JSON from output", "debug")
-
-        # Strip any markdown code fences
-        output = output.strip()
-        if output.startswith("```json"):
-            output = output[7:]
-        if output.startswith("```"):
-            output = output[3:]
-        if output.endswith("```"):
-            output = output[:-3]
-        output = output.strip()
-
-        # Find JSON object boundaries
-        start_idx = output.find('{')
-        end_idx = output.rfind('}')
-
-        if start_idx == -1 or end_idx == -1:
-            self.log(f"No JSON object found in output", "warning")
-            raise LLMOutputParseError("No JSON object found in LLM output")
-
-        json_str = output[start_idx:end_idx+1]
-        self.log(f"Extracted JSON substring ({len(json_str)} chars)", "debug")
+        llm_output = ''.join(llm_worker._output_lines)
+        if llm_output.strip():
+            self.log(f"LLM output ({len(llm_output)} chars): {llm_output[:500]}{'...' if len(llm_output) > 500 else ''}", "info")
+            self.log(f"LLM full output:\n{llm_output}", "info")
+        else:
+            self.log("LLM produced no output", "warning")
 
         try:
-            data = json.loads(json_str)
-            if not isinstance(data, dict):
-                raise LLMOutputParseError("Output must be a JSON object")
+            questions = self._load_questions_file()
+            questions = self._ensure_question_count(questions)
+            question_list = questions.get("questions", [])
+            self.log(f"Loaded {len(question_list)} questions from {self.QUESTIONS_FILENAME}", "success")
+            self.log("=== QUESTION GENERATION PHASE END ===", "phase")
+            self.signals.questions_ready.emit(questions)
+            return questions
+        except LLMOutputParseError as e:
+            self.log(f"Question generation failed: {e}", "error")
+            raise
 
-            question = data.get("question") or data.get("text") or data.get("prompt")
-            if not question:
-                self.log(f"JSON keys found: {list(data.keys())}", "warning")
-                raise LLMOutputParseError("JSON output missing 'question' key")
+    def _load_questions_file(self) -> dict:
+        """Load questions from questions.json if present."""
+        questions_path = Path(self.working_directory) / self.QUESTIONS_FILENAME
+        if not questions_path.exists():
+            raise LLMOutputParseError(f"{self.QUESTIONS_FILENAME} not found")
+        try:
+            content = questions_path.read_text(encoding="utf-8")
+        except OSError as e:
+            raise LLMOutputParseError(f"Failed to read {self.QUESTIONS_FILENAME}: {e}")
 
-            options = data.get("options") or data.get("choices") or data.get("answers")
-            options_list = self._normalize_options(options)
+        return parse_questions_json(content)
 
-            if len(options_list) == 0:
-                self.log(f"Options field was: {options}", "warning")
-                raise LLMOutputParseError("'options' array is empty or missing")
+    def _ensure_question_count(self, questions: dict) -> dict:
+        """Ensure the questions list matches the requested count."""
+        question_list = questions.get("questions", [])
+        if len(question_list) < self.question_count:
+            raise LLMOutputParseError(
+                f"Expected {self.question_count} questions, got {len(question_list)}"
+            )
+        if len(question_list) > self.question_count:
+            self.log(
+                f"Trimmed questions from {len(question_list)} to {self.question_count}",
+                "warning"
+            )
+            questions = {**questions, "questions": question_list[:self.question_count]}
+            questions_path = Path(self.working_directory) / self.QUESTIONS_FILENAME
+            questions_path.write_text(json.dumps(questions, indent=2), encoding="utf-8")
+        return questions
 
-            result = {
-                "question": str(question).strip(),
-                "options": options_list
-            }
 
-            self.log(f"JSON validation passed", "debug")
+class DefinitionRewriteWorker(BaseWorker):
+    """
+    Rewrite the project description into a product definition using Q&A context.
+    """
 
-            # Write to file for compatibility
-            question_path = Path(self.working_directory) / self.QUESTION_FILENAME
-            question_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
-            self.log(f"Wrote parsed JSON to {self.QUESTION_FILENAME}", "debug")
+    DESCRIPTION_FILENAME = "description.md"
 
-            return result
+    def __init__(self, description: str, qa_pairs: List[Dict[str, str]],
+                 provider_name: str = "gemini", working_directory: str = None,
+                 model: str = None):
+        super().__init__()
+        self.description = description
+        self.qa_pairs = qa_pairs or []
+        self.provider_name = provider_name
+        self.working_directory = working_directory
+        self.model = model
 
-        except json.JSONDecodeError as e:
-            self.log(f"JSON parse error at line {e.lineno}, col {e.colno}: {e.msg}", "warning")
-            self.log(f"JSON substring: {json_str[:200]}{'...' if len(json_str) > 200 else ''}", "debug")
-            raise LLMOutputParseError(f"Invalid JSON in LLM output: {e}")
+    def execute(self) -> str:
+        """Generate a rewritten product definition from description and Q&A."""
+        self.update_status("Refining product definition...")
+        self.log("=== DEFINITION REWRITE START ===", "phase")
+        self.log(f"Working directory: {self.working_directory}", "info")
+        self.log(f"Q&A pairs: {len(self.qa_pairs)}", "info")
 
-    def _normalize_options(self, options: object) -> List[str]:
-        """Normalize options to a list of non-empty strings."""
-        if options is None:
-            return []
-        if isinstance(options, list):
-            return [str(option).strip() for option in options if str(option).strip()]
-        if isinstance(options, dict):
-            return [str(option).strip() for option in options.values() if str(option).strip()]
-        if isinstance(options, str):
-            stripped = options.strip()
-            if not stripped:
-                return []
-            parts = re.split(r"[,\n\r|/;]", stripped)
-            return [part.strip() for part in parts if part.strip()]
-        return []
+        if not self.qa_pairs:
+            self.log("No Q&A pairs provided; using original description", "warning")
+            return self.description
+
+        provider = LLMProviderRegistry.get(self.provider_name)
+        self.log(f"Using LLM provider: {provider.display_name}", "info")
+
+        base_prompt = PromptTemplates.format_definition_rewrite_prompt(
+            description=self.description,
+            qa_pairs=self.qa_pairs,
+            working_directory=self.working_directory or "."
+        )
+        prompt = provider.format_prompt(base_prompt, "freeform")
+        self.log(f"Built definition rewrite prompt ({len(prompt)} chars)", "debug")
+
+        llm_worker = LLMWorker(
+            provider=provider,
+            prompt=prompt,
+            working_directory=self.working_directory,
+            model=self.model
+        )
+        llm_worker.signals.llm_output.connect(
+            lambda line: self.signals.llm_output.emit(line)
+        )
+        llm_worker.signals.log.connect(
+            lambda msg, level: self.signals.log.emit(msg, level)
+        )
+
+        try:
+            llm_worker.run()
+        except Exception as exc:
+            self.log(f"Definition rewrite failed: {exc}", "warning")
+            return self.description
+
+        rewritten = self._load_definition_file()
+        if rewritten:
+            self.log("Loaded rewritten description from description.md", "success")
+            self.log("=== DEFINITION REWRITE END ===", "phase")
+            return rewritten
+
+        llm_output = ''.join(llm_worker._output_lines).strip()
+        if llm_output:
+            self._write_definition_file(llm_output)
+            self.log("Definition rewrite wrote description.md from stdout output", "warning")
+            self.log("=== DEFINITION REWRITE END ===", "phase")
+            return llm_output
+
+        self.log("Definition rewrite produced empty output; keeping original description", "warning")
+        return self.description
+
+    def _load_definition_file(self) -> str:
+        if not self.working_directory:
+            return ""
+        path = Path(self.working_directory) / self.DESCRIPTION_FILENAME
+        if not path.exists():
+            return ""
+        try:
+            content = path.read_text(encoding="utf-8").strip()
+        except OSError as exc:
+            self.log(f"Failed to read description.md: {exc}", "warning")
+            return ""
+        return content
+
+    def _write_definition_file(self, content: str):
+        if not self.working_directory:
+            return
+        path = Path(self.working_directory) / self.DESCRIPTION_FILENAME
+        try:
+            path.write_text(content.strip() + "\n", encoding="utf-8")
+        except OSError as exc:
+            self.log(f"Failed to write description.md: {exc}", "warning")

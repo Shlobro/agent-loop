@@ -66,6 +66,23 @@ class DescriptionPanel(QWidget):
         """Enable or disable editing."""
         self.text_edit.setReadOnly(readonly)
 
+    def append_qa_pairs(self, qa_pairs: list):
+        """Append answered clarifying questions to the description text."""
+        if not qa_pairs:
+            return
+        current = self.text_edit.toPlainText().rstrip()
+        lines = [current] if current else []
+        if current:
+            lines.append("")
+        lines.append("Clarifying Questions and Answers:")
+        for i, qa in enumerate(qa_pairs, 1):
+            question = str(qa.get("question", "")).strip()
+            answer = str(qa.get("answer", "")).strip()
+            if question and answer:
+                lines.append(f"Q{i}: {question}")
+                lines.append(f"A{i}: {answer}")
+        self.set_description("\n".join(lines).rstrip())
+
     def clear(self):
         """Clear the description."""
         self.text_edit.clear()

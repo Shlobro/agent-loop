@@ -6,6 +6,7 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 ## Top-Level Map
 - `main.py`: Application entry point. Creates `QApplication` and shows `MainWindow`.
 - `src/`: All application code (GUI, core workflow, workers, LLM integration, utils).
+- `test.txt`: simple text placeholder currently containing a greeting string.
 - `TODO's`: Product backlog and feature notes that map into code.
 - `Product Description`: Product vision and UX goals.
 - `requirements.txt`: Runtime dependencies (PySide6).
@@ -15,11 +16,17 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 - `.idea/`, `.claude/`, `.venv/`, `.git/`: Local tools, settings, and VCS metadata.
 
 ## Workflow Overview (High Level)
-1. UI collects description, LLM choices, and execution settings.
+1. UI collects description, LLM choices, and execution settings. The description is synced to `description.md`. After answers are submitted, Q&A is rewritten into `description.md`, the description becomes editable again, and only then can the user generate more questions (using the current description) or start planning.
 2. `StateMachine` tracks phase/context; `MainWindow` dispatches workers.
-3. Question generation (prefetch + single-question loop).
+3. Question generation initializes an empty `questions.json` and expects the LLM to write a batch into it in a single attempt (no stdout parsing or fallback prompts); generating another batch deletes the previous `questions.json`.
 4. Task planning writes `description.md` and `tasks.md`.
 5. Main execution completes one task per iteration and updates `recent-changes.md`.
+   - Execution and fixer prompts include workspace governance rules plus a compliance scan summary (fresh scan each execution/review cycle):
+     - Exactly one developer guide `.md` file per folder (excluding system/tooling dirs like `.git`, `.venv`, `.idea`, `.claude`, `node_modules`).
+     - Read a folder's developer guide before editing.
+     - Update the folder's guide and all ancestor guides when changes affect developer understanding.
+     - No more than 10 files per folder.
+     - No code file over 1000 lines.
 6. Review loop (including UI/UX review) writes `review.md` and runs fixer.
 7. Git operations optionally commit and push.
 
@@ -28,10 +35,10 @@ Created in the selected working directory (not the repo root):
 - `tasks.md`: Task checklist and completion state.
 - `recent-changes.md`: Rolling log of code changes.
 - `review.md`: Reviewer findings for the fixer.
-- `description.md`: LLM-generated full project spec.
+- `description.md`: Synced project description and later the LLM-generated full project spec.
 - `session_state.json`: Pause/resume snapshot of workflow state.
 - `questions.json`: Batch questions file.
-- `single_question.json`: Last generated single question (iterative path).
+- `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`: Governance prompt files; auto-created if missing.
 
 ## TODO-to-File Map
 Use this when picking up items from `TODO's`.
@@ -52,7 +59,7 @@ Use this when picking up items from `TODO's`.
 - Handle UI app runs that block (timeouts or guidance): `src/llm/prompt_templates.py`, `src/workers/llm_worker.py`.
 - Keep recent-changes.md capped (no reset each task): `src/core/file_manager.py`, `src/gui/main_window.py`.
 - UI action to add tasks: `src/gui/widgets/config_panel.py`, `src/gui/main_window.py`, `src/utils/markdown_parser.py`, `src/core/file_manager.py`.
-- Update questions.json when answers are submitted: `src/gui/main_window.py`, `src/workers/question_worker.py`, `src/core/question_prefetch_manager.py`.
+- Update questions.json when answers are submitted: `src/gui/main_window.py`, `src/workers/question_worker.py`.
 - Review prompts should leave review.md empty when no issues: `src/llm/prompt_templates.py`, `src/workers/review_worker.py`.
 - Investigate slowness (timeouts/sequencing): `src/workers/llm_worker.py`, `src/gui/main_window.py`, `src/workers/`.
 - Stop review loop early when all reviews empty: `src/workers/review_worker.py`, `src/gui/main_window.py`.
@@ -68,6 +75,9 @@ Use this when picking up items from `TODO's`.
 - App startup: `main.py`, `src/gui/main_window.py`.
 - Workflow state and persistence: `src/core/state_machine.py`, `src/core/session_manager.py`.
 - LLM prompts and providers: `src/llm/`.
+- LLM provider CLI flags and commands: `src/llm/*_provider.py`.
+- LLM output capture behavior (stdout vs output-file): `src/workers/llm_worker.py`, `src/llm/*_provider.py`.
 - Review label formatting in UI/logs: `src/gui/main_window.py` (uses `PromptTemplates.get_review_display_name`).
 - Background phase logic: `src/workers/`.
 - UI/UX components: `src/gui/`.
+- GUI worker orchestration: `src/gui/main_window.py`, `src/gui/workflow_runner.py`.

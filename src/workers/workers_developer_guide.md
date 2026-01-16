@@ -6,11 +6,11 @@ Implements QRunnable workers that execute each workflow phase asynchronously and
 ## Contents
 - `signals.py`: `WorkerSignals` used by all workers (status, progress, logs, phase outputs).
 - `base_worker.py`: Common QRunnable base with cancel/pause support and error handling.
-- `llm_worker.py`: Subprocess runner for LLM CLIs with streaming output and timeouts.
-- `question_worker.py`: Generates batch questions or a single question from the LLM and writes JSON files.
+- `llm_worker.py`: Subprocess runner for LLM CLIs with streaming output, timeouts, and optional output-file capture for providers like Codex.
+- `question_worker.py`: Generates a batch of clarifying questions from the LLM and loads them exclusively from `questions.json` (single attempt; no stdout parsing or fallback prompts). Also contains the worker that rewrites Q&A into `description.md` before additional question batches (reads/writes `description.md` in the working directory).
 - `planning_worker.py`: Generates `description.md` and `tasks.md`.
-- `execution_worker.py`: Executes a single task iteration and updates task state in `tasks.md`.
-- `review_worker.py`: Runs review/fix cycles per selected review type (including UI/UX) and iterations using `review.md`.
+- `execution_worker.py`: Executes a single task iteration, injects a fresh workspace compliance report (one `.md` per folder excluding system/tooling dirs, read guide before editing, update ancestor guides, <=10 files per folder, <=1000 lines per code file) into the prompt, and updates task state in `tasks.md`.
+- `review_worker.py`: Runs review/fix cycles per selected review type (including UI/UX), adding workspace compliance guidance (the five workspace rules) to the fixer prompt with a fresh compliance scan each cycle.
 - `git_worker.py`: LLM-driven git add/commit and optional push.
 - `__init__.py`: Module marker.
 

@@ -19,105 +19,37 @@ class PromptTemplates:
     """Central repository for all LLM prompt templates."""
 
     # =========================================================================
-    # Phase 1: Question Generation (Legacy - batch mode)
+    # Phase 1: Question Generation (Batch mode)
     # =========================================================================
-    QUESTION_GENERATION = '''Generate 5-10 clarifying questions for a software development project.
+    QUESTION_GENERATION_PROMPT = (
+        'your job is to edit `questions.json` file with {question_count} questions to clarify '
+        'exactly what the user wants to make. provide the user with 3-5 possible '
+        'answers for each question. the format of the json should be '
+        '{{"questions":[{{"question":"...","options":["...","..."]}}]}}.\n\n'
+        'there already exists an empty questions.json file. edit it and put the questions there. '
+        'Write the JSON to `questions.json` in the working directory: {working_directory}. '
+        'Do not implement any code I only want the clarifying questions in the `questions.json` file. '
+        'Do not create any new files, only edit the existing questions.json with new questions and answers. '
+        'in the project description the user inputted was: "{description}".'
+    )
 
-PROJECT OBJECTIVE:
+    # =========================================================================
+    # Question Follow-up: Q&A -> Product Definition Rewrite
+    # =========================================================================
+    DEFINITION_REWRITE_PROMPT = '''edit description.md or make it if it does not exist Rewrite the project description into a clear product definition using the original description and the clarifying Q&A.
+
+ORIGINAL DESCRIPTION:
 {description}
 
-=== YOUR TASK ===
-Output a JSON object with 5-10 strategic clarifying questions that will help implement this project.
+CLARIFYING QUESTIONS AND ANSWERS:
+{answers}
 
-Each question must help decide HOW to implement the project. Cover areas like:
-- Platform type (web, desktop, CLI, mobile)
-- Programming language/framework
-- Database technology
-- Key features and priorities
-- Authentication approach
-- Deployment environment
+- Output a concise product definition in markdown.
+- Do NOT include the Q&A format or questions.
+- Do NOT write code or edit any files except the description.md.
+- Write the product definition to `description.md` in the working directory: {working_directory}.
+'''
 
-GOOD QUESTIONS - use these patterns:
-✓ "What database should be used?" → ["PostgreSQL", "MongoDB", "SQLite", "Firebase", "None"]
-✓ "What type of application?" → ["Web app", "Desktop app", "CLI tool", "Mobile app"]
-✓ "Which programming language?" → ["Python", "JavaScript", "Java", "Go", "C#"]
-
-=== MANDATORY REQUIREMENTS ===
-1. Each question MUST have 3-5 concrete multiple choice options (NOT empty arrays!)
-2. Options must be realistic implementation choices
-3. Questions must be actionable for planning the code
-4. Questions must be about the PROJECT, not individual files
-
-=== OUTPUT FORMAT ===
-Your response MUST be ONLY valid JSON. No explanatory text before or after.
-Your FIRST character must be {{ and your LAST character must be }}.
-Do NOT include markdown code fences.
-Do NOT say "Here is the JSON" or any other text.
-
-Output this EXACT structure:
-{{
-  "questions": [
-    {{"id": "q1", "question": "Your question?", "options": ["Option 1", "Option 2", "Option 3"]}},
-    {{"id": "q2", "question": "Another question?", "options": ["A", "B", "C", "D"]}}
-  ]
-}}
-
-BEGIN JSON OUTPUT NOW (first character must be {{):'''
-
-    # =========================================================================
-    # Phase 1: Single Question Generation (Iterative mode)
-    # =========================================================================
-    SINGLE_QUESTION_GENERATION = '''Generate ONE clarifying question for a software development project.
-
-PROJECT OBJECTIVE:
-{description}
-
-{previous_qa_section}
-
-=== YOUR TASK ===
-Output a JSON object with ONE strategic clarifying question that will help implement this project.
-
-The question must be about the SOFTWARE PROJECT implementation (NOT about individual files).
-
-GOOD QUESTIONS - use these patterns:
-✓ "What database technology should be used for data storage?"
-   options: ["PostgreSQL", "MongoDB", "SQLite", "Firebase", "No database needed"]
-
-✓ "What type of application should this be?"
-   options: ["Web application", "Desktop application", "CLI tool", "Mobile app"]
-
-✓ "Which programming language should be used for implementation?"
-   options: ["Python", "JavaScript/Node.js", "Java", "Go", "C#"]
-
-✓ "How should users authenticate?"
-   options: ["Email/password", "OAuth (Google/GitHub)", "API keys", "No authentication needed"]
-   
-Other examples of good questions will be about the UI/UX. the objective. make sure it will lead the user to cover all aspects of a full product spec
-
-BAD QUESTIONS - do NOT ask these:
-✗ "What is the purpose of this file?" (we're asking about the project, not a file!)
-✗ Questions already answered in the project description above
-✗ Questions already asked in the previous Q&A section
-
-=== MANDATORY REQUIREMENTS ===
-1. Provide 3-5 concrete options (array CANNOT be empty!)
-2. Options must be realistic implementation choices
-3. Question must be actionable for planning the code
-4. Do NOT repeat previous questions
-
-=== OUTPUT FORMAT ===
-Your response MUST be ONLY valid JSON. No explanatory text before or after.
-Your FIRST character must be {{ and your LAST character must be }}.
-Do NOT include markdown code fences.
-Do NOT say "Here is the JSON" or "I've created" or any other text.
-
-Output this EXACT structure:
-{{
-  "question": "Your specific question about the project implementation?",
-  "options": ["Concrete option 1", "Concrete option 2", "Concrete option 3", "Concrete option 4"]
-}}
-
-BEGIN JSON OUTPUT NOW (first character must be {{):'''
 
     # =========================================================================
     # Phase 2: Task Planning
@@ -195,6 +127,16 @@ RECENT CHANGES (for context on what has been done):
 
 CURRENT TASK LIST:
 {tasks}
+
+WORKSPACE GOVERNANCE RULES (must always follow):
+- Every folder (including the root and any new folder) must contain exactly one developer guide `.md` file, except ignored system/tooling directories like `.git`, `.venv`, `.idea`, `.claude`, and `node_modules`.
+- Before editing files in a folder, read its developer guide `.md` file.
+- Update the folder's guide and all ancestor folder guides if changes affect developer understanding.
+- No code file may exceed 1000 lines; split files when near the limit.
+- No folder may contain more than 10 files; create subfolders to reduce file counts.
+
+CURRENT WORKSPACE COMPLIANCE CHECK:
+{compliance_report}
 
 INSTRUCTIONS:
 1. Read the recent changes to understand the current project state
@@ -432,6 +374,16 @@ If no issues found, write "No UI/UX issues found."''',
 REVIEW FINDINGS:
 {review_content}
 
+WORKSPACE GOVERNANCE RULES (must always follow):
+- Every folder (including the root and any new folder) must contain exactly one developer guide `.md` file, except ignored system/tooling directories like `.git`, `.venv`, `.idea`, `.claude`, and `node_modules`.
+- Before editing files in a folder, read its developer guide `.md` file.
+- Update the folder's guide and all ancestor folder guides if changes affect developer understanding.
+- No code file may exceed 1000 lines; split files when near the limit.
+- No folder may contain more than 10 files; create subfolders to reduce file counts.
+
+CURRENT WORKSPACE COMPLIANCE CHECK:
+{compliance_report}
+
 Your task:
 1. Read each issue found in the review
 2. For each issue, decide: Do you AGREE or DISAGREE?
@@ -497,36 +449,12 @@ Instead, report the error and suggest the user resolve it manually.'''
         return value.replace('_', ' ').title()
 
     @classmethod
-    def format_question_prompt(cls, description: str, working_directory: str = ".") -> str:
-        """Format the question generation prompt (legacy batch mode)."""
-        return cls.QUESTION_GENERATION.format(
+    def format_question_prompt(cls, description: str, question_count: int,
+                               previous_qa: list, working_directory: str = ".") -> str:
+        """Format the question generation prompt (batch mode)."""
+        return cls.QUESTION_GENERATION_PROMPT.format(
             description=description,
-            working_directory=working_directory
-        )
-
-    @classmethod
-    def format_single_question_prompt(cls, description: str, previous_qa: list,
-                                       working_directory: str = ".") -> str:
-        """Format the single question generation prompt (iterative mode).
-
-        Args:
-            description: The project description
-            previous_qa: List of {"question": ..., "answer": ...} dicts
-            working_directory: The working directory path
-        """
-        if previous_qa:
-            qa_lines = ["QUESTIONS ALREADY ASKED AND ANSWERED:"]
-            for i, qa in enumerate(previous_qa, 1):
-                qa_lines.append(f"Q{i}: {qa['question']}")
-                qa_lines.append(f"A{i}: {qa['answer']}")
-                qa_lines.append("")
-            previous_qa_section = "\n".join(qa_lines)
-        else:
-            previous_qa_section = "(No questions have been asked yet. This is the first question.)"
-
-        return cls.SINGLE_QUESTION_GENERATION.format(
-            description=description,
-            previous_qa_section=previous_qa_section,
+            question_count=question_count,
             working_directory=working_directory
         )
 
@@ -559,6 +487,26 @@ Instead, report the error and suggest the user resolve it manually.'''
         )
 
     @classmethod
+    def format_definition_rewrite_prompt(cls, description: str,
+                                         qa_pairs: list = None,
+                                         working_directory: str = ".") -> str:
+        """Format the prompt to rewrite Q&A into a product definition."""
+        if qa_pairs:
+            qa_lines = []
+            for i, qa in enumerate(qa_pairs, 1):
+                qa_lines.append(f"Q{i}: {qa['question']}")
+                qa_lines.append(f"A{i}: {qa['answer']}")
+                qa_lines.append("")
+            answers_text = "\n".join(qa_lines).strip()
+        else:
+            answers_text = "(none)"
+        return cls.DEFINITION_REWRITE_PROMPT.format(
+            description=description,
+            answers=answers_text,
+            working_directory=working_directory
+        )
+
+    @classmethod
     def format_planning_prompt(cls, description: str, answers: dict,
                                 qa_pairs: list = None) -> str:
         """Format the task planning prompt.
@@ -588,20 +536,25 @@ Instead, report the error and suggest the user resolve it manually.'''
 
     @classmethod
     def format_execution_prompt(cls, working_directory: str,
-                                 recent_changes: str, tasks: str) -> str:
-        """Format the main execution prompt."""
+                                 recent_changes: str, tasks: str,
+                                 compliance_report: str) -> str:
+        """Format the main execution prompt with workspace rule context."""
         return cls.MAIN_EXECUTION.format(
             working_directory=working_directory,
             recent_changes=recent_changes or "(No recent changes yet)",
-            tasks=tasks
+            tasks=tasks,
+            compliance_report=compliance_report
         )
 
     @classmethod
-    def format_fixer_prompt(cls, review_type: str, review_content: str) -> str:
-        """Format the fixer prompt."""
+    def format_fixer_prompt(cls, review_type: str,
+                             review_content: str,
+                             compliance_report: str) -> str:
+        """Format the fixer prompt with workspace rule context."""
         return cls.FIXER.format(
             review_type=review_type,
-            review_content=review_content
+            review_content=review_content,
+            compliance_report=compliance_report
         )
 
     @classmethod

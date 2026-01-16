@@ -48,16 +48,16 @@ class ConfigPanel(QWidget):
         group = QGroupBox("Configuration")
         form = QFormLayout(group)
 
-        # Number of clarifying questions to generate
+        # Number of clarifying questions to generate per batch
         self.max_questions_spin = QSpinBox()
         self.max_questions_spin.setRange(0, 100)
         self.max_questions_spin.setValue(20)
         self.max_questions_spin.setToolTip(
-            "Maximum number of clarifying questions to generate. "
+            "Number of clarifying questions to generate per batch. "
             "Set to 0 to skip clarifying questions."
         )
         self.max_questions_spin.valueChanged.connect(self._on_config_changed)
-        form.addRow("Max Questions:", self.max_questions_spin)
+        form.addRow("Number of Questions:", self.max_questions_spin)
 
         # Max iterations for main loop
         self.max_iterations_spin = QSpinBox()

@@ -155,9 +155,19 @@ class ReviewWorker(BaseWorker):
         self.update_status(f"Fixing: {review_name}")
         self.log(f"Step 3/4: Fixer analyzing {review_name} findings...", "info")
 
+        compliance_report = file_manager.get_workspace_rule_report(use_cache=False)
+        if compliance_report.startswith("Workspace compliance scan failed:"):
+            self.log(compliance_report, "warning")
+        elif compliance_report == "No compliance issues detected.":
+            self.log("Workspace compliance check passed", "debug")
+        else:
+            self.log("Workspace compliance issues detected", "warning")
+            self.log(compliance_report, "debug")
+
         fixer_prompt = PromptTemplates.format_fixer_prompt(
             review_type=review_name,
-            review_content=review_content
+            review_content=review_content,
+            compliance_report=compliance_report
         )
         self.log(f"Fixer prompt length: {len(fixer_prompt)} chars", "debug")
 

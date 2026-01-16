@@ -35,13 +35,15 @@ class BaseLLMProvider(ABC):
         return models[0][0] if models else ""
 
     @abstractmethod
-    def build_command(self, prompt: str, model: Optional[str] = None) -> List[str]:
+    def build_command(self, prompt: str, model: Optional[str] = None,
+                      working_directory: Optional[str] = None) -> List[str]:
         """
         Build the CLI command for invoking the LLM.
 
         Args:
             prompt: The prompt to send to the LLM
             model: Optional model ID to use (if None, uses provider default)
+            working_directory: Optional working directory for output files
 
         Returns:
             List suitable for subprocess.Popen()
@@ -133,6 +135,13 @@ class BaseLLMProvider(ABC):
         Only used if uses_stdin is True.
         """
         return prompt
+
+    def get_output_last_message_path(self, working_directory: Optional[str]) -> Optional[str]:
+        """
+        Return a file path for capturing the last assistant message.
+        Providers can override to supply a location for output capture.
+        """
+        return None
 
     def get_setup_instructions(self) -> str:
         """

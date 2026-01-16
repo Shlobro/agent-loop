@@ -12,18 +12,19 @@ Application source package for AgentHarness. This is where the workflow, UI, LLM
 - `__init__.py`: Package marker; importing `src.llm` registers providers.
 
 ## Phase-to-File Map
-- Question generation: `core/question_prefetch_manager.py`, `workers/question_worker.py`, `gui/widgets/question_panel.py`, `llm/prompt_templates.py`.
+- Question generation: `workers/question_worker.py` (loads questions only from `questions.json` on a single LLM attempt; no stdout parsing or fallback prompts; rewrites Q&A into `description.md` before additional batches and reads that file back), `gui/widgets/question_panel.py` (single-question navigation and batch answers with submit-first gating and a post-submit updating state), `gui/main_window.py` (keeps `description.md` synced with the description widget, initializes empty `questions.json` before each batch, rewrites Q&A into `description.md` immediately after submission via the task-planning LLM selection, unlocks description editing after the rewrite completes, and generates another question batch using the current description), `llm/prompt_templates.py` (description-only question prompts that edit the empty `questions.json`, plus the Q&A-to-definition rewrite prompt that writes `description.md`).
 - Task planning: `workers/planning_worker.py`, `llm/prompt_templates.py`, `core/file_manager.py`.
-- Main execution: `workers/execution_worker.py`, `llm/prompt_templates.py`, `core/file_manager.py`, `utils/markdown_parser.py`.
+- Main execution: `workers/execution_worker.py`, `llm/prompt_templates.py`, `core/file_manager.py`, `utils/markdown_parser.py` (includes workspace compliance checks: one `.md` per folder excluding system/tooling dirs, read guide before editing, update ancestor guides, <=10 files per folder, <=1000 lines per code file, with a fresh scan each run).
 - Review loop: `workers/review_worker.py`, `llm/prompt_templates.py`, `core/file_manager.py` (includes UI/UX review type).
 - Git operations: `workers/git_worker.py`, `llm/prompt_templates.py`.
 - Pause/resume: `core/session_manager.py`, `core/state_machine.py`, `gui/main_window.py`.
 
 ## When to Edit What
 - UI layout or control wiring: `gui/main_window.py` plus panels in `gui/widgets/`.
+- Worker execution routing in the GUI: `gui/workflow_runner.py`.
 - Review label display formatting in logs/activity: `gui/main_window.py` (uses `PromptTemplates.get_review_display_name`).
 - New runtime settings or persistence: `core/project_settings.py` and `gui/widgets/config_panel.py`.
-- Add new LLM provider/model: `llm/*_provider.py` plus `gui/widgets/llm_selector_panel.py`.
+- Add new LLM provider/model or CLI flags (including output-file capture): `llm/*_provider.py` plus `gui/widgets/llm_selector_panel.py`.
 - Task list parsing or mutation rules: `utils/markdown_parser.py`.
 - Change phase sequencing or transitions: `core/state_machine.py` and `gui/main_window.py`.
 

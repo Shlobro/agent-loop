@@ -4,8 +4,8 @@
 Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 
 ## Contents
-- `description_panel.py`: Project description input and read-only handling.
-- `question_panel.py`: Single-question workflow UI, answer capture, and live activity status display.
+- `description_panel.py`: Project description input and read-only handling; changes are synced to `description.md` by `MainWindow`.
+- `question_panel.py`: Single-question navigation for batch questions, answer capture, and live activity status display; enables submit once all questions are answered, shows an updating state after submission, and unlocks Generate More and Start Planning after the description rewrite completes.
 - `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry.
 - `config_panel.py`: Execution settings (iterations, questions, review types including UI/UX, working directory, git settings).
 - `log_viewer.py`: Color-coded log viewer with filtering and auto-scroll.
@@ -15,7 +15,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 ## Key Interactions
 - `LLMSelectorPanel` queries `LLMProviderRegistry` to populate providers/models.
 - `ConfigPanel` exposes `ExecutionConfig` and review type selections (including UI/UX) from `PromptTemplates`.
-- `QuestionPanel` emits signals for submitted answers, more questions, or start planning.
+- `QuestionPanel` emits signals for submitted batch answers, generating another batch, or start planning.
 - `LogViewer` listens to worker log and LLM output signals from `MainWindow`.
 
 ## When to Edit Widgets
@@ -23,7 +23,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - Change per-stage LLM selector behavior or enable runtime edits: `llm_selector_panel.py`.
 - Fix log filtering for existing entries: `log_viewer.py`.
 - Add task checklist/progress display: `status_panel.py` or a new widget in this folder.
-- Adjust question flow UX or activity display: `question_panel.py`.
+- Adjust batch question UX or activity display: `question_panel.py`.
 
 ## Change Map
 - Description input UX: `description_panel.py`.
