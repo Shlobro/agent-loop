@@ -1,6 +1,7 @@
 """Prompt templates for all LLM interactions."""
 
 from enum import Enum
+from typing import Union
 
 
 class ReviewType(Enum):
@@ -11,6 +12,7 @@ class ReviewType(Enum):
     SAFETY = "safety"
     TESTING = "testing"
     DOCUMENTATION = "documentation"
+    UI_UX = "ui_ux"
 
 
 class PromptTemplates:
@@ -391,6 +393,35 @@ Write your findings to review.md in this format:
 ```
 
 If no issues found, write "No documentation issues found."''',
+
+        ReviewType.UI_UX: '''Review the recent code changes for UI/UX concerns.
+
+Use `git diff` to see the recent changes in the working directory.
+
+Evaluate:
+- User flows and task clarity
+- Visual hierarchy and layout consistency
+- Text clarity and microcopy
+- Accessibility (contrast, focus states, keyboard navigation)
+- Responsiveness (small/large window sizes)
+- UI state feedback (loading, empty, error states)
+
+Write your findings to review.md in this format:
+```review
+## UI/UX Review
+
+### Issues Found:
+1. [Issue description]
+   - File: [filename]
+   - Line: [line number if applicable]
+   - Severity: [High/Medium/Low]
+   - Suggestion: [How to fix]
+
+### Positive Observations:
+- [What's done well]
+```
+
+If no issues found, write "No UI/UX issues found."''',
     }
 
     # =========================================================================
@@ -451,7 +482,19 @@ Instead, report the error and suggest the user resolve it manually.'''
             ReviewType.SAFETY,
             ReviewType.TESTING,
             ReviewType.DOCUMENTATION,
+            ReviewType.UI_UX,
         ]
+
+    @classmethod
+    def get_review_display_name(cls, review_type: Union[ReviewType, str]) -> str:
+        """Return a user-facing review label."""
+        if isinstance(review_type, ReviewType):
+            value = review_type.value
+        else:
+            value = str(review_type)
+        if value == ReviewType.UI_UX.value:
+            return "UI/UX"
+        return value.replace('_', ' ').title()
 
     @classmethod
     def format_question_prompt(cls, description: str, working_directory: str = ".") -> str:

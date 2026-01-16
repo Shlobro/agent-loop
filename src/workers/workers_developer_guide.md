@@ -10,7 +10,7 @@ Implements QRunnable workers that execute each workflow phase asynchronously and
 - `question_worker.py`: Generates batch questions or a single question from the LLM and writes JSON files.
 - `planning_worker.py`: Generates `description.md` and `tasks.md`.
 - `execution_worker.py`: Executes a single task iteration and updates task state in `tasks.md`.
-- `review_worker.py`: Runs review/fix cycles per selected review type and iterations using `review.md`.
+- `review_worker.py`: Runs review/fix cycles per selected review type (including UI/UX) and iterations using `review.md`.
 - `git_worker.py`: LLM-driven git add/commit and optional push.
 - `__init__.py`: Module marker.
 

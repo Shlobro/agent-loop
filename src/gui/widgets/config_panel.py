@@ -106,7 +106,7 @@ class ConfigPanel(QWidget):
         reviews_group = QGroupBox("Review Types")
         reviews_layout = QVBoxLayout(reviews_group)
         for review_type in PromptTemplates.get_all_review_types():
-            label = review_type.value.replace('_', ' ').title()
+            label = PromptTemplates.get_review_display_name(review_type)
             checkbox = QCheckBox(label)
             checkbox.setChecked(True)
             checkbox.stateChanged.connect(self._on_config_changed)

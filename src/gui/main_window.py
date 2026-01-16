@@ -18,6 +18,7 @@ from ..core.file_manager import FileManager
 from ..core.session_manager import SessionManager
 from ..core.project_settings import ProjectSettings, ProjectSettingsManager
 from ..core.question_prefetch_manager import QuestionPrefetchManager
+from ..llm.prompt_templates import PromptTemplates
 
 from ..workers.planning_worker import PlanningWorker
 from ..workers.execution_worker import ExecutionWorker
@@ -391,7 +392,9 @@ class MainWindow(QMainWindow):
         self.log_viewer.append_log(f"  Max Questions: {config.max_questions}", "info")
         self.log_viewer.append_log(f"  Debug Loop Iterations: {config.debug_loop_iterations}", "info")
         review_types = config.review_types or []
-        review_labels = ", ".join([r.replace('_', ' ').title() for r in review_types]) or "(none)"
+        review_labels = ", ".join(
+            [PromptTemplates.get_review_display_name(r) for r in review_types]
+        ) or "(none)"
         self.log_viewer.append_log(f"  Review Types: {review_labels}", "info")
         self.log_viewer.append_log(f"  Git Mode: {self.git_mode}", "info")
         self.log_viewer.append_log(f"  Git Remote: {config.git_remote or '(not set)'}", "info")
@@ -543,7 +546,7 @@ class MainWindow(QMainWindow):
         if not self._should_show_activity(self.state_machine.phase):
             return
 
-        review_name = review_type.replace('_', ' ').title()
+        review_name = PromptTemplates.get_review_display_name(review_type)
         self.activity_state["review"] = review_name
         if issue_count <= 0:
             self.activity_state["findings"] = "No issues"
@@ -1066,7 +1069,7 @@ class MainWindow(QMainWindow):
     def on_review_complete(self, review_type: str, result: str):
         """Handle individual review completion."""
         self.state_machine.update_context(current_review_type=review_type)
-        review_label = review_type.replace('_', ' ').title()
+        review_label = PromptTemplates.get_review_display_name(review_type)
         self.status_panel.set_sub_status(f"Completed: {review_label}")
 
         if self._should_show_activity(self.state_machine.phase):

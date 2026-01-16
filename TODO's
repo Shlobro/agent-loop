@@ -10,7 +10,7 @@ when i reach the limit with gemini i get this [15:48:21] [DEB] Final task file c
 when i reach the limit in claude i get something like this in a terminal: "PS C:\Users\shlob> claude -p "<prompt>"
 You've hit your limit · resets 4pm (Asia/Jerusalem)". ofc it's important to recognize in any time zone so try and detect the You've hit your limit when using claude. and let the user know and let him switch to a different llm
 
-we have to add another review option of UI/UX (besides the debugging and all the rest)
+
 
 we need to make sure there are these flag files for each step (like if all tasks complete exit the main loop) if the llm found nothing wording in the debugging phase he should output somewhere all clear or something so we can skip the next iteration if all the debuggers passed no problem.
 

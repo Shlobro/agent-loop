@@ -7,14 +7,14 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - `description_panel.py`: Project description input and read-only handling.
 - `question_panel.py`: Single-question workflow UI, answer capture, and live activity status display.
 - `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry.
-- `config_panel.py`: Execution settings (iterations, questions, review types, working directory, git settings).
+- `config_panel.py`: Execution settings (iterations, questions, review types including UI/UX, working directory, git settings).
 - `log_viewer.py`: Color-coded log viewer with filtering and auto-scroll.
 - `status_panel.py`: Top-line workflow status and progress bar.
 - `__init__.py`: Module marker.
 
 ## Key Interactions
 - `LLMSelectorPanel` queries `LLMProviderRegistry` to populate providers/models.
-- `ConfigPanel` exposes `ExecutionConfig` and review type selections from `PromptTemplates`.
+- `ConfigPanel` exposes `ExecutionConfig` and review type selections (including UI/UX) from `PromptTemplates`.
 - `QuestionPanel` emits signals for submitted answers, more questions, or start planning.
 - `LogViewer` listens to worker log and LLM output signals from `MainWindow`.
 

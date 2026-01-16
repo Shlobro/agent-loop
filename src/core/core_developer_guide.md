@@ -4,7 +4,7 @@
 Implements the workflow state machine, persistence, file/session I/O, and shared exceptions.
 
 ## Contents
-- `state_machine.py`: `Phase`, `SubPhase`, `StateContext`, and transitions. Emits signals used by `MainWindow`.
+- `state_machine.py`: `Phase`, `SubPhase`, `StateContext`, and transitions (includes UI/UX review sub-phases). Emits signals used by `MainWindow`.
 - `file_manager.py`: Atomic read/write for `tasks.md`, `recent-changes.md`, `review.md`, and arbitrary files in the working directory.
 - `session_manager.py`: Save/load workflow state to `session_state.json` for pause/resume.
 - `project_settings.py`: `ProjectSettings` dataclass plus JSON load/save helpers.

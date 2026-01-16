@@ -15,12 +15,13 @@ Application source package for AgentHarness. This is where the workflow, UI, LLM
 - Question generation: `core/question_prefetch_manager.py`, `workers/question_worker.py`, `gui/widgets/question_panel.py`, `llm/prompt_templates.py`.
 - Task planning: `workers/planning_worker.py`, `llm/prompt_templates.py`, `core/file_manager.py`.
 - Main execution: `workers/execution_worker.py`, `llm/prompt_templates.py`, `core/file_manager.py`, `utils/markdown_parser.py`.
-- Review loop: `workers/review_worker.py`, `llm/prompt_templates.py`, `core/file_manager.py`.
+- Review loop: `workers/review_worker.py`, `llm/prompt_templates.py`, `core/file_manager.py` (includes UI/UX review type).
 - Git operations: `workers/git_worker.py`, `llm/prompt_templates.py`.
 - Pause/resume: `core/session_manager.py`, `core/state_machine.py`, `gui/main_window.py`.
 
 ## When to Edit What
 - UI layout or control wiring: `gui/main_window.py` plus panels in `gui/widgets/`.
+- Review label display formatting in logs/activity: `gui/main_window.py` (uses `PromptTemplates.get_review_display_name`).
 - New runtime settings or persistence: `core/project_settings.py` and `gui/widgets/config_panel.py`.
 - Add new LLM provider/model: `llm/*_provider.py` plus `gui/widgets/llm_selector_panel.py`.
 - Task list parsing or mutation rules: `utils/markdown_parser.py`.

@@ -8,7 +8,7 @@ Defines the LLM provider abstraction, prompt templates, and provider registry us
 - `claude_provider.py`: Claude CLI implementation (`claude -p`, one-time permissions setup).
 - `gemini_provider.py`: Gemini CLI implementation using stdin and `--yolo`.
 - `codex_provider.py`: Codex CLI implementation using `codex exec --full-auto`.
-- `prompt_templates.py`: Prompt strings for all workflow phases and review types.
+- `prompt_templates.py`: Prompt strings for all workflow phases and review types, plus review display labels.
 - `__init__.py`: Registers built-in providers.
 
 ## Key Interactions

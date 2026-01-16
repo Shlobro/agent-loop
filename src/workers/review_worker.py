@@ -39,7 +39,10 @@ class ReviewWorker(BaseWorker):
         self.log(f"Working directory: {self.working_directory}", "info")
         self.log(f"Total iterations planned: {self.iterations}, Starting from: {self.start_iteration}", "info")
         if self.review_sequence:
-            self.log(f"Review sequence: {' -> '.join([r.value for r in self.review_sequence])}", "info")
+            review_sequence_labels = " -> ".join(
+                [PromptTemplates.get_review_display_name(r) for r in self.review_sequence]
+            )
+            self.log(f"Review sequence: {review_sequence_labels}", "info")
         else:
             self.log("Review sequence: (none selected)", "warning")
             return {
@@ -68,7 +71,7 @@ class ReviewWorker(BaseWorker):
             self.update_progress(iteration, self.iterations)
             self.log(f"Debug iteration {iteration}/{self.iterations}", "phase")
             review_labels = ", ".join(
-                [r.value.replace('_', ' ').title() for r in self.review_sequence]
+                [PromptTemplates.get_review_display_name(r) for r in self.review_sequence]
             )
             self.log(f"Running {len(self.review_sequence)} review cycles: {review_labels}", "debug")
 
@@ -103,7 +106,7 @@ class ReviewWorker(BaseWorker):
                           reviewer_provider, fixer_provider,
                           file_manager: FileManager, iteration: int):
         """Run a single review -> fix cycle."""
-        review_name = review_type.value.replace('_', ' ').title()
+        review_name = PromptTemplates.get_review_display_name(review_type)
         self.update_status(f"Review: {review_name}")
         self.log(f"--- {review_name.upper()} REVIEW CYCLE ---", "info")
 

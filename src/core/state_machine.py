@@ -46,6 +46,8 @@ class SubPhase(Enum):
     TESTING_FIX = auto()
     DOCUMENTATION_REVIEW = auto()
     DOCUMENTATION_FIX = auto()
+    UI_UX_REVIEW = auto()
+    UI_UX_FIX = auto()
     # Git
     GIT_ADD = auto()
     GIT_COMMIT = auto()
@@ -266,6 +268,8 @@ class StateMachine(QObject):
             SubPhase.TESTING_FIX: "Fixing Tests",
             SubPhase.DOCUMENTATION_REVIEW: "Documentation Review",
             SubPhase.DOCUMENTATION_FIX: "Fixing Documentation",
+            SubPhase.UI_UX_REVIEW: "UI/UX Review",
+            SubPhase.UI_UX_FIX: "Fixing UI/UX",
             SubPhase.GIT_ADD: "Git Add",
             SubPhase.GIT_COMMIT: "Git Commit",
             SubPhase.GIT_PUSH: "Git Push",

@@ -13,6 +13,7 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 - `MainWindow` owns the `StateMachine`, `QuestionPrefetchManager`, and a `QThreadPool`.
 - Worker results and log output are streamed back to UI via `WorkerSignals`.
 - UI panels emit signals for user actions (start/pause/stop, question answers, settings changes).
+- Review labels shown in UI/logs use `PromptTemplates.get_review_display_name`.
 
 ## MainWindow Responsibilities
 - Validate inputs, read config, and seed `StateContext`.
@@ -24,7 +25,7 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 ## When to Edit GUI
 - Start/pause/stop flow or phase routing: `main_window.py`.
 - Enable LLM changes mid-run or add new UI actions: `main_window.py`, `widgets/llm_selector_panel.py`.
-- Add new controls or settings: `widgets/config_panel.py`.
+- Add new controls or settings (review types include UI/UX): `widgets/config_panel.py`.
 - Fix log rendering/filtering: `widgets/log_viewer.py`.
 - Show description/task progress in the UI: `widgets/description_panel.py`, `widgets/status_panel.py`, `main_window.py`.
 

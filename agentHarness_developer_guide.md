@@ -20,7 +20,7 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 3. Question generation (prefetch + single-question loop).
 4. Task planning writes `description.md` and `tasks.md`.
 5. Main execution completes one task per iteration and updates `recent-changes.md`.
-6. Review loop writes `review.md` and runs fixer.
+6. Review loop (including UI/UX review) writes `review.md` and runs fixer.
 7. Git operations optionally commit and push.
 
 ## Working-Directory Artifacts
@@ -68,5 +68,6 @@ Use this when picking up items from `TODO's`.
 - App startup: `main.py`, `src/gui/main_window.py`.
 - Workflow state and persistence: `src/core/state_machine.py`, `src/core/session_manager.py`.
 - LLM prompts and providers: `src/llm/`.
+- Review label formatting in UI/logs: `src/gui/main_window.py` (uses `PromptTemplates.get_review_display_name`).
 - Background phase logic: `src/workers/`.
 - UI/UX components: `src/gui/`.
