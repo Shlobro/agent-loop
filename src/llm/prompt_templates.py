@@ -36,7 +36,7 @@ class PromptTemplates:
     # =========================================================================
     # Question Follow-up: Q&A -> Product Definition Rewrite
     # =========================================================================
-    DEFINITION_REWRITE_PROMPT = '''edit description.md or make it if it does not exist Rewrite the project description into a clear product definition using the original description and the clarifying Q&A.
+    DEFINITION_REWRITE_PROMPT = '''edit project-description.md or make it if it does not exist Rewrite the project description into a clear product definition using the original description and the clarifying Q&A.
 
 ORIGINAL DESCRIPTION:
 {description}
@@ -46,76 +46,29 @@ CLARIFYING QUESTIONS AND ANSWERS:
 
 - Output a concise product definition in markdown.
 - Do NOT include the Q&A format or questions.
-- Do NOT write code or edit any files except the description.md.
-- Write the product definition to `description.md` in the working directory: {working_directory}.
+- Do NOT write code or edit any files except the project-description.md.
+- Write the product definition to `project-description.md` in the working directory: {working_directory}.
 '''
 
 
     # =========================================================================
     # Phase 2: Task Planning
     # =========================================================================
-    TASK_PLANNING = '''You are a software architect creating a detailed implementation plan.
+    TASK_PLANNING = '''Edit the tasks.md file in the working directory. If tasks.md does not exist, create it as an empty file first.
+Write the checklist directly to `tasks.md` in the working directory: {working_directory}.
+Do not implement any code; only write the task list.
 
-PROJECT DESCRIPTION:
+OUTPUT FORMAT (write directly into tasks.md):
+- Use a markdown checklist with `- [ ]` for each task (unchecked checkbox).
+- Order tasks by dependency (prerequisites first).
+- Be specific and actionable; each task should be completable in one coding session.
+- Include setup, implementation, testing, and documentation tasks.
+- Do not use nested tasks or sub-items.
+- Each task should be self-contained.
+
+PROJECT DESCRIPTION (from project-description.md if available):
 {description}
-
-USER ANSWERS TO CLARIFYING QUESTIONS:
-{answers}
-
-OUTPUT REQUIREMENTS - READ CAREFULLY:
-Your response MUST be ONLY a markdown checklist. Do NOT include any introductory text, explanations, or commentary.
-Do NOT say "I'll help" or "Here's the plan" or anything similar.
-Your FIRST character must be a dash (-).
-
-TASK LIST RULES:
-1. Use `- [ ]` for each task (unchecked checkbox)
-2. Order tasks by dependency (prerequisites first)
-3. Be specific and actionable - each task should be completable in one coding session
-4. Include setup, implementation, testing, and documentation tasks
-5. Do not use nested tasks or sub-items
-6. Each task should be self-contained
-7. Create 10-30 tasks depending on project complexity
-
-CORRECT OUTPUT FORMAT (start immediately with tasks):
-- [ ] Initialize project structure with package.json and dependencies
-- [ ] Create database models for User entity
-- [ ] Implement user registration API endpoint
-- [ ] Add input validation for registration
-- [ ] Write unit tests for registration
-- [ ] Create user login API endpoint
-- [ ] Implement JWT token generation
-- [ ] Add authentication middleware
-- [ ] Write integration tests for auth flow
-- [ ] Create README with setup instructions
-
-BEGIN YOUR OUTPUT NOW (first character must be `-`):'''
-
-    # =========================================================================
-    # Description Generation (for description.md)
-    # =========================================================================
-    DESCRIPTION_GENERATION = '''Create a comprehensive project description document based on the user's input and clarifying questions.
-
-PROJECT OBJECTIVE:
-{description}
-
-USER ANSWERS TO CLARIFYING QUESTIONS:
-{answers}
-
-OUTPUT REQUIREMENTS:
-Create a well-structured markdown document that summarizes the complete project specification.
-This document will be used by developers to understand the project goals and requirements.
-
-Include these sections:
-1. Project Overview - High-level description of what's being built
-2. Technical Stack - Languages, frameworks, databases, and tools to be used
-3. Key Features - List of main features and functionality
-4. Architecture - Brief architectural approach
-5. Requirements - Specific technical and functional requirements
-
-Use markdown formatting with headers (##), lists, and emphasis where appropriate.
-Be comprehensive but concise. Focus on actionable information that helps with implementation.
-
-BEGIN YOUR OUTPUT NOW:'''
+'''
 
     # =========================================================================
     # Phase 3: Main Execution
@@ -129,11 +82,11 @@ CURRENT TASK LIST:
 {tasks}
 
 WORKSPACE GOVERNANCE RULES (must always follow):
-- Every folder (including the root and any new folder) must contain exactly one developer guide `.md` file, except ignored system/tooling directories like `.git`, `.venv`, `.idea`, `.claude`, and `node_modules`.
+- Every folder must contain exactly one developer guide `.md` file; the root may contain multiple `.md` files. Ignore system/tooling directories like `.git`, `.venv`, `.idea`, `.claude`, and `node_modules`.
 - Before editing files in a folder, read its developer guide `.md` file.
 - Update the folder's guide and all ancestor folder guides if changes affect developer understanding.
 - No code file may exceed 1000 lines; split files when near the limit.
-- No folder may contain more than 10 files; create subfolders to reduce file counts.
+- No folder may contain more than 10 code files; `.md` files do not count toward this limit.
 
 CURRENT WORKSPACE COMPLIANCE CHECK:
 {compliance_report}
@@ -375,11 +328,11 @@ REVIEW FINDINGS:
 {review_content}
 
 WORKSPACE GOVERNANCE RULES (must always follow):
-- Every folder (including the root and any new folder) must contain exactly one developer guide `.md` file, except ignored system/tooling directories like `.git`, `.venv`, `.idea`, `.claude`, and `node_modules`.
+- Every folder must contain exactly one developer guide `.md` file; the root may contain multiple `.md` files. Ignore system/tooling directories like `.git`, `.venv`, `.idea`, `.claude`, and `node_modules`.
 - Before editing files in a folder, read its developer guide `.md` file.
 - Update the folder's guide and all ancestor folder guides if changes affect developer understanding.
 - No code file may exceed 1000 lines; split files when near the limit.
-- No folder may contain more than 10 files; create subfolders to reduce file counts.
+- No folder may contain more than 10 code files; `.md` files do not count toward this limit.
 
 CURRENT WORKSPACE COMPLIANCE CHECK:
 {compliance_report}
@@ -459,34 +412,6 @@ Instead, report the error and suggest the user resolve it manually.'''
         )
 
     @classmethod
-    def format_description_prompt(cls, description: str, answers: dict,
-                                   qa_pairs: list = None) -> str:
-        """Format the description.md generation prompt.
-
-        Args:
-            description: The project description
-            answers: Dict of {question_id: answer} (legacy format)
-            qa_pairs: List of {"question": ..., "answer": ...} (new format, preferred)
-        """
-        # Prefer qa_pairs if available (new iterative format)
-        if qa_pairs:
-            qa_lines = []
-            for i, qa in enumerate(qa_pairs, 1):
-                qa_lines.append(f"Q{i}: {qa['question']}")
-                qa_lines.append(f"A{i}: {qa['answer']}")
-                qa_lines.append("")
-            answers_text = "\n".join(qa_lines)
-        else:
-            # Legacy format - just question IDs
-            answers_text = "\n".join(
-                f"- {q_id}: {answer}" for q_id, answer in answers.items()
-            )
-        return cls.DESCRIPTION_GENERATION.format(
-            description=description,
-            answers=answers_text
-        )
-
-    @classmethod
     def format_definition_rewrite_prompt(cls, description: str,
                                          qa_pairs: list = None,
                                          working_directory: str = ".") -> str:
@@ -508,30 +433,18 @@ Instead, report the error and suggest the user resolve it manually.'''
 
     @classmethod
     def format_planning_prompt(cls, description: str, answers: dict,
-                                qa_pairs: list = None) -> str:
+                                qa_pairs: list = None,
+                                working_directory: str = ".") -> str:
         """Format the task planning prompt.
 
         Args:
-            description: The project description
-            answers: Dict of {question_id: answer} (legacy format)
-            qa_pairs: List of {"question": ..., "answer": ...} (new format, preferred)
+            description: The summarized project description
+            answers: Dict of {question_id: answer} (legacy format, unused for planning)
+            qa_pairs: List of {"question": ..., "answer": ...} (new format, unused for planning)
         """
-        # Prefer qa_pairs if available (new iterative format)
-        if qa_pairs:
-            qa_lines = []
-            for i, qa in enumerate(qa_pairs, 1):
-                qa_lines.append(f"Q{i}: {qa['question']}")
-                qa_lines.append(f"A{i}: {qa['answer']}")
-                qa_lines.append("")
-            answers_text = "\n".join(qa_lines)
-        else:
-            # Legacy format - just question IDs
-            answers_text = "\n".join(
-                f"- {q_id}: {answer}" for q_id, answer in answers.items()
-            )
         return cls.TASK_PLANNING.format(
             description=description,
-            answers=answers_text
+            working_directory=working_directory
         )
 
     @classmethod

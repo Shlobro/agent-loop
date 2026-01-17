@@ -60,11 +60,10 @@ class LLMWorker(BaseWorker):
         if uses_stdin:
             stdin_data = self.provider.get_stdin_prompt(self.prompt)
             self.log(f"Sending prompt via stdin ({len(stdin_data)} chars)", "info")
-            # Show prompt preview
-            preview = stdin_data[:200].replace('\n', ' | ')
-            self.log(f"Prompt preview: {preview}{'...' if len(stdin_data) > 200 else ''}", "debug")
+            self._log_full_prompt(stdin_data, "stdin")
         else:
             self.log(f"Prompt passed via command args ({len(self.prompt)} chars)", "debug")
+            self._log_full_prompt(self.prompt, "args")
 
         try:
             # On Windows, if command doesn't already use cmd, we need shell=True
@@ -121,6 +120,7 @@ class LLMWorker(BaseWorker):
                     self.log(f"Failed to read output file {output_path}: {e}", "warning")
                     file_output = ""
                 if file_output.strip():
+                    self._emit_output_lines(file_output)
                     self._output_lines.append(file_output)
                     if full_output and not full_output.endswith("\n"):
                         full_output += "\n"
@@ -164,6 +164,21 @@ class LLMWorker(BaseWorker):
 
         except Exception:
             pass  # Process may have been killed
+
+    def _emit_output_lines(self, output_text: str):
+        """Emit output text to the log viewer as LLM output lines."""
+        for line in output_text.splitlines():
+            self.signals.llm_output.emit(line)
+
+    def _log_full_prompt(self, prompt_text: str, source: str):
+        """Log the full prompt for visibility in the output log."""
+        self.log(f"LLM prompt begin ({source})", "info")
+        if prompt_text:
+            for line in prompt_text.splitlines():
+                self.log(line, "info")
+        else:
+            self.log("(empty prompt)", "info")
+        self.log(f"LLM prompt end ({source})", "info")
 
     def cancel(self):
         """Cancel the worker and terminate the process."""

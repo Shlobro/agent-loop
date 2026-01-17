@@ -123,10 +123,10 @@ class FileManager:
         """Return default AGENTS.md content for new workspaces."""
         return "\n".join([
             "- Read the developer guide `.md` in any folder before editing files there.",
-            "- Keep exactly one developer guide `.md` per folder (excluding system/tooling dirs).",
+            "- Keep exactly one developer guide `.md` per folder (root may contain multiple `.md` files; exclude system/tooling dirs).",
             "- Update the folder guide and ancestor guides when changes affect developer understanding.",
             "- No code file may exceed 1000 lines; split files as needed.",
-            "- No folder may contain more than 10 files; create subfolders to reduce file counts.",
+            "- No folder may contain more than 10 code files; `.md` files do not count toward this limit.",
             "- Keep system temp directories ignored in `.gitignore`.",
         ]) + "\n"
 
@@ -140,7 +140,7 @@ class FileManager:
             "- Read the developer guide in the folder you are editing before making changes.",
             "- Update the relevant developer guides and their ancestors when behavior changes.",
             "- Do not create files over 1000 lines; split files when necessary.",
-            "- Keep folders under 10 files by creating subfolders.",
+            "- Keep folders under 10 code files; `.md` files do not count.",
             "- Avoid destructive commands unless explicitly requested.",
         ]) + "\n"
 
@@ -154,7 +154,7 @@ class FileManager:
             "- Read the developer guide in the folder you are editing before making changes.",
             "- Update the relevant developer guides and their ancestors when behavior changes.",
             "- Do not create files over 1000 lines; split files when necessary.",
-            "- Keep folders under 10 files by creating subfolders.",
+            "- Keep folders under 10 code files; `.md` files do not count.",
             "- Avoid destructive commands unless explicitly requested.",
         ]) + "\n"
 
@@ -279,20 +279,24 @@ class FileManager:
             dirnames[:] = [d for d in dirnames if d not in ignore_dirs]
             path = Path(dirpath)
 
+            is_root = path == self.working_dir
             md_count = sum(1 for name in filenames if name.lower().endswith(".md"))
             if md_count == 0:
                 missing_md_dirs.append(self._relative_path(path))
-            elif md_count > 1:
+            elif md_count > 1 and not is_root:
                 multi_md_dirs.append({
                     "path": self._relative_path(path),
                     "md_count": md_count,
                 })
 
-            file_count = len(filenames)
-            if file_count > max_files_per_directory:
+            code_file_count = sum(
+                1 for name in filenames
+                if self._is_code_file(path / name, code_extensions)
+            )
+            if code_file_count > max_files_per_directory:
                 overfull_dirs.append({
                     "path": self._relative_path(path),
-                    "file_count": file_count,
+                    "file_count": code_file_count,
                 })
 
             for name in filenames:
@@ -383,11 +387,11 @@ class FileManager:
         overfull_dirs = report.get("overfull_dirs", [])
         if overfull_dirs:
             entries = [
-                f"{item['path']} ({item['file_count']} files)"
+                f"{item['path']} ({item['file_count']} code files)"
                 for item in overfull_dirs
             ]
             section = FileManager._format_section(
-                "Folders with more than 10 files:",
+                "Folders with more than 10 code files:",
                 entries,
                 max_items_per_section
             )
