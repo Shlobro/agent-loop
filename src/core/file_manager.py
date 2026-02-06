@@ -19,6 +19,7 @@ class FileManager:
     AGENTS_FILE = "AGENTS.md"
     CLAUDE_FILE = "CLAUDE.md"
     GEMINI_FILE = "GEMINI.md"
+    COMMIT_MESSAGE_FILE = ".agentharness/git-commit-message.txt"
 
     def __init__(self, working_directory: str):
         self.working_dir = Path(working_directory)
@@ -60,6 +61,10 @@ class FileManager:
             description_path = self.working_dir / self.DESCRIPTION_FILE
             if not description_path.exists():
                 description_path.write_text("", encoding="utf-8")
+            commit_message_path = self.working_dir / self.COMMIT_MESSAGE_FILE
+            if not commit_message_path.exists():
+                commit_message_path.parent.mkdir(parents=True, exist_ok=True)
+                commit_message_path.write_text("", encoding="utf-8")
         except OSError as e:
             raise FileOperationError(f"Failed to create files: {e}")
 

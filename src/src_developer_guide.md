@@ -16,7 +16,7 @@ Application source package for AgentHarness. This is where the workflow, UI, LLM
 - Task planning: `workers/planning_worker.py`, `llm/prompt_templates.py`, `core/file_manager.py` (planning prompts instruct the LLM to write directly to `tasks.md` based on the project description, preferring `product-description.md` when present).
 - Main execution: `workers/execution_worker.py`, `llm/prompt_templates.py`, `core/file_manager.py`, `utils/markdown_parser.py`.
 - Review loop: `workers/review_worker.py`, `llm/prompt_templates.py`, `core/file_manager.py` (includes General, Unit Test, and UI/UX review types, uses per-type review files under `review/`, and skips fixer when the active review file is empty).
-- Git operations: `workers/git_worker.py`, `llm/prompt_templates.py`.
+- Git operations: `workers/git_worker.py`, `llm/prompt_templates.py`, `core/file_manager.py` (LLM writes only `.agentharness/git-commit-message.txt`; file is initialized at startup, git add/commit/push are executed by code, and the message file is truncated after commit).
 - Pause/resume: `core/session_manager.py`, `core/state_machine.py`, `gui/main_window.py`.
 - Debug step mode and stage breakpoints: `core/debug_settings.py`, `gui/dialogs/debug_settings_dialog.py`, `gui/main_window.py`, `workers/llm_worker.py`.
 

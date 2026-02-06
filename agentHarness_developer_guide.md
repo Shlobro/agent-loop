@@ -25,7 +25,7 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 6. Task planning reads `product-description.md` when available and has the LLM write directly to `tasks.md`.
 7. Main execution completes one task per iteration and updates `recent-changes.md`.
 8. Review loop (including General, Unit Test, and UI/UX review types) initializes `review/` with one file per review type, writes findings to the active file only, skips fixer when that file is empty, and truncates the active file after each completed fix cycle.
-9. Git operations optionally commit and push.
+9. Git operations run as a hybrid flow: the LLM writes only a commit message into `.agentharness/git-commit-message.txt`, and the app performs `git add`, `git commit`, and optional `git push` in code; after a successful commit the message file is truncated.
 10. Debug step mode is controlled from `Settings -> Debug Settings`: stage-specific before/after breakpoints pause right before or right after each LLM call until the user clicks `Next Step`.
 11. A debug setting controls whether per-call live terminal windows are shown on Windows.
 
@@ -41,6 +41,7 @@ Created in the selected working directory (not the repo root):
 - `questions.json`: Batch questions file.
 - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`: Governance prompt files; auto-created if missing.
 - `.agentharness/live-llm/*.log`: Per-run live output logs used to mirror LLM execution into popup terminal windows.
+- `.agentharness/git-commit-message.txt`: Startup-initialized commit message target for the git-ops LLM step; truncated after successful code-driven commit.
 
 ## TODO-to-File Map
 Use this when picking up items from `TODO's`.

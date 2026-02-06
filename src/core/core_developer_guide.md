@@ -6,7 +6,7 @@ Implements the workflow state machine, persistence, file/session I/O, and shared
 ## Contents
 - `state_machine.py`: `Phase`, `SubPhase`, `StateContext`, and transitions (includes UI/UX review sub-phases). Emits signals used by `MainWindow`.
 - `debug_settings.py`: Shared debug-stage identifiers, labels, and breakpoint normalization/default helpers. Defaults pause **before** every stage LLM call when debug mode is on (after-call pauses default off).
-- `file_manager.py`: Atomic read/write for `tasks.md`, `recent-changes.md`, `review/` artifacts (one file per review type), legacy `review.md`, `product-description.md`, and governance prompt files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`).
+- `file_manager.py`: Atomic read/write for `tasks.md`, `recent-changes.md`, `review/` artifacts (one file per review type), legacy `review.md`, `product-description.md`, git commit-message artifact (`.agentharness/git-commit-message.txt`), and governance prompt files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`).
 - `session_manager.py`: Save/load workflow state to `session_state.json` for pause/resume.
 - `project_settings.py`: `ProjectSettings` dataclass plus JSON load/save helpers.
 - `exceptions.py`: Core exception types shared by workers and UI.
@@ -15,6 +15,7 @@ Implements the workflow state machine, persistence, file/session I/O, and shared
 ## Working-Directory Artifacts
 `FileManager` owns the core artifacts:
 - `tasks.md`, `recent-changes.md`, `review/` (per-review-type files such as `review/general.md`), `review.md` (legacy compatibility), and `product-description.md` (synced from UI and rewritten for planning after Q&A).
+- `.agentharness/git-commit-message.txt` (created at startup by `ensure_files_exist()` as the git-ops LLM output target).
 - `session_state.json` (managed by `SessionManager`).
 
 ## Key Interactions

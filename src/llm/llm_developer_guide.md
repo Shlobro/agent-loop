@@ -8,7 +8,7 @@ Defines the LLM provider abstraction, prompt templates, and provider registry us
 - `claude_provider.py`: Claude CLI implementation (`claude -p` with prompt via stdin), one-time permissions setup, and curated Claude model IDs.
 - `gemini_provider.py`: Gemini CLI implementation using stdin and `--yolo`.
 - `codex_provider.py`: Codex CLI implementation using `codex exec --skip-git-repo-check --full-auto`, writing the last message to a file for parsing.
-- `prompt_templates.py`: Prompt strings for all workflow phases and review types (General, Architecture, Efficiency, Error Handling, Unit Test, UI/UX), plus review display labels and per-type review file naming (`review/<type>.md`). Review prompts are issue-only (no positive notes) and require leaving the target file empty when no issues are found.
+- `prompt_templates.py`: Prompt strings for all workflow phases and review types (General, Architecture, Efficiency, Error Handling, Unit Test, UI/UX), plus review display labels and per-type review file naming (`review/<type>.md`). Includes a git prompt that generates only a commit message file (no LLM push prompt). Review prompts are issue-only (no positive notes) and require leaving the target file empty when no issues are found.
 - `__init__.py`: Registers built-in providers.
 
 ## Key Interactions

@@ -259,25 +259,19 @@ After making changes:
     # =========================================================================
     # Phase 5: Git Operations
     # =========================================================================
-    GIT_COMMIT = '''Perform git operations to commit the recent changes.
+    GIT_COMMIT_MESSAGE = '''Create a git commit message and write it to `{message_file}`.
 
-1. Run `git add .` to stage all changes
-2. Create a meaningful commit message that summarizes the work done
-3. Run `git commit -m "your message"`
+Rules:
+1. Only edit `{message_file}`.
+2. Write exactly one commit message line (no bullets, no markdown, no quotes).
+3. Do not run git commands.
+4. Do not create or modify any other file.
 
-Commit message should:
-- Start with a verb (Add, Fix, Update, Implement, etc.)
-- Be concise but descriptive
-- Reference the main feature or fix
-
-Example: "Implement user authentication with JWT tokens"'''
-
-    GIT_PUSH = '''Push the committed changes to the remote repository.
-
-{remote_setup}Run: `git push -u origin HEAD`
-
-If push fails due to remote changes, do NOT force push.
-Instead, report the error and suggest the user resolve it manually.'''
+Commit message quality:
+- Start with a verb (Add, Fix, Update, Implement, Refactor, etc.)
+- Be concise but specific
+- Reflect the main change just completed
+'''
 
     @classmethod
     def get_review_prompt(cls, review_type: ReviewType,
@@ -389,15 +383,6 @@ Instead, report the error and suggest the user resolve it manually.'''
         )
 
     @classmethod
-    def format_git_push_prompt(cls, git_remote: str = "") -> str:
-        """Format the git push prompt with optional remote setup."""
-        if git_remote:
-            remote_setup = f'''First, set up the remote (if not already configured):
-1. Check if origin exists: `git remote -v`
-2. If origin doesn't exist, add it: `git remote add origin {git_remote}`
-3. If origin exists but points elsewhere, update it: `git remote set-url origin {git_remote}`
-
-'''
-        else:
-            remote_setup = ""
-        return cls.GIT_PUSH.format(remote_setup=remote_setup)
+    def format_git_commit_message_prompt(cls, message_file: str) -> str:
+        """Format prompt for commit-message-only generation."""
+        return cls.GIT_COMMIT_MESSAGE.format(message_file=message_file)
