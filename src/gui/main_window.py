@@ -59,6 +59,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
             "findings": "",
         }
         self._last_phase = None
+        self._suppress_description_sync = False
 
         # Setup UI
         self.setup_menu_bar()
@@ -114,6 +115,11 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         add_git_action("Remote + Push", "push")
 
         self.git_mode_actions[self.git_mode].setChecked(True)
+
+        # Settings menu
+        settings_menu = menu_bar.addMenu("&Settings")
+        self.review_settings_action = QAction("&Review Settings...", self)
+        settings_menu.addAction(self.review_settings_action)
 
     def setup_ui(self):
         """Initialize and layout all UI components."""
@@ -216,6 +222,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
 
         # Config panel
         self.config_panel.working_directory_changed.connect(self.on_working_dir_changed)
+        self.review_settings_action.triggered.connect(self.config_panel.open_review_settings)
 
     def set_git_mode(self, mode: str):
         """Set git mode and update related UI."""
@@ -399,6 +406,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         self.log_viewer.append_log(f"  Git Remote: {config.git_remote or '(not set)'}", "info")
         self.log_viewer.append_log("LLM PROVIDERS:", "info")
         self.log_viewer.append_log(f"  Question Gen: {llm_config.get('question_gen', 'N/A')}", "info")
+        self.log_viewer.append_log(f"  Description Molding: {llm_config.get('description_molding', 'N/A')}", "info")
         self.log_viewer.append_log(f"  Task Planning: {llm_config.get('task_planning', 'N/A')}", "info")
         self.log_viewer.append_log(f"  Coder: {llm_config.get('coder', 'N/A')}", "info")
         self.log_viewer.append_log(f"  Reviewer: {llm_config.get('reviewer', 'N/A')}", "info")
@@ -632,8 +640,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
     @Slot(list)
     def on_answers_submitted(self, qa_pairs: list):
         """Handle submission of a batch of question answers."""
-        ctx = self.state_machine.context
-        updated_pairs = list(ctx.qa_pairs)
+        updated_pairs = []
 
         for qa in qa_pairs:
             question = str(qa.get("question", "")).strip()
@@ -667,8 +674,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         if not ctx.questions_answered:
             answered_pairs = self.question_panel.collect_answered_pairs()
             if answered_pairs and self.question_panel.get_unanswered_count() == 0:
-                updated_pairs = list(ctx.qa_pairs)
-                updated_pairs.extend(answered_pairs)
+                updated_pairs = list(answered_pairs)
                 answers = {
                     f"q{i + 1}": qa.get("answer", "")
                     for i, qa in enumerate(updated_pairs)
@@ -715,7 +721,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
     def run_question_generation(self):
         """Run Phase 1: Question Generation (batch)."""
         ctx = self.state_machine.context
-        description = self._load_description_from_file() or self.description_panel.get_description()
+        description = self.description_panel.get_description()
+        self._sync_description_to_file(description)
         if description != ctx.description:
             self.state_machine.update_context(description=description)
         if ctx.working_directory:
@@ -758,9 +765,9 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         worker = DefinitionRewriteWorker(
             description=self.description_panel.get_description(),
             qa_pairs=ctx.qa_pairs,
-            provider_name=ctx.llm_config.get("task_planning", "claude"),
+            provider_name=ctx.llm_config.get("description_molding", "gemini"),
             working_directory=ctx.working_directory,
-            model=ctx.llm_config.get("task_planning_model")
+            model=ctx.llm_config.get("description_molding_model", "gemini-3-pro-preview")
         )
 
         self._connect_worker_signals(worker)
@@ -772,10 +779,18 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
     @Slot(str)
     def on_definition_rewrite_ready(self, definition: str):
         """Handle completion of the product definition rewrite."""
-        updated = (definition or "").strip()
+        updated = self._load_rewritten_description_from_file() or (definition or "").strip()
         if updated:
-            self.description_panel.set_description(updated)
-            self.state_machine.update_context(description=updated)
+            self._suppress_description_sync = True
+            try:
+                self.description_panel.set_description(updated)
+            finally:
+                self._suppress_description_sync = False
+            self.state_machine.update_context(
+                description=updated,
+                qa_pairs=[],
+                answers={}
+            )
             self._sync_description_to_file(updated)
             self.log_viewer.append_log("Updated product description from Q&A rewrite", "success")
         else:
@@ -787,28 +802,45 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
 
     @Slot(str)
     def on_description_changed(self, text: str):
-        """Keep description.md synced with UI edits."""
+        """Keep product-description.md synced with UI edits."""
+        if self._suppress_description_sync:
+            return
         self.state_machine.update_context(description=text)
         self._sync_description_to_file(text)
 
     def _sync_description_to_file(self, text: str):
-        """Persist the current description to description.md."""
+        """Persist the current description to product-description.md."""
         if not self.file_manager:
             return
         try:
             self.file_manager.ensure_files_exist()
-            self.file_manager.write_file("description.md", text.strip() + "\n" if text else "")
+            self.file_manager.write_file("product-description.md", text.strip() + "\n" if text else "")
         except Exception as exc:
-            self.log_viewer.append_log(f"Failed to write description.md: {exc}", "warning")
+            self.log_viewer.append_log(f"Failed to write product-description.md: {exc}", "warning")
 
     def _load_description_from_file(self) -> str:
-        """Load description.md content when available."""
+        """Load product-description.md content when available."""
         if not self.file_manager:
             return ""
         try:
-            content = self.file_manager.read_file("description.md")
+            content = self.file_manager.read_file("product-description.md")
         except Exception as exc:
-            self.log_viewer.append_log(f"Failed to read description.md: {exc}", "warning")
+            self.log_viewer.append_log(f"Failed to read product-description.md: {exc}", "warning")
+            return ""
+        return (content or "").strip()
+
+    def _load_rewritten_description_from_file(self) -> str:
+        """Load product-description.md after Q&A rewrite."""
+        ctx = self.state_machine.context
+        if not ctx.working_directory:
+            return ""
+        path = Path(ctx.working_directory) / "product-description.md"
+        if not path.exists():
+            return ""
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            self.log_viewer.append_log(f"Failed to read product-description.md: {exc}", "warning")
             return ""
         return (content or "").strip()
 
@@ -852,6 +884,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         """Finalize question loop and move to task planning."""
         ctx = self.state_machine.context
         description = self.description_panel.get_description()
+        self._sync_description_to_file(description)
         answers = {
             f"q{i + 1}": qa.get("answer", "")
             for i, qa in enumerate(ctx.qa_pairs)
@@ -882,12 +915,14 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         # Create ProjectSettings object
         settings = ProjectSettings(
             question_gen=llm_config.question_gen,
+            description_molding=llm_config.description_molding,
             task_planning=llm_config.task_planning,
             coder=llm_config.coder,
             reviewer=llm_config.reviewer,
             fixer=llm_config.fixer,
             git_ops=llm_config.git_ops,
             question_gen_model=llm_config.question_gen_model,
+            description_molding_model=llm_config.description_molding_model,
             task_planning_model=llm_config.task_planning_model,
             coder_model=llm_config.coder_model,
             reviewer_model=llm_config.reviewer_model,
@@ -937,12 +972,14 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
                 # Apply settings to UI
                 llm_config_dict = {
                     "question_gen": settings.question_gen,
+                    "description_molding": settings.description_molding,
                     "task_planning": settings.task_planning,
                     "coder": settings.coder,
                     "reviewer": settings.reviewer,
                     "fixer": settings.fixer,
                     "git_ops": settings.git_ops,
                     "question_gen_model": settings.question_gen_model,
+                    "description_molding_model": settings.description_molding_model,
                     "task_planning_model": settings.task_planning_model,
                     "coder_model": settings.coder_model,
                     "reviewer_model": settings.reviewer_model,

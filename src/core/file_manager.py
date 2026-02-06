@@ -16,7 +16,7 @@ class FileManager:
     TASKS_FILE = "tasks.md"
     RECENT_CHANGES_FILE = "recent-changes.md"
     REVIEW_FILE = "review.md"
-    DESCRIPTION_FILE = "description.md"
+    DESCRIPTION_FILE = "product-description.md"
     AGENTS_FILE = "AGENTS.md"
     CLAUDE_FILE = "CLAUDE.md"
     GEMINI_FILE = "GEMINI.md"

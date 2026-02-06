@@ -3,8 +3,10 @@
 import subprocess
 import sys
 import threading
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from uuid import uuid4
 
 from .base_worker import BaseWorker
 from ..llm.base_provider import BaseLLMProvider
@@ -30,6 +32,9 @@ class LLMWorker(BaseWorker):
         self.timeout = timeout
         self.model = model
         self.process: Optional[subprocess.Popen] = None
+        self._live_terminal_process: Optional[subprocess.Popen] = None
+        self._live_terminal_log_path: Optional[Path] = None
+        self._live_terminal_lock = threading.Lock()
         self._output_lines = []
 
     def execute(self) -> str:
@@ -51,8 +56,12 @@ class LLMWorker(BaseWorker):
         # Log the exact command being executed for debugging
         command_str = ' '.join(f'"{arg}"' if ' ' in arg or '"' in arg else arg for arg in command)
         self.log(f"Executing command: {command_str}", "info")
+        self._start_live_terminal(command_str)
         model_info = f", Model: {self.model}" if self.model else ""
         self.log(f"Provider: {self.provider.display_name}{model_info}, Timeout: {self.timeout}s", "debug")
+        self._append_live_terminal_line(
+            f"Provider: {self.provider.display_name}{model_info} | Timeout: {self.timeout}s"
+        )
 
         # Check if provider uses stdin for prompt
         uses_stdin = getattr(self.provider, 'uses_stdin', False)
@@ -60,9 +69,11 @@ class LLMWorker(BaseWorker):
         if uses_stdin:
             stdin_data = self.provider.get_stdin_prompt(self.prompt)
             self.log(f"Sending prompt via stdin ({len(stdin_data)} chars)", "info")
+            self._append_live_terminal_line(f"Prompt transport: stdin ({len(stdin_data)} chars)")
             self._log_full_prompt(stdin_data, "stdin")
         else:
             self.log(f"Prompt passed via command args ({len(self.prompt)} chars)", "debug")
+            self._append_live_terminal_line(f"Prompt transport: args ({len(self.prompt)} chars)")
             self._log_full_prompt(self.prompt, "args")
 
         try:
@@ -85,6 +96,7 @@ class LLMWorker(BaseWorker):
                 shell=use_shell
             )
             self.log(f"Process started with PID: {self.process.pid}", "debug")
+            self._append_live_terminal_line(f"Process PID: {self.process.pid}")
 
             self._output_lines = []
 
@@ -106,6 +118,7 @@ class LLMWorker(BaseWorker):
                 self.process.wait(timeout=self.timeout)
             except subprocess.TimeoutExpired:
                 self.log(f"Process timed out after {self.timeout}s, killing...", "warning")
+                self._append_live_terminal_line(f"Timed out after {self.timeout}s; terminating process.")
                 self.process.kill()
                 self.process.wait()
                 raise LLMTimeoutError(f"LLM process timed out after {self.timeout}s")
@@ -129,6 +142,9 @@ class LLMWorker(BaseWorker):
 
             # Log process result for debugging
             self.log(f"Process exited with code {self.process.returncode}, output length: {len(full_output)} chars", "info")
+            self._append_live_terminal_line(
+                f"Process exited with code {self.process.returncode}. Output length: {len(full_output)} chars."
+            )
 
             # Show output preview
             if full_output.strip():
@@ -147,10 +163,13 @@ class LLMWorker(BaseWorker):
         except FileNotFoundError:
             self.log(f"Command not found: {command[0]}", "error")
             self.log(f"Ensure {self.provider.display_name} is installed and in PATH", "error")
+            self._append_live_terminal_line(f"Command not found: {command[0]}")
             raise LLMProcessError(
                 -1,
                 f"Command '{command[0]}' not found. Is {self.provider.display_name} installed?"
             )
+        finally:
+            self._stop_live_terminal()
 
     def _read_output(self):
         """Read output from process in a separate thread."""
@@ -161,6 +180,7 @@ class LLMWorker(BaseWorker):
 
                 self._output_lines.append(line)
                 self.signals.llm_output.emit(line.rstrip('\n\r'))
+                self._append_live_terminal_line(line.rstrip('\n\r'))
 
         except Exception:
             pass  # Process may have been killed
@@ -169,16 +189,21 @@ class LLMWorker(BaseWorker):
         """Emit output text to the log viewer as LLM output lines."""
         for line in output_text.splitlines():
             self.signals.llm_output.emit(line)
+            self._append_live_terminal_line(line)
 
     def _log_full_prompt(self, prompt_text: str, source: str):
         """Log the full prompt for visibility in the output log."""
         self.log(f"LLM prompt begin ({source})", "info")
+        self._append_live_terminal_line(f"LLM prompt begin ({source})")
         if prompt_text:
             for line in prompt_text.splitlines():
                 self.log(line, "info")
+                self._append_live_terminal_line(line)
         else:
             self.log("(empty prompt)", "info")
+            self._append_live_terminal_line("(empty prompt)")
         self.log(f"LLM prompt end ({source})", "info")
+        self._append_live_terminal_line(f"LLM prompt end ({source})")
 
     def cancel(self):
         """Cancel the worker and terminate the process."""
@@ -195,8 +220,10 @@ class LLMWorker(BaseWorker):
                     self.log(f"Process did not terminate, force killing...", "warning")
                     self.process.kill()
                     self.log(f"Process killed", "debug")
+                    self._append_live_terminal_line("Process force-killed during cancellation.")
             except Exception as e:
                 self.log(f"Error during process termination: {e}", "debug")
+                self._append_live_terminal_line(f"Error during process termination: {e}")
 
     def _get_output_last_message_path(self) -> Optional[Path]:
         path_getter = getattr(self.provider, "get_output_last_message_path", None)
@@ -206,6 +233,72 @@ class LLMWorker(BaseWorker):
         if not output_path:
             return None
         return Path(output_path)
+
+    def _start_live_terminal(self, command_str: str):
+        """Open a live terminal window on Windows that tails this run's output log."""
+        if sys.platform != "win32":
+            return
+
+        base_dir = Path(self.working_directory) if self.working_directory else Path.cwd()
+        logs_dir = base_dir / ".agentharness" / "live-llm"
+        try:
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            log_path = logs_dir / f"llm_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:8]}.log"
+            log_path.write_text("", encoding="utf-8")
+            self._live_terminal_log_path = log_path
+        except OSError as e:
+            self.log(f"Failed to initialize live terminal log: {e}", "warning")
+            self._live_terminal_log_path = None
+            return
+
+        self._append_live_terminal_line("AgentHarness LLM Live Output")
+        self._append_live_terminal_line(f"Start: {datetime.now().isoformat(timespec='seconds')}")
+        self._append_live_terminal_line(f"CWD: {self.working_directory or str(base_dir)}")
+        self._append_live_terminal_line(f"Command: {command_str}")
+        self._append_live_terminal_line("")
+
+        quoted_path = str(log_path).replace("'", "''")
+        tail_script = (
+            f"$p='{quoted_path}'; "
+            "Get-Content -Path $p -Wait | ForEach-Object { "
+            "if ($_ -eq '__AGENTHARNESS_LIVE_DONE__') { "
+            "Write-Host ''; "
+            "Write-Host 'LLM run complete. Close this terminal window when done reviewing.'; "
+            "break "
+            "}; "
+            "Write-Host $_ "
+            "}"
+        )
+
+        try:
+            creation_flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+            self._live_terminal_process = subprocess.Popen(
+                ["powershell", "-NoLogo", "-NoExit", "-Command", tail_script],
+                creationflags=creation_flags
+            )
+            self.log(f"Live terminal opened for LLM run: {log_path}", "debug")
+        except OSError as e:
+            self.log(f"Failed to open live terminal window: {e}", "warning")
+            self._live_terminal_process = None
+
+    def _append_live_terminal_line(self, text: str):
+        """Append one line to the live terminal log file if enabled."""
+        if not self._live_terminal_log_path:
+            return
+        safe_text = text.rstrip("\n\r")
+        try:
+            with self._live_terminal_lock:
+                with self._live_terminal_log_path.open("a", encoding="utf-8") as handle:
+                    handle.write(f"{safe_text}\n")
+        except OSError:
+            pass
+
+    def _stop_live_terminal(self):
+        """Signal the live terminal tail process to exit."""
+        if not self._live_terminal_log_path:
+            return
+        self._append_live_terminal_line(f"End: {datetime.now().isoformat(timespec='seconds')}")
+        self._append_live_terminal_line("__AGENTHARNESS_LIVE_DONE__")
 
 
 class RetryingLLMWorker(LLMWorker):

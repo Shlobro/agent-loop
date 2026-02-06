@@ -6,11 +6,13 @@ from typing import Union
 
 class ReviewType(Enum):
     """Types of code review."""
+    GENERAL = "general"
     ARCHITECTURE = "architecture"
     EFFICIENCY = "efficiency"
     ERROR_HANDLING = "error_handling"
     SAFETY = "safety"
     TESTING = "testing"
+    UNIT_TEST = "unit_test"
     DOCUMENTATION = "documentation"
     UI_UX = "ui_ux"
 
@@ -22,41 +24,50 @@ class PromptTemplates:
     # Phase 1: Question Generation (Batch mode)
     # =========================================================================
     QUESTION_GENERATION_PROMPT = (
-        'your job is to edit `questions.json` file with {question_count} questions to clarify '
-        'exactly what the user wants to make. provide the user with 3-5 possible '
-        'answers for each question. the format of the json should be '
-        '{{"questions":[{{"question":"...","options":["...","..."]}}]}}.\n\n'
-        'there already exists an empty questions.json file. edit it and put the questions there. '
-        'Write the JSON to `questions.json` in the working directory: {working_directory}. '
-        'Do not implement any code I only want the clarifying questions in the `questions.json` file. '
-        'Do not create any new files, only edit the existing questions.json with new questions and answers. '
-        'in the project description the user inputted was: "{description}".'
+        """
+read the product-description.md file this is currently what we know the client wants.
+we want to send the client some questions to clarify a few things i want you come up with {question_count} questions to clarify.
+provide the user with 3-5 possible answers for each question.
+the format of the json should be: {{"questions":[{{"question":"...","options":["...","..."]}}]}}.\n\n'
+there already exists an empty questions.json file. edit it and put the questions there.
+Do not implement any code I only want the clarifying questions in the `questions.json` file.
+Do not create any new files, only edit the existing questions.json with new questions and answers.
+        """
     )
+    # QUESTION_GENERATION_PROMPT = (
+    #     'your job is to edit `questions.json` file with {question_count} questions to clarify '
+    #     'exactly what the user wants to make. provide the user with 3-5 possible '
+    #     'answers for each question. the format of the json should be '
+    #     '{{"questions":[{{"question":"...","options":["...","..."]}}]}}.\n\n'
+    #     'there already exists an empty questions.json file. edit it and put the questions there. '
+    #     'Write the JSON to `questions.json` in the working directory: {working_directory}. '
+    #     'Do not implement any code I only want the clarifying questions in the `questions.json` file. '
+    #     'Do not create any new files, only edit the existing questions.json with new questions and answers. '
+    #     'in the project description the user inputted was: "{description}".'
+    # )
 
     # =========================================================================
     # Question Follow-up: Q&A -> Product Definition Rewrite
     # =========================================================================
-    DEFINITION_REWRITE_PROMPT = '''edit project-description.md or make it if it does not exist Rewrite the project description into a clear product definition using the original description and the clarifying Q&A.
+    DEFINITION_REWRITE_PROMPT = '''
+update product-description.md.
+Rewrite the project description into a clear product definition using the original description and the clarifying Q&A.
+to be clear the client has sent us a product description and we have sent him clarifying questions, the client has responded to those questions and now we need to create a new updated product description based on these questions and the original product description
 
 ORIGINAL DESCRIPTION:
 {description}
 
 CLARIFYING QUESTIONS AND ANSWERS:
 {answers}
-
-- Output a concise product definition in markdown.
-- Do NOT include the Q&A format or questions.
-- Do NOT write code or edit any files except the project-description.md.
-- Write the product definition to `project-description.md` in the working directory: {working_directory}.
 '''
-
 
     # =========================================================================
     # Phase 2: Task Planning
     # =========================================================================
-    TASK_PLANNING = '''Edit the tasks.md file in the working directory. If tasks.md does not exist, create it as an empty file first.
-Write the checklist directly to `tasks.md` in the working directory: {working_directory}.
-Do not implement any code; only write the task list.
+    TASK_PLANNING = '''
+    I want you to make a task list in the tasks.md file.
+    Do not implement any code; only write the task list.
+    The tasks should be created according to the gap of what currently exists and what is in the product-description.md
 
 OUTPUT FORMAT (write directly into tasks.md):
 - Use a markdown checklist with `- [ ]` for each task (unchecked checkbox).
@@ -65,9 +76,6 @@ OUTPUT FORMAT (write directly into tasks.md):
 - Include setup, implementation, testing, and documentation tasks.
 - Do not use nested tasks or sub-items.
 - Each task should be self-contained.
-
-PROJECT DESCRIPTION (from project-description.md if available):
-{description}
 '''
 
     # =========================================================================
@@ -110,6 +118,34 @@ CRITICAL RULES:
     # Phase 4: Review Prompts
     # =========================================================================
     REVIEW_PROMPTS = {
+        ReviewType.GENERAL: '''Review the recent code changes with a GENERAL quality pass.
+
+Use `git diff` to see the recent changes in the working directory.
+
+Evaluate:
+- Correctness and behavioral regressions
+- Readability and maintainability
+- Risky assumptions and edge cases
+- Consistency with surrounding code style
+- Missing validation or guards
+
+Write your findings to review.md in this format:
+```review
+## General Review
+
+### Issues Found:
+1. [Issue description]
+   - File: [filename]
+   - Line: [line number if applicable]
+   - Severity: [High/Medium/Low]
+   - Suggestion: [How to fix]
+
+### Positive Observations:
+- [What's done well]
+```
+
+If no issues found, write "No general issues found."''',
+
         ReviewType.ARCHITECTURE: '''Review the recent code changes for ARCHITECTURAL concerns.
 
 Use `git diff` to see the recent changes in the working directory.
@@ -260,6 +296,37 @@ Write your findings to review.md in this format:
 
 If no issues found, write "No testing issues found."''',
 
+        ReviewType.UNIT_TEST: '''Review the recent code changes for UNIT TEST concerns.
+
+Use `git diff` to see the recent changes in the working directory.
+
+Evaluate:
+- Presence of unit tests for new/changed logic
+- Assertion quality (behavior-focused, not implementation-only)
+- Coverage of edge cases and error paths
+- Test isolation and deterministic behavior
+- Test naming clarity and maintainability
+
+Write your findings to review.md in this format:
+```review
+## Unit Test Review
+
+### Issues Found:
+1. [Issue description]
+   - File: [filename]
+   - Line: [line number if applicable]
+   - Severity: [High/Medium/Low]
+   - Suggestion: [How to fix]
+
+### Missing Tests:
+- [What should be tested]
+
+### Positive Observations:
+- [What's done well]
+```
+
+If no issues found, write "No unit test issues found."''',
+
         ReviewType.DOCUMENTATION: '''Review the recent code changes for DOCUMENTATION concerns.
 
 Use `git diff` to see the recent changes in the working directory.
@@ -381,11 +448,13 @@ Instead, report the error and suggest the user resolve it manually.'''
     def get_all_review_types(cls) -> list:
         """Get list of all review types in order."""
         return [
+            ReviewType.GENERAL,
             ReviewType.ARCHITECTURE,
             ReviewType.EFFICIENCY,
             ReviewType.ERROR_HANDLING,
             ReviewType.SAFETY,
             ReviewType.TESTING,
+            ReviewType.UNIT_TEST,
             ReviewType.DOCUMENTATION,
             ReviewType.UI_UX,
         ]
@@ -433,8 +502,8 @@ Instead, report the error and suggest the user resolve it manually.'''
 
     @classmethod
     def format_planning_prompt(cls, description: str, answers: dict,
-                                qa_pairs: list = None,
-                                working_directory: str = ".") -> str:
+                               qa_pairs: list = None,
+                               working_directory: str = ".") -> str:
         """Format the task planning prompt.
 
         Args:
@@ -449,8 +518,8 @@ Instead, report the error and suggest the user resolve it manually.'''
 
     @classmethod
     def format_execution_prompt(cls, working_directory: str,
-                                 recent_changes: str, tasks: str,
-                                 compliance_report: str) -> str:
+                                recent_changes: str, tasks: str,
+                                compliance_report: str) -> str:
         """Format the main execution prompt with workspace rule context."""
         return cls.MAIN_EXECUTION.format(
             working_directory=working_directory,
@@ -461,8 +530,8 @@ Instead, report the error and suggest the user resolve it manually.'''
 
     @classmethod
     def format_fixer_prompt(cls, review_type: str,
-                             review_content: str,
-                             compliance_report: str) -> str:
+                            review_content: str,
+                            compliance_report: str) -> str:
         """Format the fixer prompt with workspace rule context."""
         return cls.FIXER.format(
             review_type=review_type,

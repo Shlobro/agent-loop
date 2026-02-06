@@ -58,14 +58,14 @@ class PlanningWorker(BaseWorker):
             return self.description
         file_manager = FileManager(self.working_directory)
         try:
-            project_description = file_manager.read_file("project-description.md")
+            project_description = file_manager.read_file("product-description.md")
         except Exception as exc:
-            self.log(f"Failed to read project-description.md: {exc}", "warning")
+            self.log(f"Failed to read product-description.md: {exc}", "warning")
             return self.description
         if project_description and project_description.strip():
-            self.log("Loaded project description from project-description.md", "info")
+            self.log("Loaded project description from product-description.md", "info")
             return project_description.strip()
-        self.log("project-description.md missing or empty; using current description", "info")
+        self.log("product-description.md missing or empty; using current description", "info")
         return self.description
 
     def _generate_tasks(self, provider):

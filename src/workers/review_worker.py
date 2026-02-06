@@ -16,7 +16,7 @@ class ReviewWorker(BaseWorker):
     def __init__(self, reviewer_provider_name: str = "claude",
                  fixer_provider_name: str = "claude",
                  working_directory: str = None,
-                 iterations: int = 5,
+                 iterations: int = 1,
                  start_iteration: int = 0,
                  review_types: list = None,
                  reviewer_model: str = None,
@@ -98,7 +98,7 @@ class ReviewWorker(BaseWorker):
     def _build_review_sequence(self, review_types: list) -> list:
         """Build ordered review sequence from selected review type values."""
         if review_types is None:
-            review_types = [r.value for r in PromptTemplates.get_all_review_types()]
+            review_types = [ReviewType.GENERAL.value]
         selected = set(review_types)
         return [r for r in PromptTemplates.get_all_review_types() if r.value in selected]
 

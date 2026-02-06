@@ -17,30 +17,33 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 - `.idea/`, `.claude/`, `.venv/`, `.git/`: Local tools, settings, and VCS metadata.
 
 ## Workflow Overview (High Level)
-1. UI collects description, LLM choices, and execution settings. The description is synced to `description.md`. After answers are submitted, Q&A is rewritten into `project-description.md` using `PromptTemplates.format_definition_rewrite_prompt`, the description becomes editable again, and only then can the user generate more questions (using the current description) or start planning.
+1. UI collects description, LLM choices, and execution settings. Review type selection is exposed through the top menu `Settings -> Review Settings`. The description is synced to `product-description.md`, and the GUI value is force-written to that file before each question batch and before planning. After answers are submitted, only the current Q&A batch is rewritten into `product-description.md` using `PromptTemplates.format_definition_rewrite_prompt`; only this rewrite step pushes file content back into the GUI. Stored Q&A context is then cleared so the rewritten description is treated as the new initial input. The description then becomes editable again, and only then can the user generate more questions or start planning.
 2. `StateMachine` tracks phase/context; `MainWindow` dispatches workers.
 3. Question generation initializes an empty `questions.json` and expects the LLM to write a batch into it in a single attempt (no stdout parsing or fallback prompts); generating another batch deletes the previous `questions.json`.
-4. Task planning reads `project-description.md` when available and has the LLM write directly to `tasks.md`.
-5. Main execution completes one task per iteration and updates `recent-changes.md`.
+4. Description molding runs after answers are submitted: it rewrites Q&A plus the current description into `product-description.md` using the dedicated `description_molding` stage/model; this step is file-first (`product-description.md` updates the UI, not the other way around).
+5. Task planning reads `product-description.md` when available and has the LLM write directly to `tasks.md`.
+6. Main execution completes one task per iteration and updates `recent-changes.md`.
    - Execution and fixer prompts include workspace governance rules plus a compliance scan summary (fresh scan each execution/review cycle):
      - Exactly one developer guide `.md` file per folder; the root may contain multiple `.md` files (excluding system/tooling dirs like `.git`, `.venv`, `.idea`, `.claude`, `node_modules`).
      - Read a folder's developer guide before editing.
      - Update the folder's guide and all ancestor guides when changes affect developer understanding.
      - No more than 10 code files per folder (`.md` files do not count).
      - No code file over 1000 lines.
-6. Review loop (including UI/UX review) writes `review.md` and runs fixer.
-7. Git operations optionally commit and push.
+7. Review loop (including General, Unit Test, and UI/UX review types) writes `review.md` and runs fixer.
+8. Git operations optionally commit and push.
+9. On Windows, each LLM call opens a live terminal window that shows the exact executed command and streams runtime output. The window remains open after completion so developers can review logs and close it manually.
 
 ## Working-Directory Artifacts
 Created in the selected working directory (not the repo root):
 - `tasks.md`: Task checklist and completion state.
 - `recent-changes.md`: Rolling log of code changes.
 - `review.md`: Reviewer findings for the fixer.
-- `description.md`: Synced project description from the UI.
-- `project-description.md`: Q&A-rewritten product definition used for task planning.
+- `product-description.md`: Synced project description from the UI.
+- `product-description.md`: Q&A-rewritten product definition used for task planning.
 - `session_state.json`: Pause/resume snapshot of workflow state.
 - `questions.json`: Batch questions file.
 - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`: Governance prompt files; auto-created if missing.
+- `.agentharness/live-llm/*.log`: Per-run live output logs used to mirror LLM execution into popup terminal windows.
 
 ## TODO-to-File Map
 Use this when picking up items from `TODO's`.
@@ -48,7 +51,7 @@ Use this when picking up items from `TODO's`.
 - Warn when debug loop iterations are 0 at Start: `src/gui/main_window.py`, `src/gui/widgets/config_panel.py`.
 - Detect Gemini quota errors and prompt for LLM switch: `src/workers/llm_worker.py`, `src/llm/gemini_provider.py`, `src/core/exceptions.py`, `src/gui/main_window.py`.
 - Detect Claude quota errors and prompt for LLM switch: `src/workers/llm_worker.py`, `src/llm/claude_provider.py`, `src/core/exceptions.py`, `src/gui/main_window.py`.
-- Add UI/UX review type: `src/llm/prompt_templates.py`, `src/core/state_machine.py`, `src/core/project_settings.py`, `src/gui/widgets/config_panel.py`, `src/workers/review_worker.py`.
+- Add or adjust review types/settings UI: `src/llm/prompt_templates.py`, `src/core/state_machine.py`, `src/core/project_settings.py`, `src/gui/widgets/config_panel.py`, `src/gui/dialogs/review_settings_dialog.py`, `src/workers/review_worker.py`.
 - Flag files per step and skip review iterations on "all clear": `src/core/file_manager.py`, `src/workers/review_worker.py`, `src/gui/main_window.py`.
 - Reset state on app relaunch (clear questions.json, etc): `src/gui/main_window.py`, `src/core/file_manager.py`, `src/workers/question_worker.py`.
 - Show generated description and task checklist/progress in UI: `src/workers/planning_worker.py`, `src/gui/widgets/description_panel.py`, `src/gui/widgets/status_panel.py`, `src/gui/main_window.py`.
@@ -78,7 +81,7 @@ Use this when picking up items from `TODO's`.
 - Workflow state and persistence: `src/core/state_machine.py`, `src/core/session_manager.py`.
 - LLM prompts and providers: `src/llm/`.
 - LLM provider CLI flags, commands, and curated model IDs used by the UI: `src/llm/*_provider.py`.
-- Default per-stage LLM provider/model assignments: `src/gui/widgets/llm_selector_panel.py` (UI defaults) and `src/core/state_machine.py` (`StateContext` fallback).
+- Default per-stage LLM provider/model assignments (including `description_molding`): `src/gui/widgets/llm_selector_panel.py` (UI defaults) and `src/core/state_machine.py` (`StateContext` fallback).
 - LLM output capture behavior (stdout vs output-file): `src/workers/llm_worker.py`, `src/llm/*_provider.py`.
 - Review label formatting in UI/logs: `src/gui/main_window.py` (uses `PromptTemplates.get_review_display_name`).
 - Background phase logic: `src/workers/`.

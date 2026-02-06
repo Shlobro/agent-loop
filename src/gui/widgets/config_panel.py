@@ -1,16 +1,18 @@
 """Panel for execution configuration options."""
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QFormLayout, QSpinBox, QCheckBox, QLabel,
-    QLineEdit, QPushButton, QHBoxLayout, QGroupBox, QFileDialog
+    QWidget, QVBoxLayout, QFormLayout, QLabel,
+    QLineEdit, QPushButton, QHBoxLayout, QGroupBox, QFileDialog,
+    QSpinBox
 )
 from PySide6.QtCore import Signal
 from dataclasses import dataclass, field
 from pathlib import Path
 import subprocess
-from typing import List, Dict
+from typing import List
 
-from ...llm.prompt_templates import PromptTemplates
+from ...llm.prompt_templates import PromptTemplates, ReviewType
+from ..dialogs.review_settings_dialog import ReviewSettingsDialog
 
 
 @dataclass
@@ -21,9 +23,9 @@ class ExecutionConfig:
     working_directory: str
     git_remote: str = ""
     git_mode: str = "local"
-    max_questions: int = 20
+    max_questions: int = 5
     review_types: List[str] = field(
-        default_factory=lambda: [r.value for r in PromptTemplates.get_all_review_types()]
+        default_factory=lambda: [ReviewType.GENERAL.value]
     )
 
 
@@ -39,6 +41,8 @@ class ConfigPanel(QWidget):
         super().__init__(parent)
         self._git_mode = "local"
         self._controls_enabled = True
+        self._all_review_types = [r.value for r in PromptTemplates.get_all_review_types()]
+        self._selected_review_types = [ReviewType.GENERAL.value]
         self.setup_ui()
 
     def setup_ui(self):
@@ -51,7 +55,7 @@ class ConfigPanel(QWidget):
         # Number of clarifying questions to generate per batch
         self.max_questions_spin = QSpinBox()
         self.max_questions_spin.setRange(0, 100)
-        self.max_questions_spin.setValue(20)
+        self.max_questions_spin.setValue(5)
         self.max_questions_spin.setToolTip(
             "Number of clarifying questions to generate per batch. "
             "Set to 0 to skip clarifying questions."
@@ -62,7 +66,7 @@ class ConfigPanel(QWidget):
         # Max iterations for main loop
         self.max_iterations_spin = QSpinBox()
         self.max_iterations_spin.setRange(1, 1000)
-        self.max_iterations_spin.setValue(50)
+        self.max_iterations_spin.setValue(10)
         self.max_iterations_spin.setToolTip("Maximum iterations for the main execution loop")
         self.max_iterations_spin.valueChanged.connect(self._on_config_changed)
         form.addRow("Max Main Iterations:", self.max_iterations_spin)
@@ -70,7 +74,7 @@ class ConfigPanel(QWidget):
         # Debug loop iterations
         self.debug_iterations_spin = QSpinBox()
         self.debug_iterations_spin.setRange(0, 20)
-        self.debug_iterations_spin.setValue(5)
+        self.debug_iterations_spin.setValue(1)
         self.debug_iterations_spin.setToolTip("Number of debug/review loop iterations (0 to skip)")
         self.debug_iterations_spin.valueChanged.connect(self._on_config_changed)
         form.addRow("Debug Loop Iterations:", self.debug_iterations_spin)
@@ -91,6 +95,7 @@ class ConfigPanel(QWidget):
         # Working directory
         dir_layout = QHBoxLayout()
         self.working_dir_edit = QLineEdit()
+        self.working_dir_edit.setText(r"C:\Users\shlob\Pycharm Projects\harness-test\harness-test-3")
         self.working_dir_edit.setPlaceholderText("Select project working directory...")
         self.working_dir_edit.setReadOnly(True)
         self.working_dir_edit.textChanged.connect(self._on_working_dir_changed)
@@ -102,23 +107,18 @@ class ConfigPanel(QWidget):
 
         form.addRow("Working Directory:", dir_layout)
 
-        self.review_checkboxes: Dict[str, QCheckBox] = {}
-        reviews_group = QGroupBox("Review Types")
-        reviews_layout = QVBoxLayout(reviews_group)
-        for review_type in PromptTemplates.get_all_review_types():
-            label = PromptTemplates.get_review_display_name(review_type)
-            checkbox = QCheckBox(label)
-            checkbox.setChecked(True)
-            checkbox.stateChanged.connect(self._on_config_changed)
-            self.review_checkboxes[review_type.value] = checkbox
-            reviews_layout.addWidget(checkbox)
-
         layout.addWidget(group)
-        layout.addWidget(reviews_group)
 
     def _on_config_changed(self):
         """Emit signal when configuration changes."""
         self.config_changed.emit()
+
+    def open_review_settings(self):
+        """Open dialog for selecting review types."""
+        dialog = ReviewSettingsDialog(self._selected_review_types, self)
+        if dialog.exec():
+            self._selected_review_types = dialog.get_selected_review_types()
+            self._on_config_changed()
 
     def _on_working_dir_changed(self):
         """Handle working directory change."""
@@ -177,16 +177,13 @@ class ConfigPanel(QWidget):
         self.working_dir_edit.setText(config.working_directory)
         self.git_remote_edit.setText(config.git_remote or "")
         self.set_git_mode(config.git_mode)
-        selected = set(config.review_types or [])
-        for review_type, checkbox in self.review_checkboxes.items():
-            checkbox.setChecked(review_type in selected)
+        selected = config.review_types if config.review_types is not None else self._all_review_types
+        self._selected_review_types = [review for review in self._all_review_types if review in set(selected)]
 
     def get_review_types(self) -> List[str]:
         """Get the selected review types."""
         return [
-            review_type
-            for review_type, checkbox in self.review_checkboxes.items()
-            if checkbox.isChecked()
+            review_type for review_type in self._selected_review_types
         ]
 
     def set_working_directory(self, path: str):
@@ -209,8 +206,6 @@ class ConfigPanel(QWidget):
         self.max_iterations_spin.setEnabled(enabled)
         self.debug_iterations_spin.setEnabled(enabled)
         self.browse_button.setEnabled(enabled)
-        for checkbox in self.review_checkboxes.values():
-            checkbox.setEnabled(enabled)
 
     def set_git_mode(self, mode: str):
         """Update the git mode and refresh related controls."""

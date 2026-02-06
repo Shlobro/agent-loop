@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List
 from PySide6.QtCore import QObject, Signal
 
-from ..llm.prompt_templates import PromptTemplates
+from ..llm.prompt_templates import PromptTemplates, ReviewType
 
 class Phase(Enum):
     """Main execution phases."""
@@ -61,21 +61,21 @@ class StateContext:
     questions_json: Dict[str, Any] = field(default_factory=dict)
     tasks_content: str = ""
     current_iteration: int = 0
-    max_iterations: int = 50
-    debug_iterations: int = 5
+    max_iterations: int = 10
+    debug_iterations: int = 1
     current_debug_iteration: int = 0
     current_review_type: str = ""
     review_types: List[str] = field(
-        default_factory=lambda: [r.value for r in PromptTemplates.get_all_review_types()]
+        default_factory=lambda: [ReviewType.GENERAL.value]
     )
     error_message: Optional[str] = None
     stop_requested: bool = False
     pause_requested: bool = False
-    working_directory: str = ""
+    working_directory: str = r"C:\Users\shlob\Pycharm Projects\harness-test\harness-test-3"
     git_mode: str = "local"
     git_remote: str = ""
     # Iterative question generation
-    max_questions: int = 20
+    max_questions: int = 5
     current_question_num: int = 0
     qa_pairs: List[Dict[str, str]] = field(default_factory=list)  # [{"question": ..., "answer": ...}]
     current_question_text: str = ""  # The current question being displayed
@@ -85,12 +85,14 @@ class StateContext:
     # LLM configuration per stage
     llm_config: Dict[str, str] = field(default_factory=lambda: {
         "question_gen": "gemini",
+        "description_molding": "gemini",
         "task_planning": "claude",
         "coder": "claude",
         "reviewer": "codex",
         "fixer": "codex",
         "git_ops": "gemini",
         "question_gen_model": "gemini-3-pro-preview",
+        "description_molding_model": "gemini-3-pro-preview",
         "task_planning_model": "claude-opus-4-6",
         "coder_model": "claude-opus-4-6",
         "reviewer_model": "gpt-5.3-codex",
@@ -322,18 +324,18 @@ class StateMachine(QObject):
         self._context.questions_json = ctx.get("questions_json", {})
         self._context.tasks_content = ctx.get("tasks_content", "")
         self._context.current_iteration = ctx.get("current_iteration", 0)
-        self._context.max_iterations = ctx.get("max_iterations", 50)
-        self._context.debug_iterations = ctx.get("debug_iterations", 5)
+        self._context.max_iterations = ctx.get("max_iterations", 10)
+        self._context.debug_iterations = ctx.get("debug_iterations", 1)
         self._context.current_debug_iteration = ctx.get("current_debug_iteration", 0)
         self._context.current_review_type = ctx.get("current_review_type", "")
         self._context.review_types = ctx.get(
             "review_types",
-            [r.value for r in PromptTemplates.get_all_review_types()]
+            [ReviewType.GENERAL.value]
         )
         self._context.working_directory = ctx.get("working_directory", "")
         self._context.git_mode = ctx.get("git_mode", "local")
         self._context.git_remote = ctx.get("git_remote", "")
-        self._context.max_questions = ctx.get("max_questions", 20)
+        self._context.max_questions = ctx.get("max_questions", 5)
         self._context.current_question_num = ctx.get("current_question_num", 0)
         self._context.qa_pairs = ctx.get("qa_pairs", [])
         self._context.current_question_text = ctx.get("current_question_text", "")

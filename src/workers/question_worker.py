@@ -20,7 +20,7 @@ class QuestionWorker(BaseWorker):
     """
 
     QUESTIONS_FILENAME = "questions.json"
-    DESCRIPTION_FILENAME = "description.md"
+    DESCRIPTION_FILENAME = "product-description.md"
 
     def __init__(self, description: str, question_count: int,
                  previous_qa: List[Dict[str, str]] | None = None,
@@ -139,7 +139,7 @@ class DefinitionRewriteWorker(BaseWorker):
     Rewrite the project description into a product definition using Q&A context.
     """
 
-    DESCRIPTION_FILENAME = "project-description.md"
+    DESCRIPTION_FILENAME = "product-description.md"
 
     def __init__(self, description: str, qa_pairs: List[Dict[str, str]],
                  provider_name: str = "gemini", working_directory: str = None,
@@ -152,7 +152,10 @@ class DefinitionRewriteWorker(BaseWorker):
         self.model = model
 
     def execute(self) -> str:
-        """Generate a rewritten product definition from description and Q&A."""
+        """Generate a rewritten product definition from description and Q&A.
+
+        The LLM must write the final content directly to product-description.md.
+        """
         self.update_status("Refining product definition...")
         self.log("=== DEFINITION REWRITE START ===", "phase")
         self.log(f"Working directory: {self.working_directory}", "info")
@@ -194,18 +197,14 @@ class DefinitionRewriteWorker(BaseWorker):
 
         rewritten = self._load_definition_file()
         if rewritten:
-            self.log("Loaded rewritten description from project-description.md", "success")
+            self.log("Loaded rewritten description from product-description.md", "success")
             self.log("=== DEFINITION REWRITE END ===", "phase")
             return rewritten
 
-        llm_output = ''.join(llm_worker._output_lines).strip()
-        if llm_output:
-            self._write_definition_file(llm_output)
-            self.log("Definition rewrite wrote project-description.md from stdout output", "warning")
-            self.log("=== DEFINITION REWRITE END ===", "phase")
-            return llm_output
-
-        self.log("Definition rewrite produced empty output; keeping original description", "warning")
+        self.log(
+            "Definition rewrite did not update product-description.md; ignoring stdout and keeping original description",
+            "warning"
+        )
         return self.description
 
     def _load_definition_file(self) -> str:
@@ -217,15 +216,7 @@ class DefinitionRewriteWorker(BaseWorker):
         try:
             content = path.read_text(encoding="utf-8").strip()
         except OSError as exc:
-            self.log(f"Failed to read project-description.md: {exc}", "warning")
+            self.log(f"Failed to read product-description.md: {exc}", "warning")
             return ""
         return content
 
-    def _write_definition_file(self, content: str):
-        if not self.working_directory:
-            return
-        path = Path(self.working_directory) / self.DESCRIPTION_FILENAME
-        try:
-            path.write_text(content.strip() + "\n", encoding="utf-8")
-        except OSError as exc:
-            self.log(f"Failed to write project-description.md: {exc}", "warning")
