@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List
 from PySide6.QtCore import QObject, Signal
 
+from .debug_settings import default_debug_breakpoints, normalize_debug_breakpoints
 from ..llm.prompt_templates import PromptTemplates, ReviewType
 
 class Phase(Enum):
@@ -82,6 +83,9 @@ class StateContext:
     current_question_options: List[str] = field(default_factory=list)  # Options for current question
     is_last_question_shown: bool = False  # True when showing the last question
     questions_answered: bool = False  # True when current batch has been answered
+    debug_mode_enabled: bool = False
+    debug_breakpoints: Dict[str, Dict[str, bool]] = field(default_factory=default_debug_breakpoints)
+    show_llm_terminals: bool = True
     # LLM configuration per stage
     llm_config: Dict[str, str] = field(default_factory=lambda: {
         "question_gen": "gemini",
@@ -309,6 +313,9 @@ class StateMachine(QObject):
                 "current_question_options": self._context.current_question_options,
                 "is_last_question_shown": self._context.is_last_question_shown,
                 "questions_answered": self._context.questions_answered,
+                "debug_mode_enabled": self._context.debug_mode_enabled,
+                "debug_breakpoints": self._context.debug_breakpoints,
+                "show_llm_terminals": self._context.show_llm_terminals,
                 "llm_config": self._context.llm_config,
             }
         }
@@ -342,6 +349,9 @@ class StateMachine(QObject):
         self._context.current_question_options = ctx.get("current_question_options", [])
         self._context.is_last_question_shown = ctx.get("is_last_question_shown", False)
         self._context.questions_answered = ctx.get("questions_answered", False)
+        self._context.debug_mode_enabled = bool(ctx.get("debug_mode_enabled", False))
+        self._context.debug_breakpoints = normalize_debug_breakpoints(ctx.get("debug_breakpoints", {}))
+        self._context.show_llm_terminals = bool(ctx.get("show_llm_terminals", True))
         self._context.llm_config = ctx.get("llm_config", self._context.llm_config)
 
         self.phase_changed.emit(self._phase, self._sub_phase)

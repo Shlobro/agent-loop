@@ -61,7 +61,8 @@ class GitWorker(BaseWorker):
             provider=provider,
             prompt=commit_prompt,
             working_directory=self.working_directory,
-            model=self.model
+            model=self.model,
+            debug_stage="git_commit"
         )
 
         commit_worker.signals.llm_output.connect(
@@ -90,7 +91,8 @@ class GitWorker(BaseWorker):
                 provider=provider,
                 prompt=push_prompt,
                 working_directory=self.working_directory,
-                model=self.model
+                model=self.model,
+                debug_stage="git_push"
             )
 
             push_worker.signals.llm_output.connect(

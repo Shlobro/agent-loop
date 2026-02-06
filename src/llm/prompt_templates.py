@@ -65,9 +65,9 @@ CLARIFYING QUESTIONS AND ANSWERS:
     # Phase 2: Task Planning
     # =========================================================================
     TASK_PLANNING = '''
-    I want you to make a task list in the tasks.md file.
-    Do not implement any code; only write the task list.
-    The tasks should be created according to the gap of what currently exists and what is in the product-description.md
+I want you to make a task list in the tasks.md file.
+Do not implement any code; only write the task list.
+The tasks should be created according to the gap of what currently exists and what is in the product-description.md
 
 OUTPUT FORMAT (write directly into tasks.md):
 - Use a markdown checklist with `- [ ]` for each task (unchecked checkbox).
@@ -81,27 +81,10 @@ OUTPUT FORMAT (write directly into tasks.md):
     # =========================================================================
     # Phase 3: Main Execution
     # =========================================================================
-    MAIN_EXECUTION = '''You are an autonomous code implementation agent working in the directory: {working_directory}
-
-RECENT CHANGES (for context on what has been done):
-{recent_changes}
-
-CURRENT TASK LIST:
-{tasks}
-
-WORKSPACE GOVERNANCE RULES (must always follow):
-- Every folder must contain exactly one developer guide `.md` file; the root may contain multiple `.md` files. Ignore system/tooling directories like `.git`, `.venv`, `.idea`, `.claude`, and `node_modules`.
-- Before editing files in a folder, read its developer guide `.md` file.
-- Update the folder's guide and all ancestor folder guides if changes affect developer understanding.
-- No code file may exceed 1000 lines; split files when near the limit.
-- No folder may contain more than 10 code files; `.md` files do not count toward this limit.
-
-CURRENT WORKSPACE COMPLIANCE CHECK:
-{compliance_report}
-
+    MAIN_EXECUTION = '''
 INSTRUCTIONS:
-1. Read the recent changes to understand the current project state
-2. Choose exactly ONE incomplete task from the task list (marked with `- [ ]`)
+1. Read the recent-changes.md to understand the current project state
+2. Choose exactly ONE incomplete task from tasks.md list (marked with `- [ ]`)
 3. Implement that task completely and thoroughly
 4. After implementing, update the recent-changes.md file with what you changed
 5. Mark the task as complete in tasks.md by changing `- [ ]` to `- [x]`
@@ -111,14 +94,16 @@ CRITICAL RULES:
 - Only work on ONE task and complete it do not complete more than 1 task
 - Only mark one task as complete once you have fully completed it
 - Be thorough - the task should be fully complete before marking done
-- If you cannot complete a task, leave it unchecked and explain in recent-changes.md
-- Always update both tasks.md and recent-changes.md'''
+- Always update both tasks.md and recent-changes.md
+'''
+
 
     # =========================================================================
     # Phase 4: Review Prompts
     # =========================================================================
     REVIEW_PROMPTS = {
-        ReviewType.GENERAL: '''Review the recent code changes with a GENERAL quality pass.
+        ReviewType.GENERAL: '''
+Review the recent code changes with a GENERAL quality pass.
 
 Use `git diff` to see the recent changes in the working directory.
 
@@ -394,27 +379,14 @@ If no issues found, write "No UI/UX issues found."''',
 REVIEW FINDINGS:
 {review_content}
 
-WORKSPACE GOVERNANCE RULES (must always follow):
-- Every folder must contain exactly one developer guide `.md` file; the root may contain multiple `.md` files. Ignore system/tooling directories like `.git`, `.venv`, `.idea`, `.claude`, and `node_modules`.
-- Before editing files in a folder, read its developer guide `.md` file.
-- Update the folder's guide and all ancestor folder guides if changes affect developer understanding.
-- No code file may exceed 1000 lines; split files when near the limit.
-- No folder may contain more than 10 code files; `.md` files do not count toward this limit.
-
-CURRENT WORKSPACE COMPLIANCE CHECK:
-{compliance_report}
-
 Your task:
 1. Read each issue found in the review
 2. For each issue, decide: Do you AGREE or DISAGREE?
 3. For issues you AGREE with: Implement the fix
-4. For issues you DISAGREE with: Briefly explain why in recent-changes.md
 
 After making changes:
 1. Update recent-changes.md with what you fixed
-2. If you disagreed with any findings, explain your reasoning
-
-Be practical - only fix issues that genuinely improve the code.'''
+'''
 
     # =========================================================================
     # Phase 5: Git Operations

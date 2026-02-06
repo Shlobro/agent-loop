@@ -115,7 +115,8 @@ class ExecutionWorker(BaseWorker):
             prompt=prompt,
             working_directory=self.working_directory,
             timeout=600,  # 10 minutes for execution tasks
-            model=self.model
+            model=self.model,
+            debug_stage="execution"
         )
 
         # Forward signals

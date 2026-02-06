@@ -5,7 +5,7 @@ import sys
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 from uuid import uuid4
 
 from .base_worker import BaseWorker
@@ -20,25 +20,44 @@ class LLMWorker(BaseWorker):
     """
 
     DEFAULT_TIMEOUT = 300  # 5 minutes
+    _debug_gate_callback: Optional[Callable[[str, str], bool]] = None
+    _show_live_terminal_windows: bool = True
 
     def __init__(self, provider: BaseLLMProvider, prompt: str,
                  working_directory: Optional[str] = None,
                  timeout: int = DEFAULT_TIMEOUT,
-                 model: Optional[str] = None):
+                 model: Optional[str] = None,
+                 debug_stage: str = "generic"):
         super().__init__()
         self.provider = provider
         self.prompt = prompt
         self.working_directory = working_directory
         self.timeout = timeout
         self.model = model
+        self.debug_stage = debug_stage
         self.process: Optional[subprocess.Popen] = None
         self._live_terminal_process: Optional[subprocess.Popen] = None
         self._live_terminal_log_path: Optional[Path] = None
         self._live_terminal_lock = threading.Lock()
         self._output_lines = []
 
+    @classmethod
+    def set_debug_gate_callback(cls, callback: Optional[Callable[[str, str], bool]]):
+        """Set an optional callback for debug step gates around each LLM call."""
+        cls._debug_gate_callback = callback
+
+    @classmethod
+    def set_show_live_terminal_windows(cls, enabled: bool):
+        """Enable/disable live terminal popups for LLM runs."""
+        cls._show_live_terminal_windows = bool(enabled)
+
     def execute(self) -> str:
         """Execute the LLM command and return the output."""
+        if not self._run_debug_gate("before"):
+            self.log("LLM call skipped due to stop/pause during debug wait", "warning")
+            self.cancel()
+            return ""
+
         output_path = self._get_output_last_message_path()
         if output_path:
             try:
@@ -157,6 +176,11 @@ class LLMWorker(BaseWorker):
                     f"Process exited with code {self.process.returncode}"
                 )
 
+            if not self._run_debug_gate("after"):
+                self.log("Post-call debug wait interrupted by stop/pause", "warning")
+                self.cancel()
+                return full_output
+
             self.signals.llm_complete.emit(full_output)
             return full_output
 
@@ -236,6 +260,8 @@ class LLMWorker(BaseWorker):
 
     def _start_live_terminal(self, command_str: str):
         """Open a live terminal window on Windows that tails this run's output log."""
+        if not self._show_live_terminal_windows:
+            return
         if sys.platform != "win32":
             return
 
@@ -299,6 +325,17 @@ class LLMWorker(BaseWorker):
             return
         self._append_live_terminal_line(f"End: {datetime.now().isoformat(timespec='seconds')}")
         self._append_live_terminal_line("__AGENTHARNESS_LIVE_DONE__")
+
+    def _run_debug_gate(self, when: str) -> bool:
+        """Run optional debug gate callback. Returns False if run should stop."""
+        callback = self._debug_gate_callback
+        if callback is None:
+            return True
+        try:
+            return bool(callback(self.debug_stage, when))
+        except Exception as e:
+            self.log(f"Debug gate callback error ignored: {e}", "warning")
+            return True
 
 
 class RetryingLLMWorker(LLMWorker):

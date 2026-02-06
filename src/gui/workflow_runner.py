@@ -296,4 +296,5 @@ class WorkflowRunnerMixin:
     def on_worker_finished(self):
         """Handle worker completion."""
         self.current_worker = None
+        self._set_debug_waiting(False)
         self.update_button_states()

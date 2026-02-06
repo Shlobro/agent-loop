@@ -119,7 +119,8 @@ class ReviewWorker(BaseWorker):
             provider=reviewer_provider,
             prompt=review_prompt,
             working_directory=self.working_directory,
-            model=self.reviewer_model
+            model=self.reviewer_model,
+            debug_stage="reviewer"
         )
 
         reviewer_worker.signals.llm_output.connect(
@@ -175,7 +176,8 @@ class ReviewWorker(BaseWorker):
             provider=fixer_provider,
             prompt=fixer_prompt,
             working_directory=self.working_directory,
-            model=self.fixer_model
+            model=self.fixer_model,
+            debug_stage="fixer"
         )
 
         fixer_worker.signals.llm_output.connect(

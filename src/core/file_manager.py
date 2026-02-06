@@ -22,6 +22,7 @@ class FileManager:
     GEMINI_FILE = "GEMINI.md"
     DEFAULT_MAX_FILES_PER_DIRECTORY = 10
     DEFAULT_MAX_LINES_PER_FILE = 1000
+    DEFAULT_MAX_DEV_GUIDE_LINES = 500
     DEFAULT_IGNORE_DIRS = {
         ".git",
         ".venv",
@@ -107,56 +108,47 @@ class FileManager:
 
     def _ensure_governance_files(self):
         """Create governance prompt files in the working directory if missing."""
+        content = self._default_governance_content()
         governance_files = {
-            self.AGENTS_FILE: self._default_agents_content(),
-            self.CLAUDE_FILE: self._default_claude_content(),
-            self.GEMINI_FILE: self._default_gemini_content(),
+            self.AGENTS_FILE: content,
+            self.CLAUDE_FILE: content,
+            self.GEMINI_FILE: content,
         }
 
-        for name, content in governance_files.items():
+        for name, file_content in governance_files.items():
             path = self.working_dir / name
             if not path.exists():
-                path.write_text(content, encoding="utf-8")
+                path.write_text(file_content, encoding="utf-8")
+
+    @staticmethod
+    def _default_governance_content() -> str:
+        """Return the unified default content for governance files (AGENTS.md, CLAUDE.md, GEMINI.md)."""
+        return "\n".join([
+            "- Always start with reading product-description.md.",
+            "- each folder must have a developer-guide.md that must be updated after any change in that folder, if there is a folder with code files and no developer guide then create it.",
+            "- the point of the developer guides md files are so that any new developer can understand what is in that folder without having to ever read the code in that folder",
+            "- Read the developer guide in the folder you are editing before making changes.",
+            "- Update the relevant developer guides and their ancestors when behavior changes.",
+            "- There is no reason to mention legacy information in the developer guides the only point is to allow new developers understand the current code without having to read the code.",
+            "- Do not create files over 1000 lines; split files when necessary.",
+            "- Keep folders under 10 code files; `.md` files do not count.",
+            "- Keep .md developer guides under 500 lines long. if there is a developer guide that is longer then compact it while making sure it still gives all the information needed to understand all code files in that folder.",
+        ]) + "\n"
 
     @staticmethod
     def _default_agents_content() -> str:
         """Return default AGENTS.md content for new workspaces."""
-        return "\n".join([
-            "- Read the developer guide `.md` in any folder before editing files there.",
-            "- Keep exactly one developer guide `.md` per folder (root may contain multiple `.md` files; exclude system/tooling dirs).",
-            "- Update the folder guide and ancestor guides when changes affect developer understanding.",
-            "- No code file may exceed 1000 lines; split files as needed.",
-            "- No folder may contain more than 10 code files; `.md` files do not count toward this limit.",
-            "- Keep system temp directories ignored in `.gitignore`.",
-        ]) + "\n"
+        return FileManager._default_governance_content()
 
     @staticmethod
     def _default_claude_content() -> str:
         """Return default CLAUDE.md content for new workspaces."""
-        return "\n".join([
-            "## Claude Project Rules",
-            "",
-            "- Follow AGENTS.md and all developer guide rules.",
-            "- Read the developer guide in the folder you are editing before making changes.",
-            "- Update the relevant developer guides and their ancestors when behavior changes.",
-            "- Do not create files over 1000 lines; split files when necessary.",
-            "- Keep folders under 10 code files; `.md` files do not count.",
-            "- Avoid destructive commands unless explicitly requested.",
-        ]) + "\n"
+        return FileManager._default_governance_content()
 
     @staticmethod
     def _default_gemini_content() -> str:
         """Return default GEMINI.md content for new workspaces."""
-        return "\n".join([
-            "## Gemini Project Rules",
-            "",
-            "- Follow AGENTS.md and all developer guide rules.",
-            "- Read the developer guide in the folder you are editing before making changes.",
-            "- Update the relevant developer guides and their ancestors when behavior changes.",
-            "- Do not create files over 1000 lines; split files when necessary.",
-            "- Keep folders under 10 code files; `.md` files do not count.",
-            "- Avoid destructive commands unless explicitly requested.",
-        ]) + "\n"
+        return FileManager._default_governance_content()
 
     def read_tasks(self) -> str:
         """Read tasks.md content."""

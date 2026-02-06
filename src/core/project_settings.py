@@ -5,6 +5,7 @@ from pathlib import Path
 from dataclasses import dataclass, asdict, field
 from typing import Optional, Dict, Any, List
 
+from .debug_settings import default_debug_breakpoints, normalize_debug_breakpoints
 from ..llm.prompt_templates import PromptTemplates, ReviewType
 
 
@@ -33,6 +34,9 @@ class ProjectSettings:
     # Execution Configuration
     max_main_iterations: int = 10
     debug_loop_iterations: int = 1
+    debug_mode_enabled: bool = False
+    debug_breakpoints: Dict[str, Dict[str, bool]] = field(default_factory=default_debug_breakpoints)
+    show_llm_terminals: bool = True
     max_questions: int = 5
     git_mode: str = "local"
 
@@ -114,5 +118,12 @@ class ProjectSettingsManager:
             normalized["description_molding"] = "gemini"
         if "description_molding_model" not in normalized:
             normalized["description_molding_model"] = "gemini-3-pro-preview"
+        if "debug_mode_enabled" not in normalized:
+            normalized["debug_mode_enabled"] = False
+        normalized["debug_breakpoints"] = normalize_debug_breakpoints(
+            normalized.get("debug_breakpoints", {})
+        )
+        if "show_llm_terminals" not in normalized:
+            normalized["show_llm_terminals"] = True
 
         return normalized

@@ -66,7 +66,8 @@ class QuestionWorker(BaseWorker):
             provider=provider,
             prompt=prompt,
             working_directory=self.working_directory,
-            model=self.model
+            model=self.model,
+            debug_stage="question_generation"
         )
 
         # Forward LLM output signals
@@ -180,7 +181,8 @@ class DefinitionRewriteWorker(BaseWorker):
             provider=provider,
             prompt=prompt,
             working_directory=self.working_directory,
-            model=self.model
+            model=self.model,
+            debug_stage="description_molding"
         )
         llm_worker.signals.llm_output.connect(
             lambda line: self.signals.llm_output.emit(line)

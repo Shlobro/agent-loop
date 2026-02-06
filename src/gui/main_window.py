@@ -2,11 +2,12 @@
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QSplitter, QPushButton, QMessageBox, QApplication, QFileDialog, QInputDialog
+    QSplitter, QPushButton, QMessageBox, QApplication, QInputDialog
 )
-from PySide6.QtCore import Qt, Slot, QThreadPool
+from PySide6.QtCore import Qt, Slot, QThreadPool, Signal
 from PySide6.QtGui import QAction, QActionGroup
 from pathlib import Path
+import threading
 
 from .widgets.description_panel import DescriptionPanel
 from .widgets.question_panel import QuestionPanel
@@ -14,43 +15,39 @@ from .widgets.llm_selector_panel import LLMSelectorPanel
 from .widgets.config_panel import ConfigPanel, ExecutionConfig
 from .widgets.log_viewer import LogViewer
 from .widgets.status_panel import StatusPanel
+from .settings_mixin import SettingsMixin
 from .workflow_runner import WorkflowRunnerMixin
 from ..core.state_machine import StateMachine, Phase, SubPhase
+from ..core.debug_settings import DEBUG_STAGE_LABELS, default_debug_breakpoints
 from ..core.file_manager import FileManager
 from ..core.session_manager import SessionManager
-from ..core.project_settings import ProjectSettings, ProjectSettingsManager
 from ..llm.prompt_templates import PromptTemplates
 
 from ..workers.question_worker import QuestionWorker, DefinitionRewriteWorker
+from ..workers.llm_worker import LLMWorker
 # Import llm module to register providers
 from .. import llm
 
 
-class MainWindow(QMainWindow, WorkflowRunnerMixin):
+class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     """
     Primary application window containing all panels and orchestrating
     the interaction between UI components and worker threads.
     """
+
+    debug_step_requested = Signal(str, str)  # (stage key, before|after)
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AgentHarness - Autonomous Code Generator")
         self.setMinimumSize(1200, 800)
 
-        # Thread pool for worker management
         self.thread_pool = QThreadPool()
-
-        # Core components
         self.state_machine = StateMachine()
         self.file_manager = None  # Created when working dir is set
         self.session_manager = SessionManager()
-        # Current worker reference (for cancellation)
         self.current_worker = None
-
-        # Git mode preference
         self.git_mode = "local"
-
-        # Activity panel state
         self.activity_state = {
             "phase": "",
             "action": "",
@@ -60,8 +57,16 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         }
         self._last_phase = None
         self._suppress_description_sync = False
+        self.debug_mode_enabled = False
+        self.debug_breakpoints = default_debug_breakpoints()
+        self.show_llm_terminals = True
+        self._debug_wait_event = threading.Event()
+        self._debug_wait_event.set()
+        self._debug_waiting = False
 
-        # Setup UI
+        LLMWorker.set_debug_gate_callback(self._wait_for_debug_step)
+        LLMWorker.set_show_live_terminal_windows(self.show_llm_terminals)
+
         self.setup_menu_bar()
         self.setup_ui()
         self.connect_signals()
@@ -71,17 +76,13 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         """Initialize the menu bar with File menu."""
         menu_bar = self.menuBar()
 
-        # File menu
         file_menu = menu_bar.addMenu("&File")
-
-        # Save Settings action
         save_action = QAction("&Save Settings...", self)
         save_action.setShortcut("Ctrl+S")
         save_action.setStatusTip("Save current project settings to file")
         save_action.triggered.connect(self.on_save_settings)
         file_menu.addAction(save_action)
 
-        # Load Settings action
         load_action = QAction("&Load Settings...", self)
         load_action.setShortcut("Ctrl+O")
         load_action.setStatusTip("Load project settings from file")
@@ -90,14 +91,12 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
 
         file_menu.addSeparator()
 
-        # Exit action
         exit_action = QAction("E&xit", self)
         exit_action.setShortcut("Ctrl+Q")
         exit_action.setStatusTip("Exit the application")
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
-        # Git menu
         git_menu = menu_bar.addMenu("&Git")
         self.git_mode_group = QActionGroup(self)
         self.git_mode_group.setExclusive(True)
@@ -116,10 +115,11 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
 
         self.git_mode_actions[self.git_mode].setChecked(True)
 
-        # Settings menu
         settings_menu = menu_bar.addMenu("&Settings")
         self.review_settings_action = QAction("&Review Settings...", self)
         settings_menu.addAction(self.review_settings_action)
+        self.debug_settings_action = QAction("&Debug Settings...", self)
+        settings_menu.addAction(self.debug_settings_action)
 
     def setup_ui(self):
         """Initialize and layout all UI components."""
@@ -127,18 +127,11 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
 
-        # Status bar at top
         self.status_panel = StatusPanel()
         main_layout.addWidget(self.status_panel)
-
-        # Main content area: Two columns (Logs left, Rest right)
         main_splitter = QSplitter(Qt.Horizontal)
-
-        # LEFT COLUMN: Log viewer
         self.log_viewer = LogViewer()
         main_splitter.addWidget(self.log_viewer)
-
-        # RIGHT COLUMN: Everything else
         right_column = QWidget()
         right_column_layout = QVBoxLayout(right_column)
         right_column_layout.setContentsMargins(0, 0, 0, 0)
@@ -195,6 +188,12 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         self.stop_button.setEnabled(False)
         button_layout.addWidget(self.stop_button)
 
+        self.next_step_button = QPushButton("Next Step")
+        self.next_step_button.setMinimumWidth(120)
+        self.next_step_button.clicked.connect(self.on_next_step_clicked)
+        self.next_step_button.setEnabled(False)
+        button_layout.addWidget(self.next_step_button)
+
         button_layout.addStretch()
 
         right_column_layout.addLayout(button_layout)
@@ -223,6 +222,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         # Config panel
         self.config_panel.working_directory_changed.connect(self.on_working_dir_changed)
         self.review_settings_action.triggered.connect(self.config_panel.open_review_settings)
+        self.debug_settings_action.triggered.connect(self.on_open_debug_settings)
+        self.debug_step_requested.connect(self.on_debug_step_requested)
 
     def set_git_mode(self, mode: str):
         """Set git mode and update related UI."""
@@ -277,6 +278,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
 
         self.pause_button.setEnabled(is_running)
         self.stop_button.setEnabled(is_running or is_paused or is_awaiting)
+        self.next_step_button.setEnabled(self._debug_waiting)
 
         # Also update panel states
         ctx = self.state_machine.context
@@ -328,6 +330,55 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         )
 
     @Slot()
+    def on_next_step_clicked(self):
+        """Continue execution after a debug breakpoint."""
+        if not self._debug_waiting:
+            return
+        self._debug_wait_event.set()
+        self._set_debug_waiting(False)
+
+    @Slot(str, str)
+    def on_debug_step_requested(self, stage: str, when: str):
+        """Update UI when an LLM debug breakpoint is reached."""
+        stage_label = DEBUG_STAGE_LABELS.get(stage, stage.replace("_", " ").title())
+        when_label = "before" if when == "before" else "after"
+        self._set_debug_waiting(True)
+        self.log_viewer.append_log(
+            f"Debug breakpoint hit ({when_label} {stage_label}). Click Next Step to continue.",
+            "warning"
+        )
+
+    def _set_debug_waiting(self, waiting: bool):
+        """Toggle waiting state for debug step mode controls."""
+        self._debug_waiting = waiting
+        self.next_step_button.setEnabled(waiting)
+
+    def _release_debug_wait(self):
+        """Release any blocked debug wait to avoid deadlock on pause/stop."""
+        self._debug_wait_event.set()
+        self._set_debug_waiting(False)
+
+    def _wait_for_debug_step(self, stage: str, when: str) -> bool:
+        """Block worker thread until user clicks Next Step for configured breakpoints."""
+        if not self._should_wait_for_debug_step(stage, when):
+            return True
+        self._debug_wait_event.clear()
+        self.debug_step_requested.emit(stage, when)
+        while not self._debug_wait_event.wait(timeout=0.1):
+            if self.current_worker and self.current_worker.is_cancelled():
+                return False
+            if self.state_machine.context.pause_requested:
+                return False
+        return True
+
+    def _should_wait_for_debug_step(self, stage: str, when: str) -> bool:
+        """Return True when debug mode should pause at this stage boundary."""
+        if not self.debug_mode_enabled:
+            return False
+        stage_config = self.debug_breakpoints.get(stage, {})
+        return bool(stage_config.get(when, False))
+
+    @Slot()
     def on_start_clicked(self):
         """Begin or resume the workflow."""
         if self.state_machine.phase == Phase.PAUSED:
@@ -339,6 +390,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
 
     def start_workflow(self):
         """Start a new workflow from the beginning."""
+        self._release_debug_wait()
         # Validate inputs
         if self.description_panel.is_empty():
             QMessageBox.warning(self, "Missing Description",
@@ -368,6 +420,9 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
             working_directory=working_dir,
             max_iterations=config.max_main_iterations,
             debug_iterations=config.debug_loop_iterations,
+            debug_mode_enabled=self.debug_mode_enabled,
+            debug_breakpoints=self.debug_breakpoints,
+            show_llm_terminals=self.show_llm_terminals,
             max_questions=config.max_questions,
             current_question_num=0,
             qa_pairs=[],
@@ -397,6 +452,11 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         self.log_viewer.append_log(f"  Max Main Iterations: {config.max_main_iterations}", "info")
         self.log_viewer.append_log(f"  Number of Questions: {config.max_questions}", "info")
         self.log_viewer.append_log(f"  Debug Loop Iterations: {config.debug_loop_iterations}", "info")
+        self.log_viewer.append_log(f"  Debug Step Mode: {'enabled' if self.debug_mode_enabled else 'disabled'}", "info")
+        self.log_viewer.append_log(
+            f"  LLM Terminal Windows: {'shown' if self.show_llm_terminals else 'hidden'}",
+            "info"
+        )
         review_types = config.review_types or []
         review_labels = ", ".join(
             [PromptTemplates.get_review_display_name(r) for r in review_types]
@@ -466,6 +526,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         """Pause the current workflow."""
         self.log_viewer.append_log("Pause requested...", "warning")
         self.state_machine.request_pause()
+        self._release_debug_wait()
 
         if self.current_worker:
             self.current_worker.pause()
@@ -490,6 +551,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         if reply == QMessageBox.Yes:
             self.log_viewer.append_log("Stopping workflow...", "warning")
             self.state_machine.request_stop()
+            self._release_debug_wait()
 
             if self.current_worker:
                 self.current_worker.cancel()
@@ -564,6 +626,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
     @Slot(bool)
     def on_workflow_completed(self, success: bool):
         """Handle workflow completion."""
+        self._release_debug_wait()
         if success:
             self.log_viewer.append_success("Workflow completed successfully!")
             QMessageBox.information(self, "Complete", "Workflow completed successfully!")
@@ -628,6 +691,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
 
             self.file_manager = FileManager(ctx.working_directory)
             self._sync_description_to_file(ctx.description)
+            self.debug_mode_enabled = ctx.debug_mode_enabled
+            self.debug_breakpoints = ctx.debug_breakpoints
+            self.show_llm_terminals = ctx.show_llm_terminals
+            LLMWorker.set_show_live_terminal_windows(self.show_llm_terminals)
 
             self.log_viewer.append_log("Session restored", "success")
             if self.state_machine.phase == Phase.AWAITING_ANSWERS:
@@ -904,107 +971,6 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin):
         )
         self.state_machine.transition_to(Phase.TASK_PLANNING)
         self.run_task_planning()
-
-    @Slot()
-    def on_save_settings(self):
-        """Handle save settings action."""
-        # Get current settings from UI
-        llm_config = self.llm_selector_panel.get_config()
-        exec_config = self.config_panel.get_config()
-
-        # Create ProjectSettings object
-        settings = ProjectSettings(
-            question_gen=llm_config.question_gen,
-            description_molding=llm_config.description_molding,
-            task_planning=llm_config.task_planning,
-            coder=llm_config.coder,
-            reviewer=llm_config.reviewer,
-            fixer=llm_config.fixer,
-            git_ops=llm_config.git_ops,
-            question_gen_model=llm_config.question_gen_model,
-            description_molding_model=llm_config.description_molding_model,
-            task_planning_model=llm_config.task_planning_model,
-            coder_model=llm_config.coder_model,
-            reviewer_model=llm_config.reviewer_model,
-            fixer_model=llm_config.fixer_model,
-            git_ops_model=llm_config.git_ops_model,
-            max_main_iterations=exec_config.max_main_iterations,
-            debug_loop_iterations=exec_config.debug_loop_iterations,
-            max_questions=exec_config.max_questions,
-            git_mode=exec_config.git_mode,
-            working_directory=exec_config.working_directory,
-            git_remote=exec_config.git_remote,
-            review_types=exec_config.review_types
-        )
-
-        # Open file dialog
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save Project Settings",
-            "",
-            "JSON Files (*.json);;All Files (*)"
-        )
-
-        if file_path:
-            try:
-                ProjectSettingsManager.save_to_file(settings, file_path)
-                self.log_viewer.append_log(f"Settings saved to: {file_path}", "success")
-                QMessageBox.information(self, "Success", "Settings saved successfully!")
-            except Exception as e:
-                self.log_viewer.append_log(f"Failed to save settings: {e}", "error")
-                QMessageBox.critical(self, "Error", f"Failed to save settings:\n{e}")
-
-    @Slot()
-    def on_load_settings(self):
-        """Handle load settings action."""
-        # Open file dialog
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Load Project Settings",
-            "",
-            "JSON Files (*.json);;All Files (*)"
-        )
-
-        if file_path:
-            try:
-                settings = ProjectSettingsManager.load_from_file(file_path)
-
-                # Apply settings to UI
-                llm_config_dict = {
-                    "question_gen": settings.question_gen,
-                    "description_molding": settings.description_molding,
-                    "task_planning": settings.task_planning,
-                    "coder": settings.coder,
-                    "reviewer": settings.reviewer,
-                    "fixer": settings.fixer,
-                    "git_ops": settings.git_ops,
-                    "question_gen_model": settings.question_gen_model,
-                    "description_molding_model": settings.description_molding_model,
-                    "task_planning_model": settings.task_planning_model,
-                    "coder_model": settings.coder_model,
-                    "reviewer_model": settings.reviewer_model,
-                    "fixer_model": settings.fixer_model,
-                    "git_ops_model": settings.git_ops_model,
-                }
-                self.llm_selector_panel.set_config(llm_config_dict)
-
-                exec_config = ExecutionConfig(
-                    max_main_iterations=settings.max_main_iterations,
-                    debug_loop_iterations=settings.debug_loop_iterations,
-                    max_questions=settings.max_questions,
-                    working_directory=settings.working_directory,
-                    git_remote=settings.git_remote,
-                    git_mode=settings.git_mode,
-                    review_types=settings.review_types
-                )
-                self.config_panel.set_config(exec_config)
-                self._apply_git_mode(settings.git_mode)
-
-                self.log_viewer.append_log(f"Settings loaded from: {file_path}", "success")
-                QMessageBox.information(self, "Success", "Settings loaded successfully!")
-            except Exception as e:
-                self.log_viewer.append_log(f"Failed to load settings: {e}", "error")
-                QMessageBox.critical(self, "Error", f"Failed to load settings:\n{e}")
 
     def closeEvent(self, event):
         """Handle window close."""

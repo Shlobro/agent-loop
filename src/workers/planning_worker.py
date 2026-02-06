@@ -112,7 +112,8 @@ class PlanningWorker(BaseWorker):
             provider=provider,
             prompt=prompt,
             working_directory=self.working_directory,
-            model=self.model
+            model=self.model,
+            debug_stage="task_planning"
         )
 
         # Forward LLM output signals

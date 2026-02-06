@@ -25,14 +25,18 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 6. Task planning reads `product-description.md` when available and has the LLM write directly to `tasks.md`.
 7. Main execution completes one task per iteration and updates `recent-changes.md`.
    - Execution and fixer prompts include workspace governance rules plus a compliance scan summary (fresh scan each execution/review cycle):
-     - Exactly one developer guide `.md` file per folder; the root may contain multiple `.md` files (excluding system/tooling dirs like `.git`, `.venv`, `.idea`, `.claude`, `node_modules`).
-     - Read a folder's developer guide before editing.
-     - Update the folder's guide and all ancestor guides when changes affect developer understanding.
+     - Always start by reading `product-description.md`.
+     - Each folder must have a `developer-guide.md` (updated after any change, create if missing) to allow understanding without reading code.
+     - Read the developer guide in the folder you are editing before making changes.
+     - Update the relevant developer guides and their ancestors when behavior changes.
+     - No legacy information in developer guides.
      - No more than 10 code files per folder (`.md` files do not count).
      - No code file over 1000 lines.
+     - Developer guides must be under 500 lines (compact if needed while preserving info).
 8. Review loop (including General, Unit Test, and UI/UX review types) writes `review.md` and runs fixer.
 9. Git operations optionally commit and push.
-10. On Windows, each LLM call opens a live terminal window that shows the exact executed command and streams runtime output. The window remains open after completion so developers can review logs and close it manually.
+10. Debug step mode is controlled from `Settings -> Debug Settings`: stage-specific before/after breakpoints pause right before or right after each LLM call until the user clicks `Next Step`.
+11. A debug setting controls whether per-call live terminal windows are shown on Windows.
 
 ## Working-Directory Artifacts
 Created in the selected working directory (not the repo root):
@@ -84,7 +88,9 @@ Use this when picking up items from `TODO's`.
 - LLM provider CLI flags, commands, and curated model IDs used by the UI: `src/llm/*_provider.py`.
 - Default per-stage LLM provider/model assignments (including `description_molding`): `src/gui/widgets/llm_selector_panel.py` (UI defaults) and `src/core/state_machine.py` (`StateContext` fallback).
 - LLM output capture and prompt transport behavior (argv vs stdin/output-file): `src/workers/llm_worker.py`, `src/llm/*_provider.py` (Claude and Gemini use stdin prompts).
+- Debug stepping/breakpoints and terminal popup visibility: `src/core/debug_settings.py`, `src/gui/dialogs/debug_settings_dialog.py`, `src/gui/main_window.py`, `src/workers/llm_worker.py`.
 - Review label formatting in UI/logs: `src/gui/main_window.py` (uses `PromptTemplates.get_review_display_name`).
 - Background phase logic: `src/workers/`.
 - UI/UX components: `src/gui/`.
 - GUI worker orchestration: `src/gui/main_window.py`, `src/gui/workflow_runner.py`.
+- Settings save/load and debug settings menu wiring: `src/gui/settings_mixin.py`.
