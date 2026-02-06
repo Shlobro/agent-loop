@@ -24,7 +24,8 @@ Application source package for AgentHarness. This is where the workflow, UI, LLM
 - Worker execution routing in the GUI: `gui/workflow_runner.py`.
 - Review label display formatting in logs/activity: `gui/main_window.py` (uses `PromptTemplates.get_review_display_name`).
 - New runtime settings or persistence: `core/project_settings.py` and `gui/widgets/config_panel.py`.
-- Add new LLM provider/model or CLI flags (including output-file capture): `llm/*_provider.py` plus `gui/widgets/llm_selector_panel.py`.
+- Add new LLM provider/model or CLI flags (including output-file capture): `llm/*_provider.py` plus `gui/widgets/llm_selector_panel.py`. Provider files hold the curated model ID lists shown in the UI.
+- Change default per-stage provider/model selections: `gui/widgets/llm_selector_panel.py` (UI defaults) and `core/state_machine.py` (`StateContext` fallback defaults).
 - Task list parsing or mutation rules: `utils/markdown_parser.py`.
 - Change phase sequencing or transitions: `core/state_machine.py` and `gui/main_window.py`.
 

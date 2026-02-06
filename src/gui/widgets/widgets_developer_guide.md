@@ -6,14 +6,20 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 ## Contents
 - `description_panel.py`: Project description input and read-only handling; changes are synced to `description.md` by `MainWindow`.
 - `question_panel.py`: Single-question navigation for batch questions, answer capture, and live activity status display; enables submit once all questions are answered, shows an updating state after submission, and unlocks Generate More and Start Planning after the description rewrite completes.
-- `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry.
+- `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry, including built-in default stage assignments.
 - `config_panel.py`: Execution settings (iterations, questions, review types including UI/UX, working directory, git settings).
 - `log_viewer.py`: Color-coded log viewer with filtering and auto-scroll.
 - `status_panel.py`: Top-line workflow status and progress bar.
 - `__init__.py`: Module marker.
 
 ## Key Interactions
-- `LLMSelectorPanel` queries `LLMProviderRegistry` to populate providers/models.
+- `LLMSelectorPanel` queries `LLMProviderRegistry` to populate providers/models and then applies stage defaults:
+- Question generation: Gemini + `gemini-3-pro-preview`
+- Task planning: Claude + `claude-opus-4-6`
+- Coder: Claude + `claude-opus-4-6`
+- Reviewer: Codex + `gpt-5.3-codex`
+- Fixer: Codex + `gpt-5.3-codex`
+- Git operations: Gemini + `gemini-3-pro-preview`
 - `ConfigPanel` exposes `ExecutionConfig` and review type selections (including UI/UX) from `PromptTemplates`.
 - `QuestionPanel` emits signals for submitted batch answers, generating another batch, or start planning.
 - `LogViewer` listens to worker log and LLM output signals from `MainWindow`.

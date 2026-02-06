@@ -75,7 +75,8 @@ Use this when picking up items from `TODO's`.
 - App startup: `main.py`, `src/gui/main_window.py`.
 - Workflow state and persistence: `src/core/state_machine.py`, `src/core/session_manager.py`.
 - LLM prompts and providers: `src/llm/`.
-- LLM provider CLI flags and commands: `src/llm/*_provider.py`.
+- LLM provider CLI flags, commands, and curated model IDs used by the UI: `src/llm/*_provider.py`.
+- Default per-stage LLM provider/model assignments: `src/gui/widgets/llm_selector_panel.py` (UI defaults) and `src/core/state_machine.py` (`StateContext` fallback).
 - LLM output capture behavior (stdout vs output-file): `src/workers/llm_worker.py`, `src/llm/*_provider.py`.
 - Review label formatting in UI/logs: `src/gui/main_window.py` (uses `PromptTemplates.get_review_display_name`).
 - Background phase logic: `src/workers/`.

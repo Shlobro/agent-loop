@@ -51,6 +51,14 @@ class LLMSelectorPanel(QWidget):
         ("fixer", "Fixer"),
         ("git_ops", "Git Operations"),
     ]
+    DEFAULT_STAGE_CONFIG = {
+        "question_gen": ("gemini", "gemini-3-pro-preview"),
+        "task_planning": ("claude", "claude-opus-4-6"),
+        "coder": ("claude", "claude-opus-4-6"),
+        "reviewer": ("codex", "gpt-5.3-codex"),
+        "fixer": ("codex", "gpt-5.3-codex"),
+        "git_ops": ("gemini", "gemini-3-pro-preview"),
+    }
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -104,6 +112,7 @@ class LLMSelectorPanel(QWidget):
             # Connect model change signal
             model_combo.currentIndexChanged.connect(self._on_config_changed)
 
+        self._apply_default_stage_config()
         layout.addWidget(group)
 
     def _on_provider_changed(self, stage_key: str):
@@ -141,6 +150,23 @@ class LLMSelectorPanel(QWidget):
     def _on_config_changed(self):
         """Emit signal when any selection changes."""
         self.config_changed.emit()
+
+    def _apply_default_stage_config(self):
+        """Apply the default provider/model selections for each stage."""
+        for stage_key, (provider_name, model_id) in self.DEFAULT_STAGE_CONFIG.items():
+            provider_combo = self.provider_combos.get(stage_key)
+            if provider_combo:
+                for i in range(provider_combo.count()):
+                    if provider_combo.itemData(i) == provider_name:
+                        provider_combo.setCurrentIndex(i)
+                        break
+
+            model_combo = self.model_combos.get(stage_key)
+            if model_combo:
+                for i in range(model_combo.count()):
+                    if model_combo.itemData(i) == model_id:
+                        model_combo.setCurrentIndex(i)
+                        break
 
     def get_config(self) -> LLMConfig:
         """Get current LLM configuration."""

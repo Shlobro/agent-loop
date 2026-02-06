@@ -85,11 +85,17 @@ class StateContext:
     # LLM configuration per stage
     llm_config: Dict[str, str] = field(default_factory=lambda: {
         "question_gen": "gemini",
-        "task_planning": "gemini",
-        "coder": "gemini",
-        "reviewer": "gemini",
-        "fixer": "gemini",
+        "task_planning": "claude",
+        "coder": "claude",
+        "reviewer": "codex",
+        "fixer": "codex",
         "git_ops": "gemini",
+        "question_gen_model": "gemini-3-pro-preview",
+        "task_planning_model": "claude-opus-4-6",
+        "coder_model": "claude-opus-4-6",
+        "reviewer_model": "gpt-5.3-codex",
+        "fixer_model": "gpt-5.3-codex",
+        "git_ops_model": "gemini-3-pro-preview",
     })
     # For pause/resume - track where we were
     paused_from_phase: Optional[Phase] = None

@@ -4,7 +4,7 @@
 Implements the workflow state machine, persistence, file/session I/O, and shared exceptions.
 
 ## Contents
-- `state_machine.py`: `Phase`, `SubPhase`, `StateContext`, and transitions (includes UI/UX review sub-phases). Emits signals used by `MainWindow`.
+- `state_machine.py`: `Phase`, `SubPhase`, `StateContext`, and transitions (includes UI/UX review sub-phases). Also defines default per-stage LLM provider/model values in `StateContext.llm_config`. Emits signals used by `MainWindow`.
 - `file_manager.py`: Atomic read/write for `tasks.md`, `recent-changes.md`, `review.md`, `description.md`, governance prompt files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`), and workspace rule compliance scans (one `.md` per folder excluding system/tooling dirs, <=10 files per folder, <=1000 lines per code file). Includes cache invalidation on working directory changes.
 - `session_manager.py`: Save/load workflow state to `session_state.json` for pause/resume.
 - `project_settings.py`: `ProjectSettings` dataclass plus JSON load/save helpers.
@@ -20,6 +20,7 @@ Implements the workflow state machine, persistence, file/session I/O, and shared
 - `MainWindow` owns the `StateMachine` and applies context updates for every phase.
 - Workers call `FileManager` for workflow artifact I/O.
 - `SessionManager` serializes `StateMachine.to_dict()` and restores with `from_dict()`.
+- Default stage LLM config is seeded in `StateContext.llm_config` and is replaced by the current UI selection at workflow start.
 
 ## When to Edit Core
 - Add phases or transitions: `state_machine.py` (`Phase`, `SubPhase`, `TRANSITIONS`).

@@ -12,6 +12,7 @@ class CodexProvider(BaseLLMProvider):
 
     OUTPUT_FILENAME = ".codex_last_message.txt"
     MODELS = [
+        ("gpt-5.3-codex", "GPT-5.3 Codex"),
         ("gpt-5.2-codex", "GPT-5.2 Codex"),
         ("gpt-5.1-codex-max", "GPT-5.1 Codex Max"),
         ("gpt-5.1-codex-mini", "GPT-5.1 Codex Mini"),
