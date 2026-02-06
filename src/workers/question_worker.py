@@ -139,7 +139,7 @@ class DefinitionRewriteWorker(BaseWorker):
     Rewrite the project description into a product definition using Q&A context.
     """
 
-    DESCRIPTION_FILENAME = "description.md"
+    DESCRIPTION_FILENAME = "project-description.md"
 
     def __init__(self, description: str, qa_pairs: List[Dict[str, str]],
                  provider_name: str = "gemini", working_directory: str = None,
@@ -194,14 +194,14 @@ class DefinitionRewriteWorker(BaseWorker):
 
         rewritten = self._load_definition_file()
         if rewritten:
-            self.log("Loaded rewritten description from description.md", "success")
+            self.log("Loaded rewritten description from project-description.md", "success")
             self.log("=== DEFINITION REWRITE END ===", "phase")
             return rewritten
 
         llm_output = ''.join(llm_worker._output_lines).strip()
         if llm_output:
             self._write_definition_file(llm_output)
-            self.log("Definition rewrite wrote description.md from stdout output", "warning")
+            self.log("Definition rewrite wrote project-description.md from stdout output", "warning")
             self.log("=== DEFINITION REWRITE END ===", "phase")
             return llm_output
 
@@ -217,7 +217,7 @@ class DefinitionRewriteWorker(BaseWorker):
         try:
             content = path.read_text(encoding="utf-8").strip()
         except OSError as exc:
-            self.log(f"Failed to read description.md: {exc}", "warning")
+            self.log(f"Failed to read project-description.md: {exc}", "warning")
             return ""
         return content
 
@@ -228,4 +228,4 @@ class DefinitionRewriteWorker(BaseWorker):
         try:
             path.write_text(content.strip() + "\n", encoding="utf-8")
         except OSError as exc:
-            self.log(f"Failed to write description.md: {exc}", "warning")
+            self.log(f"Failed to write project-description.md: {exc}", "warning")

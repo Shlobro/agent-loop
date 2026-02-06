@@ -3,8 +3,9 @@
 - when changing any file or doing any edits make sure to update the .md file in that folder and in the ancestor folders as well. these .md files should never be longer than 500 lines long. the point of these .md files are to allow a new developer to understand everything without needing to read the code itself. they are not to document changes. only changes that require additional information for a developer that has never seen the code should be added into the .md files.
 - no code file generated or edited should exceed 1000 lines of code ever. if while editing or creating a file, the file exceeds 1000 lines this file must be split up into multiple files.
 - whenever creating a new file, think very carefully which folder this file should be put in, if needed make a new folder so that there is clear separation between folders.
-- each folder should only have 1 .md file. never create summary files or visualization .md files.
+- each folder should only have 1 .md file, except the root folder may contain multiple .md files. never create summary files or visualization .md files.
 - never build the android project allow the user to build and provide any build errors
 - never mention legacy functionality or recent changes in the MD files they are only needed to get engineers into what is happening right now in the code.
 - keep system temp directories (for example `%TEMP%/`) ignored via `.gitignore`.
 - always ask if a commit message is good before commiting.
+- .md files should be ignored when counting how many files in a folder. there should not be more than 10 code files in a folder.

@@ -12,20 +12,21 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 - `requirements.txt`: Runtime dependencies (PySide6).
 - `AGENTS.md`: Repo-specific assistant rules.
 - `CLAUDE.md`: Workflow notes and architecture overview.
+- `GEMINI.md`: Workflow notes and architecture overview for Gemini.
 - `.gitignore`: Ignore rules (keep temp dirs ignored).
 - `.idea/`, `.claude/`, `.venv/`, `.git/`: Local tools, settings, and VCS metadata.
 
 ## Workflow Overview (High Level)
-1. UI collects description, LLM choices, and execution settings. The description is synced to `description.md`. After answers are submitted, Q&A is rewritten into `description.md`, the description becomes editable again, and only then can the user generate more questions (using the current description) or start planning.
+1. UI collects description, LLM choices, and execution settings. The description is synced to `description.md`. After answers are submitted, Q&A is rewritten into `project-description.md` using `PromptTemplates.format_definition_rewrite_prompt`, the description becomes editable again, and only then can the user generate more questions (using the current description) or start planning.
 2. `StateMachine` tracks phase/context; `MainWindow` dispatches workers.
 3. Question generation initializes an empty `questions.json` and expects the LLM to write a batch into it in a single attempt (no stdout parsing or fallback prompts); generating another batch deletes the previous `questions.json`.
-4. Task planning writes `description.md` and `tasks.md`.
+4. Task planning reads `project-description.md` when available and has the LLM write directly to `tasks.md`.
 5. Main execution completes one task per iteration and updates `recent-changes.md`.
    - Execution and fixer prompts include workspace governance rules plus a compliance scan summary (fresh scan each execution/review cycle):
-     - Exactly one developer guide `.md` file per folder (excluding system/tooling dirs like `.git`, `.venv`, `.idea`, `.claude`, `node_modules`).
+     - Exactly one developer guide `.md` file per folder; the root may contain multiple `.md` files (excluding system/tooling dirs like `.git`, `.venv`, `.idea`, `.claude`, `node_modules`).
      - Read a folder's developer guide before editing.
      - Update the folder's guide and all ancestor guides when changes affect developer understanding.
-     - No more than 10 files per folder.
+     - No more than 10 code files per folder (`.md` files do not count).
      - No code file over 1000 lines.
 6. Review loop (including UI/UX review) writes `review.md` and runs fixer.
 7. Git operations optionally commit and push.
@@ -35,7 +36,8 @@ Created in the selected working directory (not the repo root):
 - `tasks.md`: Task checklist and completion state.
 - `recent-changes.md`: Rolling log of code changes.
 - `review.md`: Reviewer findings for the fixer.
-- `description.md`: Synced project description and later the LLM-generated full project spec.
+- `description.md`: Synced project description from the UI.
+- `project-description.md`: Q&A-rewritten product definition used for task planning.
 - `session_state.json`: Pause/resume snapshot of workflow state.
 - `questions.json`: Batch questions file.
 - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`: Governance prompt files; auto-created if missing.
