@@ -8,7 +8,7 @@ Defines the LLM provider abstraction, prompt templates, and provider registry us
 - `claude_provider.py`: Claude CLI implementation (`claude -p` with prompt via stdin), one-time permissions setup, and curated Claude model IDs.
 - `gemini_provider.py`: Gemini CLI implementation using stdin and `--yolo`.
 - `codex_provider.py`: Codex CLI implementation using `codex exec --skip-git-repo-check --full-auto`, writing the last message to a file for parsing.
-- `prompt_templates.py`: Prompt strings for all workflow phases and review types (General, Architecture, Efficiency, Error Handling, Unit Test, UI/UX), plus review display labels and workspace governance rules (read `product-description.md` first, `developer-guide.md` [max 500 lines] per folder updated on change, read guides before editing, update ancestors, no legacy info, max 10 code files per folder, max 1000 lines per file). Includes Q&A-to-definition rewrite prompt for `product-description.md`.
+- `prompt_templates.py`: Prompt strings for all workflow phases and review types (General, Architecture, Efficiency, Error Handling, Unit Test, UI/UX), plus review display labels and per-type review file naming (`review/<type>.md`). Review prompts are issue-only (no positive notes) and require leaving the target file empty when no issues are found.
 - `__init__.py`: Registers built-in providers.
 
 ## Key Interactions
@@ -20,10 +20,10 @@ Defines the LLM provider abstraction, prompt templates, and provider registry us
 ## When to Edit LLM
 - Add a new provider or model list: create a provider in this folder and register it in `__init__.py`.
 - Change output enforcement rules (JSON/tasks/review formatting): `base_provider.py`.
-- Add or reorder review types (including General, Unit Test, and UI/UX): `prompt_templates.py`.
-- Update question/planning/execution prompts or workspace rule messaging (including the Q&A-to-definition rewrite prompt and the tasks.md write instructions): `prompt_templates.py` (includes the unified workspace rules).
+- Add or reorder review types (including General, Unit Test, and UI/UX) or change per-type review file naming: `prompt_templates.py`.
+- Update question/planning/execution prompts (including the Q&A-to-definition rewrite prompt and the tasks.md write instructions): `prompt_templates.py`.
 
 ## Change Map
 - Provider behavior or CLI flags: `*_provider.py`.
-- Prompt content, workspace compliance sections (the unified workspace rules), and review sequencing: `prompt_templates.py`.
+- Prompt content and review sequencing: `prompt_templates.py`.
 - Registry and shared format rules: `base_provider.py`.

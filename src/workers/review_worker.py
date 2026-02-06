@@ -57,6 +57,15 @@ class ReviewWorker(BaseWorker):
 
         file_manager = FileManager(self.working_directory)
         file_manager.ensure_files_exist()
+        all_review_files = [
+            PromptTemplates.get_review_filename(review_type)
+            for review_type in PromptTemplates.get_all_review_types()
+        ]
+        file_manager.ensure_review_files_exist(all_review_files)
+        self.log(
+            f"Prepared review files in '{FileManager.REVIEW_DIR}' for {len(all_review_files)} review types",
+            "debug"
+        )
 
         for iteration in range(self.start_iteration + 1, self.iterations + 1):
             if self.should_stop():
@@ -107,12 +116,14 @@ class ReviewWorker(BaseWorker):
                           file_manager: FileManager, iteration: int):
         """Run a single review -> fix cycle."""
         review_name = PromptTemplates.get_review_display_name(review_type)
+        review_file = PromptTemplates.get_review_filename(review_type)
+        file_manager.truncate_review_file(review_file)
         self.update_status(f"Review: {review_name}")
         self.log(f"--- {review_name.upper()} REVIEW CYCLE ---", "info")
 
-        # Step 1: Reviewer writes to review.md
-        self.log(f"Step 1/4: Running {review_name} reviewer...", "debug")
-        review_prompt = PromptTemplates.get_review_prompt(review_type)
+        # Step 1: Reviewer writes to review/<type>.md
+        self.log(f"Step 1/4: Running {review_name} reviewer -> {review_file}", "debug")
+        review_prompt = PromptTemplates.get_review_prompt(review_type, review_file=review_file)
         self.log(f"Reviewer prompt length: {len(review_prompt)} chars", "debug")
 
         reviewer_worker = LLMWorker(
@@ -133,12 +144,13 @@ class ReviewWorker(BaseWorker):
             self.log(f"Reviewer cancelled or stopped", "warning")
             return
 
-        # Step 2: Read review.md
-        self.log(f"Step 2/4: Reading review.md findings...", "debug")
-        review_content = file_manager.read_review()
+        # Step 2: Read the review-specific findings file
+        self.log(f"Step 2/4: Reading {review_file} findings...", "debug")
+        review_content = file_manager.read_review_file(review_file)
 
         if not review_content.strip():
-            self.log(f"No {review_name} issues found - review.md is empty", "success")
+            self.log(f"No {review_name} issues found - {review_file} is empty", "success")
+            file_manager.truncate_review_file(review_file)
             self.signals.review_summary.emit(review_type.value, 0)
             self.signals.review_complete.emit(review_type.value, "no_issues")
             return
@@ -156,19 +168,9 @@ class ReviewWorker(BaseWorker):
         self.update_status(f"Fixing: {review_name}")
         self.log(f"Step 3/4: Fixer analyzing {review_name} findings...", "info")
 
-        compliance_report = file_manager.get_workspace_rule_report(use_cache=False)
-        if compliance_report.startswith("Workspace compliance scan failed:"):
-            self.log(compliance_report, "warning")
-        elif compliance_report == "No compliance issues detected.":
-            self.log("Workspace compliance check passed", "debug")
-        else:
-            self.log("Workspace compliance issues detected", "warning")
-            self.log(compliance_report, "debug")
-
         fixer_prompt = PromptTemplates.format_fixer_prompt(
             review_type=review_name,
-            review_content=review_content,
-            compliance_report=compliance_report
+            review_content=review_content
         )
         self.log(f"Fixer prompt length: {len(fixer_prompt)} chars", "debug")
 
@@ -190,9 +192,9 @@ class ReviewWorker(BaseWorker):
             self.log(f"Fixer cancelled or stopped", "warning")
             return
 
-        # Step 4: Truncate review.md
-        self.log(f"Step 4/4: Clearing review.md for next cycle...", "debug")
-        file_manager.truncate_review()
+        # Step 4: Truncate the review-specific file
+        self.log(f"Step 4/4: Clearing {review_file} for next cycle...", "debug")
+        file_manager.truncate_review_file(review_file)
 
         self.log(f"Completed {review_name} cycle", "success")
         self.signals.review_complete.emit(review_type.value, "complete")

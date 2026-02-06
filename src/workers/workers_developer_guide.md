@@ -9,8 +9,8 @@ Implements QRunnable workers that execute each workflow phase asynchronously and
 - `llm_worker.py`: Subprocess runner for LLM CLIs with streaming output, timeouts, full prompt logging, optional output-file capture (also emitted to the log), per-stage debug gates before/after each LLM call, and an optional live Windows terminal window per run that can be turned on/off from debug settings.
 - `question_worker.py`: Generates a batch of clarifying questions from the LLM and loads them exclusively from `questions.json` (single attempt; no stdout parsing or fallback prompts). Also contains the worker that rewrites Q&A into `product-description.md` before additional question batches and only trusts file-based output from `product-description.md` (stdout is ignored for rewrite content).
 - `planning_worker.py`: Reads `product-description.md` (when available), prepares an empty `tasks.md`, and loads the task list after the LLM writes directly to it.
-- `execution_worker.py`: Executes a single task iteration, injects a fresh workspace compliance report (read `product-description.md` first, each folder must have a `developer-guide.md` [max 500 lines] updated on change, read guides before editing, update ancestor guides, no legacy info, <=10 code files per folder, <=1000 lines per code file) into the prompt, and updates task state in `tasks.md`.
-- `review_worker.py`: Runs review/fix cycles per selected review type (including UI/UX), adding workspace compliance guidance (the new unified rules) to the fixer prompt with a fresh compliance scan each cycle.
+- `execution_worker.py`: Executes a single task iteration and updates task state in `tasks.md`.
+- `review_worker.py`: Runs review/fix cycles per selected review type (including UI/UX), initializes `review/` with empty files for every review type, reads findings from the current review file, skips fixer when that file is empty, and truncates the same file after each completed fix cycle.
 - `git_worker.py`: LLM-driven git add/commit and optional push.
 - `__init__.py`: Module marker.
 
@@ -27,7 +27,7 @@ Implements QRunnable workers that execute each workflow phase asynchronously and
 - Update question generation flow or JSON file output: `question_worker.py`.
 - Modify task planning structure or description generation: `planning_worker.py`.
 - Change how tasks are chosen or marked complete: `execution_worker.py`.
-- Change review iteration rules or early-exit logic: `review_worker.py`.
+- Change review iteration rules, per-type review file behavior, or early-exit logic: `review_worker.py`.
 - Alter git commit/push behavior: `git_worker.py`.
 
 ## Change Map

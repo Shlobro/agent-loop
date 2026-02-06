@@ -105,270 +105,138 @@ CRITICAL RULES:
         ReviewType.GENERAL: '''
 Review the recent code changes with a GENERAL quality pass.
 
-Use `git diff` to see the recent changes in the working directory.
+Use `git diff` to inspect changes in the working directory.
 
-Evaluate:
+Focus only on bugs, issues, and errors:
 - Correctness and behavioral regressions
-- Readability and maintainability
 - Risky assumptions and edge cases
-- Consistency with surrounding code style
 - Missing validation or guards
+- Maintainability problems that can cause defects
 
-Write your findings to review.md in this format:
-```review
-## General Review
+Write findings to `{review_file}` using only issues.
+If there are no issues, leave `{review_file}` empty.
+Do not include positive observations.
+''',
 
-### Issues Found:
-1. [Issue description]
-   - File: [filename]
-   - Line: [line number if applicable]
-   - Severity: [High/Medium/Low]
-   - Suggestion: [How to fix]
+        ReviewType.ARCHITECTURE: '''
+Review the recent code changes for ARCHITECTURAL concerns.
 
-### Positive Observations:
-- [What's done well]
-```
+Use `git diff` to inspect changes in the working directory.
 
-If no issues found, write "No general issues found."''',
+Focus only on bugs, issues, and errors:
+- Broken or risky module boundaries
+- Harmful coupling and poor separation of concerns
+- Design decisions likely to cause defects or regressions
 
-        ReviewType.ARCHITECTURE: '''Review the recent code changes for ARCHITECTURAL concerns.
+Write findings to `{review_file}` using only issues.
+If there are no issues, leave `{review_file}` empty.
+Do not include positive observations.
+''',
 
-Use `git diff` to see the recent changes in the working directory.
+        ReviewType.EFFICIENCY: '''
+Review the recent code changes for EFFICIENCY concerns.
 
-Evaluate:
-- Code organization and module structure
-- Separation of concerns (is each module doing one thing?)
-- Design patterns usage (are appropriate patterns used?)
-- Coupling and cohesion (are dependencies well-managed?)
-- Scalability considerations
-- Code reusability
+Use `git diff` to inspect changes in the working directory.
 
-Write your findings to review.md in this format:
-```review
-## Architecture Review
+Focus only on bugs, issues, and errors:
+- Inefficient algorithms and avoidable heavy operations
+- Resource leaks and unnecessary memory/CPU use
+- Query or I/O patterns likely to cause performance failures
 
-### Issues Found:
-1. [Issue description]
-   - File: [filename]
-   - Line: [line number if applicable]
-   - Severity: [High/Medium/Low]
-   - Suggestion: [How to fix]
+Write findings to `{review_file}` using only issues.
+If there are no issues, leave `{review_file}` empty.
+Do not include positive observations.
+''',
 
-### Positive Observations:
-- [What's done well]
-```
+        ReviewType.ERROR_HANDLING: '''
+Review the recent code changes for ERROR HANDLING concerns.
 
-If no issues found, write "No architectural issues found."''',
+Use `git diff` to inspect changes in the working directory.
 
-        ReviewType.EFFICIENCY: '''Review the recent code changes for EFFICIENCY concerns.
+Focus only on bugs, issues, and errors:
+- Missing or incorrect exception handling
+- Unsafe failure paths and poor recovery behavior
+- Edge cases that can crash or corrupt state
 
-Use `git diff` to see the recent changes in the working directory.
+Write findings to `{review_file}` using only issues.
+If there are no issues, leave `{review_file}` empty.
+Do not include positive observations.
+''',
 
-Evaluate:
-- Algorithm complexity (O(n) considerations)
-- Unnecessary computations or redundant operations
-- Memory usage and potential leaks
-- Database query efficiency (N+1 problems)
-- Caching opportunities
-- Resource cleanup
+        ReviewType.SAFETY: '''
+Review the recent code changes for SAFETY and SECURITY concerns.
 
-Write your findings to review.md in this format:
-```review
-## Efficiency Review
+Use `git diff` to inspect changes in the working directory.
 
-### Issues Found:
-1. [Issue description]
-   - File: [filename]
-   - Line: [line number if applicable]
-   - Severity: [High/Medium/Low]
-   - Suggestion: [How to fix]
+Focus only on bugs, issues, and errors:
+- Input validation and sanitization failures
+- Data exposure risks and authorization gaps
+- Vulnerabilities (injection, XSS, unsafe file handling, etc.)
 
-### Positive Observations:
-- [What's done well]
-```
+Write findings to `{review_file}` using only issues.
+If there are no issues, leave `{review_file}` empty.
+Do not include positive observations.
+''',
 
-If no issues found, write "No efficiency issues found."''',
+        ReviewType.TESTING: '''
+Review the recent code changes for TESTING concerns.
 
-        ReviewType.ERROR_HANDLING: '''Review the recent code changes for ERROR HANDLING concerns.
+Use `git diff` to inspect changes in the working directory.
 
-Use `git diff` to see the recent changes in the working directory.
+Focus only on bugs, issues, and errors:
+- Missing test coverage for changed behavior
+- Weak assertions that miss regressions
+- Missing critical edge/error-path tests
 
-Evaluate:
-- Exception handling coverage (are errors caught appropriately?)
-- Error message clarity (can users understand what went wrong?)
-- Recovery mechanisms (does the code fail gracefully?)
-- Edge case handling (null checks, empty arrays, etc.)
-- Logging of errors for debugging
-- Proper error propagation
+Write findings to `{review_file}` using only issues.
+If there are no issues, leave `{review_file}` empty.
+Do not include positive observations.
+''',
 
-Write your findings to review.md in this format:
-```review
-## Error Handling Review
+        ReviewType.UNIT_TEST: '''
+Review the recent code changes for UNIT TEST concerns.
 
-### Issues Found:
-1. [Issue description]
-   - File: [filename]
-   - Line: [line number if applicable]
-   - Severity: [High/Medium/Low]
-   - Suggestion: [How to fix]
+Use `git diff` to inspect changes in the working directory.
 
-### Positive Observations:
-- [What's done well]
-```
+Focus only on bugs, issues, and errors:
+- Missing unit tests for new or changed logic
+- Non-deterministic or non-isolated tests
+- Missing edge cases and error-path assertions
 
-If no issues found, write "No error handling issues found."''',
+Write findings to `{review_file}` using only issues.
+If there are no issues, leave `{review_file}` empty.
+Do not include positive observations.
+''',
 
-        ReviewType.SAFETY: '''Review the recent code changes for SAFETY and SECURITY concerns.
+        ReviewType.DOCUMENTATION: '''
+Review the recent code changes for DOCUMENTATION concerns.
 
-Use `git diff` to see the recent changes in the working directory.
+Use `git diff` to inspect changes in the working directory.
 
-Evaluate:
-- Input validation (is user input sanitized?)
-- SQL injection vulnerabilities
-- XSS (Cross-Site Scripting) vulnerabilities
-- Sensitive data exposure (passwords, API keys, tokens)
-- Authentication/authorization checks
-- CSRF protection
-- Secure communication (HTTPS, encryption)
-- File upload security
+Focus only on bugs, issues, and errors:
+- Missing docs that can cause incorrect implementation/use
+- Inaccurate comments/docstrings that mislead maintainers
+- Missing usage/setup details required to avoid failures
 
-Write your findings to review.md in this format:
-```review
-## Safety/Security Review
+Write findings to `{review_file}` using only issues.
+If there are no issues, leave `{review_file}` empty.
+Do not include positive observations.
+''',
 
-### Issues Found:
-1. [Issue description]
-   - File: [filename]
-   - Line: [line number if applicable]
-   - Severity: [Critical/High/Medium/Low]
-   - Suggestion: [How to fix]
+        ReviewType.UI_UX: '''
+Review the recent code changes for UI/UX concerns.
 
-### Positive Observations:
-- [What's done well]
-```
+Use `git diff` to inspect changes in the working directory.
 
-If no issues found, write "No security issues found."''',
+Focus only on bugs, issues, and errors:
+- Broken user flows and unclear task completion paths
+- Accessibility defects (focus, contrast, keyboard navigation)
+- Responsiveness/state-feedback issues that cause user-facing failures
 
-        ReviewType.TESTING: '''Review the recent code changes for TESTING concerns.
-
-Use `git diff` to see the recent changes in the working directory.
-
-Evaluate:
-- Test coverage (are new functions/methods tested?)
-- Test quality (do tests actually verify behavior?)
-- Missing test cases (edge cases, error paths)
-- Test organization and naming
-- Mock usage (are external dependencies mocked?)
-- Integration test coverage
-
-Write your findings to review.md in this format:
-```review
-## Testing Review
-
-### Issues Found:
-1. [Issue description]
-   - File: [filename]
-   - Line: [line number if applicable]
-   - Severity: [High/Medium/Low]
-   - Suggestion: [How to fix]
-
-### Missing Tests:
-- [What should be tested]
-
-### Positive Observations:
-- [What's done well]
-```
-
-If no issues found, write "No testing issues found."''',
-
-        ReviewType.UNIT_TEST: '''Review the recent code changes for UNIT TEST concerns.
-
-Use `git diff` to see the recent changes in the working directory.
-
-Evaluate:
-- Presence of unit tests for new/changed logic
-- Assertion quality (behavior-focused, not implementation-only)
-- Coverage of edge cases and error paths
-- Test isolation and deterministic behavior
-- Test naming clarity and maintainability
-
-Write your findings to review.md in this format:
-```review
-## Unit Test Review
-
-### Issues Found:
-1. [Issue description]
-   - File: [filename]
-   - Line: [line number if applicable]
-   - Severity: [High/Medium/Low]
-   - Suggestion: [How to fix]
-
-### Missing Tests:
-- [What should be tested]
-
-### Positive Observations:
-- [What's done well]
-```
-
-If no issues found, write "No unit test issues found."''',
-
-        ReviewType.DOCUMENTATION: '''Review the recent code changes for DOCUMENTATION concerns.
-
-Use `git diff` to see the recent changes in the working directory.
-
-Evaluate:
-- Code comments (are complex sections explained?)
-- Docstrings/JSDoc (are public functions documented?)
-- README completeness (setup, usage, examples)
-- API documentation
-- Inline documentation for non-obvious code
-- Type hints/annotations
-
-Write your findings to review.md in this format:
-```review
-## Documentation Review
-
-### Issues Found:
-1. [Issue description]
-   - File: [filename]
-   - Line: [line number if applicable]
-   - Severity: [High/Medium/Low]
-   - Suggestion: [How to fix]
-
-### Positive Observations:
-- [What's done well]
-```
-
-If no issues found, write "No documentation issues found."''',
-
-        ReviewType.UI_UX: '''Review the recent code changes for UI/UX concerns.
-
-Use `git diff` to see the recent changes in the working directory.
-
-Evaluate:
-- User flows and task clarity
-- Visual hierarchy and layout consistency
-- Text clarity and microcopy
-- Accessibility (contrast, focus states, keyboard navigation)
-- Responsiveness (small/large window sizes)
-- UI state feedback (loading, empty, error states)
-
-Write your findings to review.md in this format:
-```review
-## UI/UX Review
-
-### Issues Found:
-1. [Issue description]
-   - File: [filename]
-   - Line: [line number if applicable]
-   - Severity: [High/Medium/Low]
-   - Suggestion: [How to fix]
-
-### Positive Observations:
-- [What's done well]
-```
-
-If no issues found, write "No UI/UX issues found."''',
+Write findings to `{review_file}` using only issues.
+If there are no issues, leave `{review_file}` empty.
+Do not include positive observations.
+''',
     }
 
     # =========================================================================
@@ -412,9 +280,13 @@ If push fails due to remote changes, do NOT force push.
 Instead, report the error and suggest the user resolve it manually.'''
 
     @classmethod
-    def get_review_prompt(cls, review_type: ReviewType) -> str:
+    def get_review_prompt(cls, review_type: ReviewType,
+                          review_file: str = "review.md") -> str:
         """Get the review prompt for a specific review type."""
-        return cls.REVIEW_PROMPTS.get(review_type, "")
+        template = cls.REVIEW_PROMPTS.get(review_type, "")
+        if not template:
+            return ""
+        return template.format(review_file=review_file)
 
     @classmethod
     def get_all_review_types(cls) -> list:
@@ -441,6 +313,15 @@ Instead, report the error and suggest the user resolve it manually.'''
         if value == ReviewType.UI_UX.value:
             return "UI/UX"
         return value.replace('_', ' ').title()
+
+    @classmethod
+    def get_review_filename(cls, review_type: Union[ReviewType, str]) -> str:
+        """Return the relative review file path for a review type."""
+        if isinstance(review_type, ReviewType):
+            value = review_type.value
+        else:
+            value = str(review_type)
+        return f"review/{value}.md"
 
     @classmethod
     def format_question_prompt(cls, description: str, question_count: int,
@@ -490,25 +371,21 @@ Instead, report the error and suggest the user resolve it manually.'''
 
     @classmethod
     def format_execution_prompt(cls, working_directory: str,
-                                recent_changes: str, tasks: str,
-                                compliance_report: str) -> str:
-        """Format the main execution prompt with workspace rule context."""
+                                recent_changes: str, tasks: str) -> str:
+        """Format the main execution prompt."""
         return cls.MAIN_EXECUTION.format(
             working_directory=working_directory,
             recent_changes=recent_changes or "(No recent changes yet)",
-            tasks=tasks,
-            compliance_report=compliance_report
+            tasks=tasks
         )
 
     @classmethod
     def format_fixer_prompt(cls, review_type: str,
-                            review_content: str,
-                            compliance_report: str) -> str:
-        """Format the fixer prompt with workspace rule context."""
+                            review_content: str) -> str:
+        """Format the fixer prompt."""
         return cls.FIXER.format(
             review_type=review_type,
-            review_content=review_content,
-            compliance_report=compliance_report
+            review_content=review_content
         )
 
     @classmethod

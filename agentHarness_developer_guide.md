@@ -24,16 +24,7 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 5. Description molding runs after answers are submitted: it rewrites Q&A plus the current description into `product-description.md` using the dedicated `description_molding` stage/model; this step is file-first (`product-description.md` updates the UI, not the other way around).
 6. Task planning reads `product-description.md` when available and has the LLM write directly to `tasks.md`.
 7. Main execution completes one task per iteration and updates `recent-changes.md`.
-   - Execution and fixer prompts include workspace governance rules plus a compliance scan summary (fresh scan each execution/review cycle):
-     - Always start by reading `product-description.md`.
-     - Each folder must have a `developer-guide.md` (updated after any change, create if missing) to allow understanding without reading code.
-     - Read the developer guide in the folder you are editing before making changes.
-     - Update the relevant developer guides and their ancestors when behavior changes.
-     - No legacy information in developer guides.
-     - No more than 10 code files per folder (`.md` files do not count).
-     - No code file over 1000 lines.
-     - Developer guides must be under 500 lines (compact if needed while preserving info).
-8. Review loop (including General, Unit Test, and UI/UX review types) writes `review.md` and runs fixer.
+8. Review loop (including General, Unit Test, and UI/UX review types) initializes `review/` with one file per review type, writes findings to the active file only, skips fixer when that file is empty, and truncates the active file after each completed fix cycle.
 9. Git operations optionally commit and push.
 10. Debug step mode is controlled from `Settings -> Debug Settings`: stage-specific before/after breakpoints pause right before or right after each LLM call until the user clicks `Next Step`.
 11. A debug setting controls whether per-call live terminal windows are shown on Windows.
@@ -42,7 +33,8 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 Created in the selected working directory (not the repo root):
 - `tasks.md`: Task checklist and completion state.
 - `recent-changes.md`: Rolling log of code changes.
-- `review.md`: Reviewer findings for the fixer.
+- `review/`: Per-review-type findings files (for example `review/general.md`, `review/unit_test.md`, `review/ui_ux.md`).
+- `review.md`: Legacy compatibility review file.
 - `product-description.md`: Synced project description from the UI.
 - `product-description.md`: Q&A-rewritten product definition used for task planning.
 - `session_state.json`: Pause/resume snapshot of workflow state.
@@ -64,13 +56,13 @@ Use this when picking up items from `TODO's`.
 - Fix log filtering for existing log lines: `src/gui/widgets/log_viewer.py`.
 - Planning loop with multiple passes: `src/workers/planning_worker.py`, `src/gui/main_window.py`, `src/llm/prompt_templates.py`.
 - Allow new prompt after completion and re-enable controls: `src/gui/main_window.py`, `src/core/state_machine.py`.
-- Enforce .md + <1000 LOC rules and auto-create CLAUDE/AGENTS/GEMINI files: `src/llm/prompt_templates.py`, `src/core/file_manager.py`, `src/workers/execution_worker.py`, `src/gui/main_window.py`.
+- Auto-create CLAUDE/AGENTS/GEMINI files: `src/core/file_manager.py`, `src/gui/main_window.py`.
 - Ensure fixer updates recent-changes.md when it edits code: `src/llm/prompt_templates.py`, `src/workers/review_worker.py`.
 - Handle UI app runs that block (timeouts or guidance): `src/llm/prompt_templates.py`, `src/workers/llm_worker.py`.
 - Keep recent-changes.md capped (no reset each task): `src/core/file_manager.py`, `src/gui/main_window.py`.
 - UI action to add tasks: `src/gui/widgets/config_panel.py`, `src/gui/main_window.py`, `src/utils/markdown_parser.py`, `src/core/file_manager.py`.
 - Update questions.json when answers are submitted: `src/gui/main_window.py`, `src/workers/question_worker.py`.
-- Review prompts should leave review.md empty when no issues: `src/llm/prompt_templates.py`, `src/workers/review_worker.py`.
+- Review prompts should leave the active per-type review file empty when no issues: `src/llm/prompt_templates.py`, `src/workers/review_worker.py`.
 - Investigate slowness (timeouts/sequencing): `src/workers/llm_worker.py`, `src/gui/main_window.py`, `src/workers/`.
 - Stop review loop early when all reviews empty: `src/workers/review_worker.py`, `src/gui/main_window.py`.
 - Multi-LLM review pipelines: `src/gui/widgets/llm_selector_panel.py`, `src/gui/widgets/config_panel.py`, `src/workers/review_worker.py`, `src/core/state_machine.py`, `src/core/project_settings.py`.
