@@ -30,14 +30,26 @@ class ClaudeProvider(BaseLLMProvider):
         """Return available Claude models."""
         return self.MODELS
 
+    @property
+    def uses_stdin(self) -> bool:
+        """Send prompts via stdin to avoid Windows shell/newline argument issues."""
+        return True
+
     def build_command(self, prompt: str, model: Optional[str] = None,
                       working_directory: Optional[str] = None) -> List[str]:
-        """Build claude CLI command with auto-approval."""
+        """Build claude CLI command with auto-approval.
+
+        The prompt is provided through stdin by LLMWorker.
+        """
         cmd = ["claude", "--dangerously-skip-permissions"]
         if model:
             cmd.extend(["--model", model])
-        cmd.extend(["-p", prompt])
+        cmd.append("-p")
         return cmd
+
+    def get_stdin_prompt(self, prompt: str) -> str:
+        """Return the prompt to send via stdin."""
+        return prompt
 
     def get_output_instruction(self, output_type: str) -> str:
         """Return format instruction for Claude using centralized standards."""

@@ -82,7 +82,7 @@ Use this when picking up items from `TODO's`.
 - LLM prompts and providers: `src/llm/`.
 - LLM provider CLI flags, commands, and curated model IDs used by the UI: `src/llm/*_provider.py`.
 - Default per-stage LLM provider/model assignments (including `description_molding`): `src/gui/widgets/llm_selector_panel.py` (UI defaults) and `src/core/state_machine.py` (`StateContext` fallback).
-- LLM output capture behavior (stdout vs output-file): `src/workers/llm_worker.py`, `src/llm/*_provider.py`.
+- LLM output capture and prompt transport behavior (argv vs stdin/output-file): `src/workers/llm_worker.py`, `src/llm/*_provider.py` (Claude and Gemini use stdin prompts).
 - Review label formatting in UI/logs: `src/gui/main_window.py` (uses `PromptTemplates.get_review_display_name`).
 - Background phase logic: `src/workers/`.
 - UI/UX components: `src/gui/`.
