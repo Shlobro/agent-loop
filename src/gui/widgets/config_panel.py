@@ -3,7 +3,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLabel,
     QLineEdit, QPushButton, QHBoxLayout, QGroupBox, QFileDialog,
-    QSpinBox
+    QSpinBox, QMessageBox
 )
 from PySide6.QtCore import Signal
 from dataclasses import dataclass, field
@@ -43,6 +43,7 @@ class ConfigPanel(QWidget):
         self._controls_enabled = True
         self._all_review_types = [r.value for r in PromptTemplates.get_all_review_types()]
         self._selected_review_types = [ReviewType.GENERAL.value]
+        self._git_install_notice_shown = False
         self.setup_ui()
 
     def setup_ui(self):
@@ -87,6 +88,7 @@ class ConfigPanel(QWidget):
             "Git remote URL (GitHub, GitLab, etc.). "
             "Will be set as 'origin' remote before pushing."
         )
+        self.git_remote_edit.textChanged.connect(self._on_git_remote_changed)
         self.git_remote_edit.textChanged.connect(self._on_config_changed)
         form.addRow(self.git_remote_label, self.git_remote_edit)
         self.git_remote_label.setVisible(False)
@@ -123,8 +125,129 @@ class ConfigPanel(QWidget):
     def _on_working_dir_changed(self):
         """Handle working directory change."""
         path = self.working_dir_edit.text()
+        if path and Path(path).exists() and Path(path).is_dir():
+            if self._ensure_git_repository(path):
+                self._setup_git_remote(path, self.git_remote_edit.text().strip())
         self.working_directory_changed.emit(path)
         self.config_changed.emit()
+
+    def _on_git_remote_changed(self):
+        """Apply remote configuration when git remote text changes."""
+        directory = self.get_working_directory()
+        remote = self.git_remote_edit.text().strip()
+        if not directory or not remote:
+            return
+        if not Path(directory).exists() or not Path(directory).is_dir():
+            return
+        if self._ensure_git_repository(directory):
+            self._setup_git_remote(directory, remote)
+
+    def _show_git_install_notice(self):
+        """Show a one-time notice that git is required."""
+        if self._git_install_notice_shown:
+            return
+        self._git_install_notice_shown = True
+        QMessageBox.critical(
+            self,
+            "Git Required",
+            "Git is required but is not installed or not available in PATH.\n"
+            "Please install Git and restart the application."
+        )
+
+    def _run_git_command(self, directory: str, args: List[str], timeout: int = 5):
+        """Run a git command in the given directory."""
+        return subprocess.run(
+            ["git", *args],
+            cwd=directory,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False
+        )
+
+    def _ensure_git_repository(self, directory: str) -> bool:
+        """Ensure directory is a git repository; initialize it if needed."""
+        try:
+            repo_check = self._run_git_command(directory, ["rev-parse", "--is-inside-work-tree"])
+        except OSError:
+            self._show_git_install_notice()
+            return False
+        except subprocess.SubprocessError:
+            repo_check = None
+
+        if repo_check and repo_check.returncode == 0 and repo_check.stdout.strip() == "true":
+            return True
+
+        try:
+            init_result = self._run_git_command(directory, ["init"])
+        except OSError:
+            self._show_git_install_notice()
+            return False
+        except subprocess.SubprocessError as exc:
+            QMessageBox.warning(
+                self,
+                "Git Initialization Failed",
+                "Failed to run `git init`.\n"
+                "Please install Git and ensure it is available in PATH.\n\n"
+                f"Details: {exc}"
+            )
+            return False
+
+        if init_result.returncode != 0:
+            details = init_result.stderr.strip() or init_result.stdout.strip() or "Unknown error."
+            QMessageBox.warning(
+                self,
+                "Git Initialization Failed",
+                "Failed to initialize a git repository with `git init`.\n"
+                "Please install Git and ensure it is available in PATH.\n\n"
+                f"Details: {details}"
+            )
+            return False
+
+        return True
+
+    def _setup_git_remote(self, directory: str, remote: str):
+        """Ensure origin points at the configured remote URL."""
+        if not remote:
+            return
+        try:
+            existing = self._run_git_command(directory, ["remote", "get-url", "origin"])
+        except OSError:
+            self._show_git_install_notice()
+            return
+        except subprocess.SubprocessError:
+            return
+
+        command = None
+        if existing.returncode == 0:
+            current_remote = existing.stdout.strip()
+            if current_remote == remote:
+                return
+            command = ["remote", "set-url", "origin", remote]
+        else:
+            command = ["remote", "add", "origin", remote]
+
+        try:
+            update = self._run_git_command(directory, command)
+        except OSError:
+            self._show_git_install_notice()
+            return
+        except subprocess.SubprocessError as exc:
+            QMessageBox.warning(
+                self,
+                "Git Remote Setup Failed",
+                f"Failed to configure git remote origin.\n\nDetails: {exc}"
+            )
+            return
+
+        if update.returncode != 0:
+            details = update.stderr.strip() or update.stdout.strip() or "Unknown error."
+            QMessageBox.warning(
+                self,
+                "Git Remote Setup Failed",
+                "Failed to configure git remote origin.\n\n"
+                f"Details: {details}"
+            )
 
     def _detect_git_remote(self, directory: str) -> str:
         """Detect the git remote URL for origin in the given directory."""

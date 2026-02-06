@@ -18,20 +18,21 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 
 ## Workflow Overview (High Level)
 1. UI collects description, LLM choices, and execution settings. Review type selection is exposed through the top menu `Settings -> Review Settings`. The description is synced to `product-description.md`, and the GUI value is force-written to that file before each question batch and before planning. After answers are submitted, only the current Q&A batch is rewritten into `product-description.md` using `PromptTemplates.format_definition_rewrite_prompt`; only this rewrite step pushes file content back into the GUI. Stored Q&A context is then cleared so the rewritten description is treated as the new initial input. The description then becomes editable again, and only then can the user generate more questions or start planning.
-2. `StateMachine` tracks phase/context; `MainWindow` dispatches workers.
-3. Question generation initializes an empty `questions.json` and expects the LLM to write a batch into it in a single attempt (no stdout parsing or fallback prompts); generating another batch deletes the previous `questions.json`.
-4. Description molding runs after answers are submitted: it rewrites Q&A plus the current description into `product-description.md` using the dedicated `description_molding` stage/model; this step is file-first (`product-description.md` updates the UI, not the other way around).
-5. Task planning reads `product-description.md` when available and has the LLM write directly to `tasks.md`.
-6. Main execution completes one task per iteration and updates `recent-changes.md`.
+2. When a working directory is selected (including the startup default), UI config handling ensures the directory is a git repo (`git init` if needed), surfaces a user-facing notice when git is missing, and configures `origin` if a remote URL is set.
+3. `StateMachine` tracks phase/context; `MainWindow` dispatches workers.
+4. Question generation initializes an empty `questions.json` and expects the LLM to write a batch into it in a single attempt (no stdout parsing or fallback prompts); generating another batch deletes the previous `questions.json`.
+5. Description molding runs after answers are submitted: it rewrites Q&A plus the current description into `product-description.md` using the dedicated `description_molding` stage/model; this step is file-first (`product-description.md` updates the UI, not the other way around).
+6. Task planning reads `product-description.md` when available and has the LLM write directly to `tasks.md`.
+7. Main execution completes one task per iteration and updates `recent-changes.md`.
    - Execution and fixer prompts include workspace governance rules plus a compliance scan summary (fresh scan each execution/review cycle):
      - Exactly one developer guide `.md` file per folder; the root may contain multiple `.md` files (excluding system/tooling dirs like `.git`, `.venv`, `.idea`, `.claude`, `node_modules`).
      - Read a folder's developer guide before editing.
      - Update the folder's guide and all ancestor guides when changes affect developer understanding.
      - No more than 10 code files per folder (`.md` files do not count).
      - No code file over 1000 lines.
-7. Review loop (including General, Unit Test, and UI/UX review types) writes `review.md` and runs fixer.
-8. Git operations optionally commit and push.
-9. On Windows, each LLM call opens a live terminal window that shows the exact executed command and streams runtime output. The window remains open after completion so developers can review logs and close it manually.
+8. Review loop (including General, Unit Test, and UI/UX review types) writes `review.md` and runs fixer.
+9. Git operations optionally commit and push.
+10. On Windows, each LLM call opens a live terminal window that shows the exact executed command and streams runtime output. The window remains open after completion so developers can review logs and close it manually.
 
 ## Working-Directory Artifacts
 Created in the selected working directory (not the repo root):

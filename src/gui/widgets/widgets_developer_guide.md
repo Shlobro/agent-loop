@@ -22,6 +22,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - Fixer: Codex + `gpt-5.3-codex`
 - Git operations: Gemini + `gemini-3-pro-preview`
 - `ConfigPanel` exposes `ExecutionConfig`; review type selections are edited through the main menu action `Settings -> Review Settings` and include `General`, `Unit Test`, and `UI/UX`.
+- `ConfigPanel` performs early git bootstrap for the selected working directory: checks whether the directory is already a git repo, runs `git init` when needed, shows a user-facing install notice if git commands are unavailable/fail, and configures `origin` when a remote URL is set.
 - `QuestionPanel` emits signals for submitted batch answers, generating another batch, or start planning.
 - `LogViewer` listens to worker log and LLM output signals from `MainWindow`.
 
