@@ -5,7 +5,7 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 
 ## Contents
 - `main_window.py`: Application controller and UI shell. Wires panels, manages phase transitions, and delegates worker execution to mixins.
-- `settings_mixin.py`: Settings handlers used by `MainWindow` (save/load project settings, debug settings dialog wiring, and automatic per-working-directory settings sync under `.agentharness/project-settings.json`).
+- `settings_mixin.py`: Settings handlers used by `MainWindow` (save/load project settings, debug settings dialog wiring, left logs-panel visibility control, and automatic per-working-directory settings sync under `.agentharness/project-settings.json`).
 - `workflow_runner.py`: Worker execution mixin for planning, execution, review, and git phases.
 - `widgets/`: Reusable UI panels (description, questions, logs, config, status, LLM selection).
 - `dialogs/`: Modal dialogs (git approval, review settings, debug settings, startup working-directory selection).
@@ -30,7 +30,7 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 - Manage working directory artifacts via `FileManager`.
 - Manage session save/resume through `SessionManager`.
 - Expose menu actions including `Settings -> Review Settings`, which opens the review selection dialog and optional pre-review unit-test-update toggle.
-- Expose menu actions including `Settings -> Review Settings` and `Settings -> Debug Settings`.
+- Expose menu actions including `Settings -> Review Settings` and `Settings -> Debug Settings` (which now also controls left logs-panel visibility).
 
 ## When to Edit GUI
 - Start/pause/stop flow or phase routing: `main_window.py`.

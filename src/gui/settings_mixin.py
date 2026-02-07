@@ -1,7 +1,7 @@
 """Settings-related UI handlers shared by MainWindow."""
 
 from PySide6.QtCore import Slot
-from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtWidgets import QFileDialog, QMessageBox, QSplitter
 from pathlib import Path
 
 from .dialogs.debug_settings_dialog import DebugSettingsDialog
@@ -14,6 +14,8 @@ class SettingsMixin:
     """Save/load and debug-settings handlers for the main window."""
     _settings_sync_suspended = False
     _active_working_directory = ""
+    _logs_panel_visible = True
+    _last_main_splitter_sizes = None
 
     def initialize_directory_settings(self, startup_directory: str):
         """Initialize automatic per-directory settings behavior and set startup directory."""
@@ -53,6 +55,7 @@ class SettingsMixin:
             debug_mode_enabled=self.debug_mode_enabled,
             debug_breakpoints=self.debug_breakpoints,
             show_llm_terminals=self.show_llm_terminals,
+            show_logs_panel=self._logs_panel_visible,
             max_questions=exec_config.max_questions,
             git_mode=exec_config.git_mode,
             working_directory=target_working_directory,
@@ -99,6 +102,7 @@ class SettingsMixin:
         self.debug_mode_enabled = settings.debug_mode_enabled
         self.debug_breakpoints = settings.debug_breakpoints
         self.show_llm_terminals = settings.show_llm_terminals
+        self._set_logs_panel_visible(settings.show_logs_panel)
         LLMWorker.set_show_live_terminal_windows(self.show_llm_terminals)
         self.state_machine.update_context(
             debug_mode_enabled=self.debug_mode_enabled,
@@ -165,6 +169,7 @@ class SettingsMixin:
             debug_enabled=self.debug_mode_enabled,
             breakpoints=self.debug_breakpoints,
             show_terminals=self.show_llm_terminals,
+            show_logs_panel=self._logs_panel_visible,
             parent=self
         )
         if not dialog.exec():
@@ -172,6 +177,7 @@ class SettingsMixin:
         self.debug_mode_enabled = dialog.get_debug_enabled()
         self.debug_breakpoints = dialog.get_breakpoints()
         self.show_llm_terminals = dialog.get_show_terminals()
+        self._set_logs_panel_visible(dialog.get_show_logs_panel())
         LLMWorker.set_show_live_terminal_windows(self.show_llm_terminals)
         self.state_machine.update_context(
             debug_mode_enabled=self.debug_mode_enabled,
@@ -186,6 +192,38 @@ class SettingsMixin:
             f"LLM terminal windows {'enabled' if self.show_llm_terminals else 'disabled'}",
             "info"
         )
+        self.log_viewer.append_log(
+            f"Left logs panel {'enabled' if self._logs_panel_visible else 'disabled'}",
+            "info"
+        )
+
+    def _set_logs_panel_visible(self, visible: bool):
+        """Show or hide the left logs panel and keep splitter sizing usable."""
+        self._logs_panel_visible = bool(visible)
+        splitter = self.log_viewer.parentWidget()
+        if not isinstance(splitter, QSplitter):
+            self.log_viewer.setVisible(self._logs_panel_visible)
+            return
+
+        previous_sizes = splitter.sizes()
+        self.log_viewer.setVisible(self._logs_panel_visible)
+
+        if self._logs_panel_visible:
+            if (
+                self._last_main_splitter_sizes
+                and len(self._last_main_splitter_sizes) == len(previous_sizes)
+            ):
+                splitter.setSizes(self._last_main_splitter_sizes)
+            elif len(previous_sizes) >= 2 and previous_sizes[0] == 0:
+                splitter.setSizes([480, 720])
+            return
+
+        if len(previous_sizes) >= 2 and previous_sizes[0] > 0:
+            self._last_main_splitter_sizes = previous_sizes
+            right_width = previous_sizes[1] if previous_sizes[1] > 0 else sum(previous_sizes)
+        else:
+            right_width = sum(previous_sizes) if previous_sizes else 1
+        splitter.setSizes([0, max(1, right_width)])
 
     @Slot()
     def on_save_settings(self):

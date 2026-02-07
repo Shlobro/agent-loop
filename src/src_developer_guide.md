@@ -23,7 +23,7 @@ Application source package for AgentHarness. This is where the workflow, UI, LLM
 
 ## When to Edit What
 - UI layout or control wiring: `gui/main_window.py` plus panels in `gui/widgets/` and `gui/dialogs/` (`Settings -> Review Settings` is wired in `main_window.py`).
-- Settings persistence and debug settings menu actions: `gui/settings_mixin.py` (invoked by `MainWindow`).
+- Settings persistence and debug settings menu actions (including left logs-panel visibility): `gui/settings_mixin.py` (invoked by `MainWindow`).
 - Working-directory git bootstrap and remote auto-configuration at startup/runtime: `gui/widgets/config_panel.py`.
 - Worker execution routing in the GUI: `gui/workflow_runner.py`.
 - Review label display formatting in logs/activity: `gui/main_window.py` (uses `PromptTemplates.get_review_display_name`).

@@ -27,7 +27,7 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 8. When a valid working directory is active (including the startup default path), initialization ensures `review/` exists with one file per active review type; the review phase executes in this order: (1) optional unit test prep (runs FIRST if enabled, uses `git diff` to decide whether tests should be added/edited), (2) review/fix cycles per review type. The review loop writes findings to the active file only, skips fixer when that file is empty, and truncates the active file after each completed fix cycle. Review iteration limits and reviewer/fixer/unit-test-prep selections are read between cycles, so reducing loop count or switching agents takes effect without restarting.
 9. Git operations run as a hybrid flow: code captures `git status --porcelain` plus a `git diff` snapshot and injects them into the git prompt, the LLM writes only a commit message into `.agentharness/git-commit-message.txt`, and the app performs `git add`, `git commit`, and optional `git push` in code; after a successful commit the message file is truncated.
 10. Debug step mode is controlled from `Settings -> Debug Settings`: stage-specific before/after breakpoints pause right before or right after each LLM call until the user clicks `Next Step`.
-11. A debug setting controls whether per-call live terminal windows are shown on Windows.
+11. Debug settings also control whether per-call live terminal windows are shown on Windows and whether the left logs panel is visible.
 
 ## Working-Directory Artifacts
 Created in the selected working directory (not the repo root):

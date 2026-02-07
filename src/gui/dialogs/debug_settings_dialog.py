@@ -23,6 +23,7 @@ class DebugSettingsDialog(QDialog):
         debug_enabled: bool,
         breakpoints: Dict[str, Dict[str, bool]],
         show_terminals: bool,
+        show_logs_panel: bool,
         parent=None
     ):
         super().__init__(parent)
@@ -42,6 +43,10 @@ class DebugSettingsDialog(QDialog):
         self.show_terminals_checkbox = QCheckBox("Show terminal window for each LLM call")
         self.show_terminals_checkbox.setChecked(show_terminals)
         layout.addWidget(self.show_terminals_checkbox)
+
+        self.show_logs_panel_checkbox = QCheckBox("Show left logs panel")
+        self.show_logs_panel_checkbox.setChecked(show_logs_panel)
+        layout.addWidget(self.show_logs_panel_checkbox)
 
         layout.addWidget(QLabel("Pause points by stage:"))
         layout.addWidget(QLabel("Check Before and/or After to require clicking Next Step."))
@@ -80,6 +85,10 @@ class DebugSettingsDialog(QDialog):
         """Return whether per-call terminal windows should be shown."""
         return self.show_terminals_checkbox.isChecked()
 
+    def get_show_logs_panel(self) -> bool:
+        """Return whether the left logs panel should be shown."""
+        return self.show_logs_panel_checkbox.isChecked()
+
     def get_breakpoints(self) -> Dict[str, Dict[str, bool]]:
         """Return the selected before/after breakpoints per stage."""
         return {
@@ -89,4 +98,3 @@ class DebugSettingsDialog(QDialog):
             }
             for stage, controls in self.stage_checkboxes.items()
         }
-
