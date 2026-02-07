@@ -83,6 +83,6 @@ Use this when picking up items from `TODO's`.
 - Debug stepping/breakpoints and terminal popup visibility: `src/core/debug_settings.py`, `src/gui/dialogs/debug_settings_dialog.py`, `src/gui/main_window.py`, `src/workers/llm_worker.py`.
 - Review label formatting in UI/logs: `src/gui/main_window.py` (uses `PromptTemplates.get_review_display_name`).
 - Background phase logic: `src/workers/`.
-- UI/UX components: `src/gui/` (`src/gui/dialogs/llm_settings_dialog.py` hosts stage provider/model selection).
+- UI/UX components and global styling: `src/gui/` (`src/gui/theme.py` provides shared stylesheet/button variants/fade-in helpers; `src/gui/dialogs/llm_settings_dialog.py` hosts stage provider/model selection).
 - GUI worker orchestration: `src/gui/main_window.py`, `src/gui/workflow_runner.py`.
 - Settings save/load and debug settings menu wiring: `src/gui/settings_mixin.py`.

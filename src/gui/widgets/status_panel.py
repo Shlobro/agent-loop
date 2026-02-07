@@ -20,22 +20,13 @@ class StatusPanel(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
-        # Main frame with border
-        self.setStyleSheet("""
-            StatusPanel {
-                background-color: palette(base);
-                border: 1px solid palette(mid);
-                border-radius: 4px;
-                padding: 4px;
-            }
-        """)
-
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 4, 8, 4)
+        layout.setSpacing(10)
 
         # Phase indicator
         self.phase_label = QLabel("Phase: Idle")
-        self.phase_label.setStyleSheet("font-weight: bold; font-size: 12px;")
+        self.phase_label.setStyleSheet("font-weight: 700;")
         layout.addWidget(self.phase_label)
 
         # Separator
@@ -57,7 +48,7 @@ class StatusPanel(QWidget):
 
         # Sub-status (detailed info)
         self.sub_status_label = QLabel("")
-        self.sub_status_label.setStyleSheet("color: gray;")
+        self.sub_status_label.setProperty("role", "muted")
         layout.addWidget(self.sub_status_label)
 
         layout.addStretch()
@@ -78,20 +69,20 @@ class StatusPanel(QWidget):
 
         # Color code by phase
         colors = {
-            "Idle": "gray",
-            "Generating Questions": "#9370DB",
-            "Awaiting Answers": "#FFA500",
-            "Planning Tasks": "#00CED1",
-            "Executing Tasks": "#32CD32",
-            "Code Review": "#FF69B4",
-            "Git Operations": "#4169E1",
-            "Completed": "#00FF00",
-            "Paused": "#FFD700",
-            "Error": "#FF4444",
-            "Cancelled": "#FF6347",
+            "Idle": "#8e99a6",
+            "Generating Questions": "#76b7e5",
+            "Awaiting Answers": "#e6b86e",
+            "Planning Tasks": "#69d0cb",
+            "Executing Tasks": "#7ed082",
+            "Code Review": "#8cb4ff",
+            "Git Operations": "#9aa7ff",
+            "Completed": "#8fd9a8",
+            "Paused": "#dbcd7a",
+            "Error": "#ef7d7d",
+            "Cancelled": "#e8937d",
         }
         color = colors.get(phase, "white")
-        self.phase_label.setStyleSheet(f"font-weight: bold; font-size: 12px; color: {color};")
+        self.phase_label.setStyleSheet(f"font-weight: 700; color: {color};")
 
     @Slot(int, int)
     def set_iteration(self, current: int, total: int):
@@ -117,7 +108,7 @@ class StatusPanel(QWidget):
     def reset(self):
         """Reset all status indicators."""
         self.phase_label.setText("Phase: Idle")
-        self.phase_label.setStyleSheet("font-weight: bold; font-size: 12px; color: gray;")
+        self.phase_label.setStyleSheet("font-weight: 700; color: #8e99a6;")
         self.iteration_label.setText("Iteration: -")
         self.sub_status_label.setText("")
         self.progress_bar.setValue(0)
@@ -129,4 +120,4 @@ class StatusPanel(QWidget):
         if running:
             self.progress_bar.setStyleSheet("")
         else:
-            self.progress_bar.setStyleSheet("QProgressBar::chunk { background-color: gray; }")
+            self.progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #5f6872; }")

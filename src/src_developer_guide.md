@@ -5,7 +5,7 @@ Application source package for AgentHarness. This is where the workflow, UI, LLM
 
 ## Folder Map
 - `core/`: Phase state machine, debug settings defaults, session persistence, file I/O, and settings models.
-- `gui/`: Main window orchestration and UI panels.
+- `gui/`: Main window orchestration, centralized theme (`gui/theme.py`), and UI panels/dialogs.
 - `llm/`: Provider adapters and prompt templates for every phase.
 - `utils/`: Parsers for LLM output and markdown task lists.
 - `workers/`: QRunnable workers for each workflow phase (LLM runner logs full prompts, emits output-file content to the log, supports per-stage debug breakpoints before/after each LLM call, and can show/hide Windows live terminal popups per setting).
@@ -23,6 +23,7 @@ Application source package for AgentHarness. This is where the workflow, UI, LLM
 
 ## When to Edit What
 - UI layout or control wiring: `gui/main_window.py` plus panels in `gui/widgets/` and `gui/dialogs/` (`Settings -> Configuration Settings`, `Settings -> LLM Settings`, `Settings -> Review Settings`, and `Settings -> Debug Settings` are wired in `main_window.py`).
+- Global look-and-feel, button variants, and lightweight fade motion: `gui/theme.py`.
 - Settings persistence and debug settings menu actions (including left logs-panel visibility): `gui/settings_mixin.py` (invoked by `MainWindow`).
 - Working-directory git bootstrap and remote auto-configuration at startup/runtime: `gui/widgets/config_panel.py`.
 - Worker execution routing in the GUI: `gui/workflow_runner.py`.

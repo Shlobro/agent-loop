@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from ..theme import polish_button, animate_fade_in
+
 
 class QuestionAnswerDialog(QDialog):
     """Shows one question at a time with keyboard-first navigation."""
@@ -32,7 +34,7 @@ class QuestionAnswerDialog(QDialog):
         self.setModal(True)
         self.setWindowFlag(Qt.WindowCloseButtonHint, False)
         self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
-        self.resize(760, 420)
+        self.resize(820, 500)
 
         self._setup_ui()
         self._load_question(0)
@@ -41,18 +43,18 @@ class QuestionAnswerDialog(QDialog):
         layout = QVBoxLayout(self)
 
         self.counter_label = QLabel("")
-        self.counter_label.setStyleSheet("color: gray;")
+        self.counter_label.setProperty("role", "muted")
         layout.addWidget(self.counter_label)
 
         self.question_label = QLabel("")
         self.question_label.setWordWrap(True)
-        self.question_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self.question_label.setStyleSheet("font-size: 16px; font-weight: 700;")
         layout.addWidget(self.question_label)
 
         self.hint_label = QLabel(
             "Up/Down: choose answer  Left/Right: previous/next question  Enter: submit and continue"
         )
-        self.hint_label.setStyleSheet("color: gray;")
+        self.hint_label.setProperty("role", "muted")
         layout.addWidget(self.hint_label)
 
         self.options_list = QListWidget()
@@ -68,17 +70,21 @@ class QuestionAnswerDialog(QDialog):
         buttons = QHBoxLayout()
         self.prev_button = QPushButton("Previous")
         self.prev_button.clicked.connect(self._go_previous)
+        polish_button(self.prev_button, "secondary")
         buttons.addWidget(self.prev_button)
 
         self.next_button = QPushButton("Next")
         self.next_button.clicked.connect(self._go_next)
+        polish_button(self.next_button, "secondary")
         buttons.addWidget(self.next_button)
 
         self.enter_button = QPushButton("Submit")
         self.enter_button.clicked.connect(self._submit_current_and_advance)
+        polish_button(self.enter_button, "primary")
         buttons.addWidget(self.enter_button)
 
         layout.addLayout(buttons)
+        animate_fade_in(self, duration_ms=260)
 
     def keyPressEvent(self, event):
         key = event.key()

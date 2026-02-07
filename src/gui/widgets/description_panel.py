@@ -24,6 +24,7 @@ class DescriptionPanel(QWidget):
 
         # Group box for visual grouping
         group = QGroupBox("Project Description")
+        group.setObjectName("descriptionGroup")
         group_layout = QVBoxLayout(group)
 
         # Instructions label
@@ -32,7 +33,7 @@ class DescriptionPanel(QWidget):
             "requirements, and any technical constraints."
         )
         instructions.setWordWrap(True)
-        instructions.setStyleSheet("color: gray; font-size: 11px;")
+        instructions.setProperty("role", "muted")
         group_layout.addWidget(instructions)
 
         # Text input

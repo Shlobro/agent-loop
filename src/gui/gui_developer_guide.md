@@ -7,6 +7,7 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 - `main_window.py`: Application controller and UI shell. Wires panels, manages phase transitions, and delegates worker execution to mixins.
 - `settings_mixin.py`: Settings handlers used by `MainWindow` (save/load project settings, configuration/LLM/review/debug settings dialog wiring, left logs-panel visibility control, and automatic per-working-directory settings sync under `.agentharness/project-settings.json`).
 - `workflow_runner.py`: Worker execution mixin for planning, execution, review, and git phases.
+- `theme.py`: Centralized Qt Fusion stylesheet plus helper utilities for button variants and fade-in animations.
 - `widgets/`: Reusable UI panels (description, hidden question-flow bridge, logs, config, status, LLM selection).
 - `dialogs/`: Modal dialogs (git approval, review settings, debug settings, startup working-directory selection, keyboard-first question answering).
 - `__init__.py`: Module marker.
@@ -45,5 +46,6 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 ## Change Map
 - Workflow control or signal wiring: `main_window.py`.
 - UI layout and component composition: `main_window.py`.
+- Global visual style, palette, and simple motion: `theme.py`.
 - Individual panel behavior: `widgets/`.
 - User confirmation modals: `dialogs/`.

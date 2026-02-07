@@ -13,6 +13,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - `__init__.py`: Module marker.
 
 ## Key Interactions
+- Widgets use the centralized stylesheet from `src/gui/theme.py`; prefer setting widget properties (for example `role="muted"`) instead of hardcoded inline colors.
 - `LLMSelectorPanel` queries `LLMProviderRegistry` to populate providers/models and then applies stage defaults (in execution order):
 - Question generation: Gemini + `gemini-3-pro-preview`
 - Description molding: Gemini + `gemini-3-pro-preview`
@@ -31,6 +32,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 ## When to Edit Widgets
 - Add or adjust review selection behavior: `config_panel.py` and `../dialogs/review_settings_dialog.py`.
 - Change per-stage LLM selector behavior or enable runtime edits: `llm_selector_panel.py`.
+- Adjust visual tone for logs/status/description surfaces while preserving behavior: `description_panel.py`, `log_viewer.py`, `status_panel.py`, and shared styles in `../theme.py`.
 - Fix log filtering for existing entries: `log_viewer.py`.
 - Add task checklist/progress display: `status_panel.py` or a new widget in this folder.
 - Adjust batch question UX or activity display: `question_panel.py`.

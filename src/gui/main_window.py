@@ -2,7 +2,7 @@
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QSplitter, QPushButton, QMessageBox, QApplication, QInputDialog
+    QSplitter, QPushButton, QMessageBox, QApplication, QInputDialog, QLabel, QFrame
 )
 from PySide6.QtCore import Qt, Slot, QThreadPool, Signal
 from PySide6.QtGui import QAction, QActionGroup
@@ -17,6 +17,7 @@ from .widgets.log_viewer import LogViewer
 from .widgets.status_panel import StatusPanel
 from .settings_mixin import SettingsMixin
 from .workflow_runner import WorkflowRunnerMixin
+from .theme import apply_app_theme, polish_button, animate_fade_in
 from ..core.state_machine import StateMachine, Phase, SubPhase
 from ..core.debug_settings import DEBUG_STAGE_LABELS, default_debug_breakpoints
 from ..core.file_manager import FileManager
@@ -42,6 +43,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         super().__init__()
         self.setWindowTitle("AgentHarness - Autonomous Code Generator")
         self.setMinimumSize(1200, 800)
+        apply_app_theme(QApplication.instance())
 
         self.thread_pool = QThreadPool()
         self.state_machine = StateMachine()
@@ -133,10 +135,28 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
+        main_layout.setContentsMargins(14, 12, 14, 14)
+        main_layout.setSpacing(10)
+
+        header_row = QHBoxLayout()
+        hero_label = QLabel("AgentHarness")
+        hero_label.setProperty("role", "hero")
+        sub_label = QLabel("Orchestrated coding workflow with human-in-the-loop controls")
+        sub_label.setProperty("role", "hero_subtitle")
+        divider = QFrame()
+        divider.setFrameShape(QFrame.HLine)
+        divider.setFrameShadow(QFrame.Plain)
+        header_row.addWidget(hero_label)
+        header_row.addSpacing(8)
+        header_row.addWidget(sub_label)
+        header_row.addStretch()
+        main_layout.addLayout(header_row)
+        main_layout.addWidget(divider)
 
         self.status_panel = StatusPanel()
         main_layout.addWidget(self.status_panel)
         main_splitter = QSplitter(Qt.Horizontal)
+        main_splitter.setHandleWidth(4)
         self.log_viewer = LogViewer()
         main_splitter.addWidget(self.log_viewer)
         right_column = QWidget()
@@ -165,6 +185,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.start_button = QPushButton("Start")
         self.start_button.setMinimumWidth(100)
         self.start_button.clicked.connect(self.on_start_clicked)
+        polish_button(self.start_button, "primary")
         button_layout.addWidget(self.start_button)
 
         self.pause_button = QPushButton("Pause")
@@ -177,6 +198,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.stop_button.setMinimumWidth(100)
         self.stop_button.clicked.connect(self.on_stop_clicked)
         self.stop_button.setEnabled(False)
+        polish_button(self.stop_button, "danger")
         button_layout.addWidget(self.stop_button)
 
         self.next_step_button = QPushButton("Next Step")
@@ -195,6 +217,9 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         main_splitter.setSizes([480, 720])
 
         main_layout.addWidget(main_splitter, stretch=1)
+        animate_fade_in(self.status_panel, duration_ms=300, delay_ms=60)
+        animate_fade_in(self.log_viewer, duration_ms=420, delay_ms=100)
+        animate_fade_in(right_column, duration_ms=440, delay_ms=160)
 
     def connect_signals(self):
         """Connect UI signals to slots."""

@@ -17,13 +17,13 @@ class LogViewer(QWidget):
 
     # Color scheme for different log levels
     COLORS = {
-        "info": "#FFFFFF",
-        "success": "#00FF00",
-        "warning": "#FFAA00",
-        "error": "#FF4444",
-        "llm_output": "#00BFFF",
-        "phase": "#FF69B4",
-        "debug": "#888888",
+        "info": "#e8edf3",
+        "success": "#86d9a0",
+        "warning": "#e6c078",
+        "error": "#f08c8c",
+        "llm_output": "#7cc1f3",
+        "phase": "#9db9ff",
+        "debug": "#90a0af",
     }
 
     def __init__(self, parent=None):
@@ -47,7 +47,7 @@ class LogViewer(QWidget):
         self.filter_combo.addItem("Info & Above", "info")
         self.filter_combo.addItem("Warnings & Errors", "warning")
         self.filter_combo.addItem("Errors Only", "error")
-        self.filter_combo.addItem("LLM Output", "llm_output")
+        self.filter_combo.addItem("LLM Stream", "llm_output")
         toolbar.addWidget(self.filter_combo)
 
         toolbar.addStretch()
@@ -58,7 +58,7 @@ class LogViewer(QWidget):
         toolbar.addWidget(self.clear_button)
 
         # Auto-scroll toggle
-        self.auto_scroll_button = QPushButton("Auto-scroll: ON")
+        self.auto_scroll_button = QPushButton("Follow: ON")
         self.auto_scroll_button.setCheckable(True)
         self.auto_scroll_button.setChecked(True)
         self.auto_scroll_button.clicked.connect(self._toggle_auto_scroll)
@@ -78,15 +78,6 @@ class LogViewer(QWidget):
             font = QFont("Courier New", 9)
         self.text_edit.setFont(font)
 
-        # Dark background
-        self.text_edit.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #1E1E1E;
-                color: #FFFFFF;
-                border: 1px solid #333;
-            }
-        """)
-
         group_layout.addWidget(self.text_edit)
         layout.addWidget(group)
 
@@ -94,7 +85,7 @@ class LogViewer(QWidget):
         """Toggle auto-scroll behavior."""
         self.auto_scroll = self.auto_scroll_button.isChecked()
         self.auto_scroll_button.setText(
-            f"Auto-scroll: {'ON' if self.auto_scroll else 'OFF'}"
+            f"Follow: {'ON' if self.auto_scroll else 'OFF'}"
         )
 
     @Slot(str, str)

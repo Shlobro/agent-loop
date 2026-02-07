@@ -18,4 +18,4 @@ Contains modal dialogs used by the GUI for user approvals and confirmations.
 
 ## Change Map
 - Update git approval UI copy or layout: `git_approval_dialog.py`.
-- Update keyboard question-answer UX: `question_answer_dialog.py`.
+- Update keyboard question-answer UX and modal visual style: `question_answer_dialog.py` (button variants/fade-in are shared via `../theme.py`).
