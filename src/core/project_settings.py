@@ -19,13 +19,15 @@ class ProjectSettings:
     coder: str
     reviewer: str
     fixer: str
-    git_ops: str
+    unit_test_prep: str = "gemini"
+    git_ops: str = "gemini"
     question_gen_model: str = ""
     description_molding_model: str = "gemini-3-pro-preview"
     task_planning_model: str = ""
     coder_model: str = ""
     reviewer_model: str = ""
     fixer_model: str = ""
+    unit_test_prep_model: str = "gemini-3-pro-preview"
     git_ops_model: str = ""
     review_types: List[str] = field(
         default_factory=lambda: [ReviewType.GENERAL.value]
@@ -118,8 +120,12 @@ class ProjectSettingsManager:
             normalized["git_mode"] = "push" if auto_push else "local"
         if "description_molding" not in normalized:
             normalized["description_molding"] = "gemini"
+        if "unit_test_prep" not in normalized:
+            normalized["unit_test_prep"] = "gemini"
         if "description_molding_model" not in normalized:
             normalized["description_molding_model"] = "gemini-3-pro-preview"
+        if "unit_test_prep_model" not in normalized:
+            normalized["unit_test_prep_model"] = "gemini-3-pro-preview"
         if "debug_mode_enabled" not in normalized:
             normalized["debug_mode_enabled"] = False
         normalized["debug_breakpoints"] = normalize_debug_breakpoints(

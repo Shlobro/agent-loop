@@ -26,6 +26,7 @@ class LLMConfig:
     coder: str
     reviewer: str
     fixer: str
+    unit_test_prep: str
     git_ops: str
     # Model selections for each stage
     question_gen_model: str = ""
@@ -34,6 +35,7 @@ class LLMConfig:
     coder_model: str = ""
     reviewer_model: str = ""
     fixer_model: str = ""
+    unit_test_prep_model: str = ""
     git_ops_model: str = ""
 
 
@@ -52,6 +54,7 @@ class LLMSelectorPanel(QWidget):
         ("coder", "Coder (Main Loop)"),
         ("reviewer", "Reviewer"),
         ("fixer", "Fixer"),
+        ("unit_test_prep", "Unit Test Prep"),
         ("git_ops", "Git Operations"),
     ]
     DEFAULT_STAGE_CONFIG = {
@@ -61,6 +64,7 @@ class LLMSelectorPanel(QWidget):
         "coder": ("claude", "claude-opus-4-6"),
         "reviewer": ("codex", "gpt-5.3-codex"),
         "fixer": ("codex", "gpt-5.3-codex"),
+        "unit_test_prep": ("gemini", "gemini-3-pro-preview"),
         "git_ops": ("gemini", "gemini-3-pro-preview"),
     }
 
@@ -181,6 +185,7 @@ class LLMSelectorPanel(QWidget):
             coder=self.provider_combos["coder"].currentData(),
             reviewer=self.provider_combos["reviewer"].currentData(),
             fixer=self.provider_combos["fixer"].currentData(),
+            unit_test_prep=self.provider_combos["unit_test_prep"].currentData(),
             git_ops=self.provider_combos["git_ops"].currentData(),
             question_gen_model=self.model_combos["question_gen"].currentData() or "",
             description_molding_model=self.model_combos["description_molding"].currentData() or "",
@@ -188,6 +193,7 @@ class LLMSelectorPanel(QWidget):
             coder_model=self.model_combos["coder"].currentData() or "",
             reviewer_model=self.model_combos["reviewer"].currentData() or "",
             fixer_model=self.model_combos["fixer"].currentData() or "",
+            unit_test_prep_model=self.model_combos["unit_test_prep"].currentData() or "",
             git_ops_model=self.model_combos["git_ops"].currentData() or "",
         )
 
@@ -201,6 +207,7 @@ class LLMSelectorPanel(QWidget):
             "coder": config.coder,
             "reviewer": config.reviewer,
             "fixer": config.fixer,
+            "unit_test_prep": config.unit_test_prep,
             "git_ops": config.git_ops,
             "question_gen_model": config.question_gen_model,
             "description_molding_model": config.description_molding_model,
@@ -208,6 +215,7 @@ class LLMSelectorPanel(QWidget):
             "coder_model": config.coder_model,
             "reviewer_model": config.reviewer_model,
             "fixer_model": config.fixer_model,
+            "unit_test_prep_model": config.unit_test_prep_model,
             "git_ops_model": config.git_ops_model,
         }
 
@@ -221,7 +229,7 @@ class LLMSelectorPanel(QWidget):
     def set_config(self, config: Dict[str, str]):
         """Set LLM configuration from dictionary."""
         # First set providers
-        for key in ["question_gen", "description_molding", "task_planning", "coder", "reviewer", "fixer", "git_ops"]:
+        for key in ["question_gen", "description_molding", "task_planning", "coder", "reviewer", "fixer", "unit_test_prep", "git_ops"]:
             if key in config and key in self.provider_combos:
                 combo = self.provider_combos[key]
                 for i in range(combo.count()):
@@ -230,7 +238,7 @@ class LLMSelectorPanel(QWidget):
                         break
 
         # Then set models (after providers are set to ensure model lists are populated)
-        for key in ["question_gen", "description_molding", "task_planning", "coder", "reviewer", "fixer", "git_ops"]:
+        for key in ["question_gen", "description_molding", "task_planning", "coder", "reviewer", "fixer", "unit_test_prep", "git_ops"]:
             model_key = f"{key}_model"
             if model_key in config and key in self.model_combos:
                 combo = self.model_combos[key]

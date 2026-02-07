@@ -20,6 +20,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - Coder: Claude + `claude-opus-4-6`
 - Reviewer: Codex + `gpt-5.3-codex`
 - Fixer: Codex + `gpt-5.3-codex`
+- Unit Test Prep: Gemini + `gemini-3-pro-preview`
 - Git operations: Gemini + `gemini-3-pro-preview`
 - `ConfigPanel` exposes `ExecutionConfig`; review type selections are edited through the main menu action `Settings -> Review Settings` and include all active review categories (General, Architecture, Efficiency, Error Handling, Safety, Testing, Documentation, UI/UX). The same dialog also controls whether the optional pre-review unit-test-update pass runs.
 - `ConfigPanel` keeps `Number of Questions`, `Max Main Iterations`, `Tasks Per Iteration`, and `Debug Loop Iterations` enabled during active runs so users can change upcoming question batches, loop limits, and tasks-per-iteration without stopping.

@@ -96,6 +96,7 @@ class StateContext:
         "coder": "claude",
         "reviewer": "codex",
         "fixer": "codex",
+        "unit_test_prep": "gemini",
         "git_ops": "gemini",
         "question_gen_model": "gemini-3-pro-preview",
         "description_molding_model": "gemini-3-pro-preview",
@@ -103,6 +104,7 @@ class StateContext:
         "coder_model": "claude-opus-4-6",
         "reviewer_model": "gpt-5.3-codex",
         "fixer_model": "gpt-5.3-codex",
+        "unit_test_prep_model": "gemini-3-pro-preview",
         "git_ops_model": "gemini-3-pro-preview",
     })
     # For pause/resume - track where we were
@@ -358,7 +360,11 @@ class StateMachine(QObject):
         self._context.debug_mode_enabled = bool(ctx.get("debug_mode_enabled", False))
         self._context.debug_breakpoints = normalize_debug_breakpoints(ctx.get("debug_breakpoints", {}))
         self._context.show_llm_terminals = bool(ctx.get("show_llm_terminals", True))
-        self._context.llm_config = ctx.get("llm_config", self._context.llm_config)
+        loaded_llm_config = ctx.get("llm_config", {})
+        merged_llm_config = dict(self._context.llm_config)
+        if isinstance(loaded_llm_config, dict):
+            merged_llm_config.update(loaded_llm_config)
+        self._context.llm_config = merged_llm_config
 
         self.phase_changed.emit(self._phase, self._sub_phase)
         self.context_updated.emit(self._context)

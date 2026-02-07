@@ -24,6 +24,8 @@ class ReviewWorker(BaseWorker):
                  run_unit_test_prep: bool = True,
                  reviewer_model: str = None,
                  fixer_model: str = None,
+                 unit_test_prep_provider_name: str = "gemini",
+                 unit_test_prep_model: str = "gemini-3-pro-preview",
                  runtime_config_provider: Optional[Callable[[], Dict[str, object]]] = None):
         super().__init__()
         self.reviewer_provider_name = reviewer_provider_name
@@ -36,6 +38,8 @@ class ReviewWorker(BaseWorker):
         self.run_unit_test_prep = run_unit_test_prep
         self.reviewer_model = reviewer_model
         self.fixer_model = fixer_model
+        self.unit_test_prep_provider_name = unit_test_prep_provider_name
+        self.unit_test_prep_model = unit_test_prep_model
         self.runtime_config_provider = runtime_config_provider
 
     def execute(self):
@@ -61,8 +65,11 @@ class ReviewWorker(BaseWorker):
 
         _, reviewer_model, reviewer_provider = self._get_reviewer_runtime()
         _, fixer_model, fixer_provider = self._get_fixer_runtime()
+        _, unit_test_model, unit_test_provider = self._get_unit_test_prep_runtime()
         self.log(f"Reviewer LLM: {reviewer_provider.display_name}", "info")
         self.log(f"Fixer LLM: {fixer_provider.display_name}", "info")
+        if self.run_unit_test_prep:
+            self.log(f"Unit Test Prep LLM: {unit_test_provider.display_name}", "info")
 
         file_manager = FileManager(self.working_directory)
         file_manager.ensure_files_exist()
@@ -77,7 +84,7 @@ class ReviewWorker(BaseWorker):
         )
 
         if self.run_unit_test_prep:
-            if not self._run_pre_review_unit_test_phase(fixer_provider, fixer_model):
+            if not self._run_pre_review_unit_test_phase(unit_test_provider, unit_test_model):
                 self.log("Pre-review unit test phase interrupted", "warning")
         else:
             self.log("Skipping optional pre-review unit test phase (disabled)", "info")
@@ -273,5 +280,13 @@ class ReviewWorker(BaseWorker):
         runtime = self._get_runtime_config()
         provider_name = str(runtime.get("fixer", self.fixer_provider_name))
         model = runtime.get("fixer_model", self.fixer_model)
+        provider = LLMProviderRegistry.get(provider_name)
+        return provider_name, model, provider
+
+    def _get_unit_test_prep_runtime(self):
+        """Resolve live unit-test-prep provider/model values."""
+        runtime = self._get_runtime_config()
+        provider_name = str(runtime.get("unit_test_prep", self.unit_test_prep_provider_name))
+        model = runtime.get("unit_test_prep_model", self.unit_test_prep_model)
         provider = LLMProviderRegistry.get(provider_name)
         return provider_name, model, provider

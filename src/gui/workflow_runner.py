@@ -121,12 +121,16 @@ class WorkflowRunnerMixin:
             run_unit_test_prep=ctx.run_unit_test_prep,
             reviewer_model=ctx.llm_config.get("reviewer_model"),
             fixer_model=ctx.llm_config.get("fixer_model"),
+            unit_test_prep_provider_name=ctx.llm_config.get("unit_test_prep", "gemini"),
+            unit_test_prep_model=ctx.llm_config.get("unit_test_prep_model", "gemini-3-pro-preview"),
             runtime_config_provider=lambda: {
                 "debug_iterations": self.state_machine.context.debug_iterations,
                 "reviewer": self.state_machine.context.llm_config.get("reviewer", "claude"),
                 "fixer": self.state_machine.context.llm_config.get("fixer", "claude"),
                 "reviewer_model": self.state_machine.context.llm_config.get("reviewer_model"),
                 "fixer_model": self.state_machine.context.llm_config.get("fixer_model"),
+                "unit_test_prep": self.state_machine.context.llm_config.get("unit_test_prep", "gemini"),
+                "unit_test_prep_model": self.state_machine.context.llm_config.get("unit_test_prep_model", "gemini-3-pro-preview"),
             }
         )
 

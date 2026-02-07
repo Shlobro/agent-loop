@@ -53,6 +53,7 @@ class SettingsMixin:
             coder=llm_config.coder,
             reviewer=llm_config.reviewer,
             fixer=llm_config.fixer,
+            unit_test_prep=llm_config.unit_test_prep,
             git_ops=llm_config.git_ops,
             question_gen_model=llm_config.question_gen_model,
             description_molding_model=llm_config.description_molding_model,
@@ -60,6 +61,7 @@ class SettingsMixin:
             coder_model=llm_config.coder_model,
             reviewer_model=llm_config.reviewer_model,
             fixer_model=llm_config.fixer_model,
+            unit_test_prep_model=llm_config.unit_test_prep_model,
             git_ops_model=llm_config.git_ops_model,
             max_main_iterations=exec_config.max_main_iterations,
             debug_loop_iterations=exec_config.debug_loop_iterations,
@@ -108,6 +110,7 @@ class SettingsMixin:
                     "coder": settings.coder,
                     "reviewer": settings.reviewer,
                     "fixer": settings.fixer,
+                    "unit_test_prep": settings.unit_test_prep,
                     "git_ops": settings.git_ops,
                     "question_gen_model": settings.question_gen_model,
                     "description_molding_model": settings.description_molding_model,
@@ -115,6 +118,7 @@ class SettingsMixin:
                     "coder_model": settings.coder_model,
                     "reviewer_model": settings.reviewer_model,
                     "fixer_model": settings.fixer_model,
+                    "unit_test_prep_model": settings.unit_test_prep_model,
                     "git_ops_model": settings.git_ops_model,
                 }
                 self.llm_selector_panel.set_config(llm_config_dict)

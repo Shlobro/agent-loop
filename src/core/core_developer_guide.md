@@ -22,7 +22,7 @@ Implements the workflow state machine, persistence, file/session I/O, and shared
 - `MainWindow` owns the `StateMachine` and applies context updates for every phase.
 - Workers call `FileManager` for workflow artifact I/O.
 - `SessionManager` serializes `StateMachine.to_dict()` and restores with `from_dict()`.
-- Default stage LLM config is seeded in `StateContext.llm_config` (including `description_molding` for the post-Q&A rewrite) and is replaced by the current UI selection at workflow start.
+- Default stage LLM config is seeded in `StateContext.llm_config` (including `description_molding` for the post-Q&A rewrite and `unit_test_prep` for the pre-review unit-test phase) and is replaced by the current UI selection at workflow start.
 - Debug step config also lives in `StateContext` (`debug_mode_enabled`, per-stage `debug_breakpoints`, `show_llm_terminals`) so pause points and terminal visibility can be saved/loaded and restored from sessions.
 
 ## When to Edit Core
