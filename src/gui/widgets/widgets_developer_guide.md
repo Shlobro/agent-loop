@@ -24,7 +24,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - Git operations: Gemini + `gemini-3-pro-preview`
 - `ConfigPanel` exposes `ExecutionConfig`; review type selections are edited through the main menu action `Settings -> Review Settings` and include all active review categories (General, Architecture, Efficiency, Error Handling, Safety, Testing, Documentation, UI/UX). The same dialog also controls whether the optional pre-review unit-test-update pass runs.
 - `ConfigPanel` keeps `Number of Questions`, `Max Main Iterations`, `Tasks Per Iteration`, and `Debug Loop Iterations` enabled during active runs so users can change upcoming question batches, loop limits, and tasks-per-iteration without stopping.
-- `ConfigPanel` performs early git bootstrap for the selected working directory: checks whether the directory is already a git repo, runs `git init` when needed, shows a user-facing install notice if git commands are unavailable/fail, and configures `origin` when a remote URL is set.
+- `ConfigPanel` performs git bootstrap checks for the selected working directory both when the directory/remote changes and when planning starts: checks whether the directory is already a git repo, runs `git init` when needed, shows a user-facing install notice if git commands are unavailable/fail, and configures `origin` when a remote URL is set.
 - `QuestionPanel` emits signals for submitted batch answers, generating another batch, or start planning.
 - `LogViewer` listens to worker log and LLM output signals from `MainWindow`.
 

@@ -9,7 +9,7 @@ from PySide6.QtCore import Signal
 from dataclasses import dataclass, field
 from pathlib import Path
 import subprocess
-from typing import List
+from typing import List, Optional
 
 from ...llm.prompt_templates import PromptTemplates, ReviewType
 from ..dialogs.review_settings_dialog import ReviewSettingsDialog
@@ -145,8 +145,7 @@ class ConfigPanel(QWidget):
         """Handle working directory change."""
         path = self.working_dir_edit.text()
         if path and Path(path).exists() and Path(path).is_dir():
-            if self._ensure_git_repository(path):
-                self._setup_git_remote(path, self.git_remote_edit.text().strip())
+            self.ensure_git_ready(path, self.git_remote_edit.text().strip())
         self.working_directory_changed.emit(path)
         self.config_changed.emit()
 
@@ -158,8 +157,22 @@ class ConfigPanel(QWidget):
             return
         if not Path(directory).exists() or not Path(directory).is_dir():
             return
-        if self._ensure_git_repository(directory):
-            self._setup_git_remote(directory, remote)
+        self.ensure_git_ready(directory, remote)
+
+    def ensure_git_ready(self, directory: str = "", remote: Optional[str] = None) -> bool:
+        """Ensure git repository and remote setup for a working directory."""
+        target_dir = (directory or self.get_working_directory() or "").strip()
+        if not target_dir:
+            return False
+        path_obj = Path(target_dir)
+        if not path_obj.exists() or not path_obj.is_dir():
+            return False
+        if not self._ensure_git_repository(target_dir):
+            return False
+        remote_url = self.git_remote_edit.text().strip() if remote is None else remote.strip()
+        if remote_url:
+            self._setup_git_remote(target_dir, remote_url)
+        return True
 
     def _show_git_install_notice(self):
         """Show a one-time notice that git is required."""

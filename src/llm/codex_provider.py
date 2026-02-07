@@ -31,17 +31,30 @@ class CodexProvider(BaseLLMProvider):
         """Return available Codex models."""
         return self.MODELS
 
+    @property
+    def uses_stdin(self) -> bool:
+        """Send prompts via stdin to avoid Windows shell/newline argument issues."""
+        return True
+
     def build_command(self, prompt: str, model: Optional[str] = None,
                       working_directory: Optional[str] = None) -> List[str]:
-        """Build codex CLI command."""
+        """Build codex CLI command.
+
+        The prompt is provided through stdin by LLMWorker.
+        """
         cmd = ["codex", "exec", "--skip-git-repo-check", "--full-auto"]
         output_path = self.get_output_last_message_path(working_directory)
         if output_path:
             cmd.extend(["--output-last-message", output_path])
         if model:
             cmd.extend(["--model", model])
-        cmd.append(prompt)
+        # Use "-" so codex reads initial instructions from stdin.
+        cmd.append("-")
         return cmd
+
+    def get_stdin_prompt(self, prompt: str) -> str:
+        """Return the prompt to send via stdin."""
+        return prompt
 
     def get_output_instruction(self, output_type: str) -> str:
         """Return format instruction for Codex using centralized standards."""

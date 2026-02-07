@@ -1017,6 +1017,18 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     def _finish_question_phase(self):
         """Finalize question loop and move to task planning."""
         ctx = self.state_machine.context
+        if not self.config_panel.ensure_git_ready(ctx.working_directory, self.config_panel.get_git_remote()):
+            self.log_viewer.append_log(
+                "Cannot start task planning because git repository initialization failed.",
+                "error"
+            )
+            QMessageBox.warning(
+                self,
+                "Git Initialization Required",
+                "Task planning requires a git repository in the working directory.\n"
+                "Please install/fix Git and try again."
+            )
+            return
         description = self.description_panel.get_description()
         self._sync_description_to_file(description)
         answers = {

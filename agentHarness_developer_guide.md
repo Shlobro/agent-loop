@@ -18,7 +18,7 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 
 ## Workflow Overview (High Level)
 1. UI collects description, LLM choices, and execution settings. Review type selection is exposed through the top menu `Settings -> Review Settings`. The description is synced to `product-description.md`, and the GUI value is force-written to that file before each question batch and before planning. After answers are submitted, only the current Q&A batch is rewritten into `product-description.md` using `PromptTemplates.format_definition_rewrite_prompt`; only this rewrite step pushes file content back into the GUI. Stored Q&A context is then cleared so the rewritten description is treated as the new initial input. During a run, LLM stage selections and iteration/question count controls remain editable and are applied to upcoming phases and iterations.
-2. When a working directory is selected (including the startup default), UI config handling ensures the directory is a git repo (`git init` if needed), surfaces a user-facing notice when git is missing, and configures `origin` if a remote URL is set.
+2. When a working directory is selected (including the startup default), UI config handling ensures the directory is a git repo (`git init` if needed), surfaces a user-facing notice when git is missing, and configures `origin` if a remote URL is set. The same git readiness check is run again when the user starts planning from the question flow.
 3. `StateMachine` tracks phase/context; `MainWindow` dispatches workers.
 4. Question generation initializes an empty `questions.json` and expects the LLM to write a batch into it in a single attempt (no stdout parsing or fallback prompts); generating another batch deletes the previous `questions.json`.
 5. Description molding runs after answers are submitted: it rewrites Q&A plus the current description into `product-description.md` using the dedicated `description_molding` stage/model; this step is file-first (`product-description.md` updates the UI, not the other way around).
@@ -78,7 +78,7 @@ Use this when picking up items from `TODO's`.
 - LLM prompts and providers: `src/llm/`.
 - LLM provider CLI flags, commands, and curated model IDs used by the UI: `src/llm/*_provider.py`.
 - Default per-stage LLM provider/model assignments (including `description_molding` and `unit_test_prep`): `src/gui/widgets/llm_selector_panel.py` (UI defaults) and `src/core/state_machine.py` (`StateContext` fallback).
-- LLM output capture and prompt transport behavior (argv vs stdin/output-file): `src/workers/llm_worker.py`, `src/llm/*_provider.py` (Claude and Gemini use stdin prompts).
+- LLM output capture and prompt transport behavior (argv vs stdin/output-file): `src/workers/llm_worker.py`, `src/llm/*_provider.py` (Claude, Gemini, and Codex use stdin prompts).
 - Debug stepping/breakpoints and terminal popup visibility: `src/core/debug_settings.py`, `src/gui/dialogs/debug_settings_dialog.py`, `src/gui/main_window.py`, `src/workers/llm_worker.py`.
 - Review label formatting in UI/logs: `src/gui/main_window.py` (uses `PromptTemplates.get_review_display_name`).
 - Background phase logic: `src/workers/`.
