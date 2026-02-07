@@ -8,7 +8,7 @@ Defines the LLM provider abstraction, prompt templates, and provider registry us
 - `claude_provider.py`: Claude CLI implementation (`claude -p` with prompt via stdin), one-time permissions setup, and curated Claude model IDs.
 - `gemini_provider.py`: Gemini CLI implementation using stdin and `--yolo`.
 - `codex_provider.py`: Codex CLI implementation using `codex exec --skip-git-repo-check --full-auto`, writing the last message to a file for parsing.
-- `prompt_templates.py`: Prompt strings for all workflow phases and review types (General, Architecture, Efficiency, Error Handling, Unit Test, UI/UX), plus review display labels and per-type review file naming (`review/<type>.md`). Includes a git prompt that generates only a commit message file (no LLM push prompt) and now embeds a git status/diff snapshot directly in the prompt so the LLM does not need to run `git diff`. Review prompts are issue-only (no positive notes) and require leaving the target file empty when no issues are found.
+- `prompt_templates.py`: Prompt strings for all workflow phases and review types (General, Architecture, Efficiency, Error Handling, Safety, Testing, Documentation, UI/UX), plus review display labels and per-type review file naming (`review/<type>.md`). Includes an optional pre-review unit-test-update prompt that runs before review cycles and uses `git diff` to decide whether tests should be added or edited. Includes a git prompt that generates only a commit message file (no LLM push prompt) and now embeds a git status/diff snapshot directly in the prompt so the LLM does not need to run `git diff`. Review prompts are issue-only (no positive notes) and require leaving the target file empty when no issues are found.
 - `__init__.py`: Registers built-in providers.
 
 ## Key Interactions
@@ -20,7 +20,7 @@ Defines the LLM provider abstraction, prompt templates, and provider registry us
 ## When to Edit LLM
 - Add a new provider or model list: create a provider in this folder and register it in `__init__.py`.
 - Change output enforcement rules (JSON/tasks/review formatting): `base_provider.py`.
-- Add or reorder review types (including General, Unit Test, and UI/UX) or change per-type review file naming: `prompt_templates.py`.
+- Add or reorder review types (including General and UI/UX), tune the optional pre-review unit-test-update prompt, or change per-type review file naming: `prompt_templates.py`.
 - Update question/planning/execution prompts (including the Q&A-to-definition rewrite prompt and the tasks.md write instructions): `prompt_templates.py`.
 
 ## Change Map

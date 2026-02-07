@@ -117,6 +117,7 @@ class WorkflowRunnerMixin:
             iterations=ctx.debug_iterations,
             start_iteration=ctx.current_debug_iteration,
             review_types=ctx.review_types,
+            run_unit_test_prep=ctx.run_unit_test_prep,
             reviewer_model=ctx.llm_config.get("reviewer_model"),
             fixer_model=ctx.llm_config.get("fixer_model")
         )

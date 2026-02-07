@@ -459,6 +459,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             git_mode=self.git_mode,
             git_remote=config.git_remote,
             review_types=config.review_types,
+            run_unit_test_prep=config.run_unit_test_prep,
             llm_config=llm_config
         )
         self._reset_activity_state()
@@ -487,6 +488,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             [PromptTemplates.get_review_display_name(r) for r in review_types]
         ) or "(none)"
         self.log_viewer.append_log(f"  Review Types: {review_labels}", "info")
+        self.log_viewer.append_log(
+            f"  Pre-Review Unit Test Update: {'enabled' if config.run_unit_test_prep else 'disabled'}",
+            "info"
+        )
         self.log_viewer.append_log(f"  Git Mode: {self.git_mode}", "info")
         self.log_viewer.append_log(f"  Git Remote: {config.git_remote or '(not set)'}", "info")
         self.log_viewer.append_log("LLM PROVIDERS:", "info")
@@ -714,7 +719,9 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
                 working_directory=ctx.working_directory,
                 git_remote=ctx.git_remote,
                 git_mode=ctx.git_mode,
-                max_questions=ctx.max_questions
+                max_questions=ctx.max_questions,
+                review_types=ctx.review_types,
+                run_unit_test_prep=ctx.run_unit_test_prep
             ))
             self._apply_git_mode(ctx.git_mode)
 

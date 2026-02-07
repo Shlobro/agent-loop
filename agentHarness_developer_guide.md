@@ -24,7 +24,7 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 5. Description molding runs after answers are submitted: it rewrites Q&A plus the current description into `product-description.md` using the dedicated `description_molding` stage/model; this step is file-first (`product-description.md` updates the UI, not the other way around).
 6. Task planning reads `product-description.md` when available and has the LLM write directly to `tasks.md`.
 7. Main execution completes one task per iteration and updates `recent-changes.md`.
-8. When a valid working directory is active (including the startup default path), initialization ensures `review/` exists with one file per review type; the review loop writes findings to the active file only, skips fixer when that file is empty, and truncates the active file after each completed fix cycle.
+8. When a valid working directory is active (including the startup default path), initialization ensures `review/` exists with one file per active review type; the review loop can run an optional pre-review unit-test-update pass (uses `git diff` to decide whether tests should be added/edited), writes findings to the active file only, skips fixer when that file is empty, and truncates the active file after each completed fix cycle.
 9. Git operations run as a hybrid flow: code captures `git status --porcelain` plus a `git diff` snapshot and injects them into the git prompt, the LLM writes only a commit message into `.agentharness/git-commit-message.txt`, and the app performs `git add`, `git commit`, and optional `git push` in code; after a successful commit the message file is truncated.
 10. Debug step mode is controlled from `Settings -> Debug Settings`: stage-specific before/after breakpoints pause right before or right after each LLM call until the user clicks `Next Step`.
 11. A debug setting controls whether per-call live terminal windows are shown on Windows.
@@ -33,7 +33,7 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 Created in the selected working directory (not the repo root):
 - `tasks.md`: Task checklist and completion state.
 - `recent-changes.md`: Rolling log of code changes.
-- `review/`: Per-review-type findings files (for example `review/general.md`, `review/unit_test.md`, `review/ui_ux.md`).
+- `review/`: Per-review-type findings files (for example `review/general.md`, `review/architecture.md`, `review/ui_ux.md`).
 - `product-description.md`: Synced project description from the UI.
 - `product-description.md`: Q&A-rewritten product definition used for task planning.
 - `session_state.json`: Pause/resume snapshot of workflow state.
@@ -48,7 +48,7 @@ Use this when picking up items from `TODO's`.
 - Warn when debug loop iterations are 0 at Start: `src/gui/main_window.py`, `src/gui/widgets/config_panel.py`.
 - Detect Gemini quota errors and prompt for LLM switch: `src/workers/llm_worker.py`, `src/llm/gemini_provider.py`, `src/core/exceptions.py`, `src/gui/main_window.py`.
 - Detect Claude quota errors and prompt for LLM switch: `src/workers/llm_worker.py`, `src/llm/claude_provider.py`, `src/core/exceptions.py`, `src/gui/main_window.py`.
-- Add or adjust review types/settings UI: `src/llm/prompt_templates.py`, `src/core/state_machine.py`, `src/core/project_settings.py`, `src/gui/widgets/config_panel.py`, `src/gui/dialogs/review_settings_dialog.py`, `src/workers/review_worker.py`.
+- Add or adjust review types/settings UI or optional pre-review unit-test-update behavior: `src/llm/prompt_templates.py`, `src/core/state_machine.py`, `src/core/project_settings.py`, `src/gui/widgets/config_panel.py`, `src/gui/dialogs/review_settings_dialog.py`, `src/workers/review_worker.py`.
 - Flag files per step and skip review iterations on "all clear": `src/core/file_manager.py`, `src/workers/review_worker.py`, `src/gui/main_window.py`.
 - Reset state on app relaunch (clear questions.json, etc): `src/gui/main_window.py`, `src/core/file_manager.py`, `src/workers/question_worker.py`.
 - Show generated description and task checklist/progress in UI: `src/workers/planning_worker.py`, `src/gui/widgets/description_panel.py`, `src/gui/widgets/status_panel.py`, `src/gui/main_window.py`.

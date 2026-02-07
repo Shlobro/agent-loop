@@ -30,6 +30,7 @@ class ProjectSettings:
     review_types: List[str] = field(
         default_factory=lambda: [ReviewType.GENERAL.value]
     )
+    run_unit_test_prep: bool = True
 
     # Execution Configuration
     max_main_iterations: int = 10
@@ -125,5 +126,7 @@ class ProjectSettingsManager:
         )
         if "show_llm_terminals" not in normalized:
             normalized["show_llm_terminals"] = True
+        if "run_unit_test_prep" not in normalized:
+            normalized["run_unit_test_prep"] = True
 
         return normalized

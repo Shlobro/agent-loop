@@ -5,7 +5,7 @@ Contains modal dialogs used by the GUI for user approvals and confirmations.
 
 ## Contents
 - `git_approval_dialog.py`: Modal dialog asking whether to push committed changes and optionally remember the choice.
-- `review_settings_dialog.py`: Modal dialog for selecting which review types/reviewers run during the debug/review loop.
+- `review_settings_dialog.py`: Modal dialog for selecting which review types/reviewers run during the debug/review loop and whether the optional pre-review unit-test-update phase runs.
 - `debug_settings_dialog.py`: Modal dialog for enabling/disabling debug step mode, choosing per-stage before/after pause points, and toggling LLM terminal window popups.
 - `__init__.py`: Module marker.
 

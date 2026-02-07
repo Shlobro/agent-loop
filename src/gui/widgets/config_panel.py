@@ -27,6 +27,7 @@ class ExecutionConfig:
     review_types: List[str] = field(
         default_factory=lambda: [ReviewType.GENERAL.value]
     )
+    run_unit_test_prep: bool = True
 
 
 class ConfigPanel(QWidget):
@@ -43,6 +44,7 @@ class ConfigPanel(QWidget):
         self._controls_enabled = True
         self._all_review_types = [r.value for r in PromptTemplates.get_all_review_types()]
         self._selected_review_types = [ReviewType.GENERAL.value]
+        self._run_unit_test_prep = True
         self._git_install_notice_shown = False
         self.setup_ui()
 
@@ -117,9 +119,14 @@ class ConfigPanel(QWidget):
 
     def open_review_settings(self):
         """Open dialog for selecting review types."""
-        dialog = ReviewSettingsDialog(self._selected_review_types, self)
+        dialog = ReviewSettingsDialog(
+            self._selected_review_types,
+            self._run_unit_test_prep,
+            self
+        )
         if dialog.exec():
             self._selected_review_types = dialog.get_selected_review_types()
+            self._run_unit_test_prep = dialog.get_run_unit_test_prep()
             self._on_config_changed()
 
     def _on_working_dir_changed(self):
@@ -289,7 +296,8 @@ class ConfigPanel(QWidget):
             git_remote=self.git_remote_edit.text().strip(),
             git_mode=self._git_mode,
             max_questions=self.max_questions_spin.value(),
-            review_types=self.get_review_types()
+            review_types=self.get_review_types(),
+            run_unit_test_prep=self.get_run_unit_test_prep()
         )
 
     def set_config(self, config: ExecutionConfig):
@@ -302,12 +310,17 @@ class ConfigPanel(QWidget):
         self.set_git_mode(config.git_mode)
         selected = config.review_types if config.review_types is not None else self._all_review_types
         self._selected_review_types = [review for review in self._all_review_types if review in set(selected)]
+        self._run_unit_test_prep = bool(config.run_unit_test_prep)
 
     def get_review_types(self) -> List[str]:
         """Get the selected review types."""
         return [
             review_type for review_type in self._selected_review_types
         ]
+
+    def get_run_unit_test_prep(self) -> bool:
+        """Return whether pre-review unit test update phase is enabled."""
+        return self._run_unit_test_prep
 
     def set_working_directory(self, path: str):
         """Set the working directory."""

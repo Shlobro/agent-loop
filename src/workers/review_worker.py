@@ -19,6 +19,7 @@ class ReviewWorker(BaseWorker):
                  iterations: int = 1,
                  start_iteration: int = 0,
                  review_types: list = None,
+                 run_unit_test_prep: bool = True,
                  reviewer_model: str = None,
                  fixer_model: str = None):
         super().__init__()
@@ -29,6 +30,7 @@ class ReviewWorker(BaseWorker):
         self.start_iteration = start_iteration
         self.current_iteration = start_iteration
         self.review_sequence = self._build_review_sequence(review_types)
+        self.run_unit_test_prep = run_unit_test_prep
         self.reviewer_model = reviewer_model
         self.fixer_model = fixer_model
 
@@ -66,6 +68,12 @@ class ReviewWorker(BaseWorker):
             f"Prepared review files in '{FileManager.REVIEW_DIR}' for {len(all_review_files)} review types",
             "debug"
         )
+
+        if self.run_unit_test_prep:
+            if not self._run_pre_review_unit_test_phase(fixer_provider):
+                self.log("Pre-review unit test phase interrupted", "warning")
+        else:
+            self.log("Skipping optional pre-review unit test phase (disabled)", "info")
 
         for iteration in range(self.start_iteration + 1, self.iterations + 1):
             if self.should_stop():
@@ -110,6 +118,30 @@ class ReviewWorker(BaseWorker):
             review_types = [ReviewType.GENERAL.value]
         selected = set(review_types)
         return [r for r in PromptTemplates.get_all_review_types() if r.value in selected]
+
+    def _run_pre_review_unit_test_phase(self, fixer_provider) -> bool:
+        """Optionally update unit tests before any review cycles begin."""
+        self.update_status("Pre-review: Unit Test Update")
+        self.log("--- PRE-REVIEW UNIT TEST UPDATE ---", "info")
+        self.log("Running optional unit test update pass using git diff...", "info")
+
+        pre_review_worker = LLMWorker(
+            provider=fixer_provider,
+            prompt=PromptTemplates.format_pre_review_unit_test_prompt(),
+            working_directory=self.working_directory,
+            model=self.fixer_model,
+            debug_stage="fixer"
+        )
+        pre_review_worker.signals.llm_output.connect(
+            lambda line: self.signals.llm_output.emit(f"[Unit Test Prep] {line}")
+        )
+        pre_review_worker.run()
+
+        if pre_review_worker._is_cancelled or self.should_stop():
+            return False
+
+        self.log("Completed optional pre-review unit test pass", "success")
+        return True
 
     def _run_review_cycle(self, review_type: ReviewType,
                           reviewer_provider, fixer_provider,

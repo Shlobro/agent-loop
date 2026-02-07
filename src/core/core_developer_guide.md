@@ -8,7 +8,7 @@ Implements the workflow state machine, persistence, file/session I/O, and shared
 - `debug_settings.py`: Shared debug-stage identifiers, labels, and breakpoint normalization/default helpers. Defaults pause **before** every stage LLM call when debug mode is on (after-call pauses default off).
 - `file_manager.py`: Atomic read/write for `tasks.md`, `recent-changes.md`, `review/` artifacts (one file per review type), `product-description.md`, git commit-message artifact (`.agentharness/git-commit-message.txt`), and governance prompt files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`).
 - `session_manager.py`: Save/load workflow state to `session_state.json` for pause/resume.
-- `project_settings.py`: `ProjectSettings` dataclass plus JSON load/save helpers.
+- `project_settings.py`: `ProjectSettings` dataclass plus JSON load/save helpers (includes review-type selection and optional pre-review unit-test-update toggle persistence).
 - `exceptions.py`: Core exception types shared by workers and UI.
 - `__init__.py`: Module marker.
 
@@ -35,4 +35,4 @@ Implements the workflow state machine, persistence, file/session I/O, and shared
 ## Change Map
 - Phase flow and pause/resume: `state_machine.py`, `session_manager.py`.
 - Artifact limits (like recent-changes size): `file_manager.py`.
-- Default review types or LLM config storage: `project_settings.py`, `state_machine.py`.
+- Default review types, pre-review unit-test-update defaults, or LLM config storage: `project_settings.py`, `state_machine.py`.

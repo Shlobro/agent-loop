@@ -10,7 +10,7 @@ Implements QRunnable workers that execute each workflow phase asynchronously and
 - `question_worker.py`: Generates a batch of clarifying questions from the LLM and loads them exclusively from `questions.json` (single attempt; no stdout parsing or fallback prompts). Also contains the worker that rewrites Q&A into `product-description.md` before additional question batches and only trusts file-based output from `product-description.md` (stdout is ignored for rewrite content).
 - `planning_worker.py`: Reads `product-description.md` (when available), prepares an empty `tasks.md`, and loads the task list after the LLM writes directly to it.
 - `execution_worker.py`: Executes a single task iteration and updates task state in `tasks.md`.
-- `review_worker.py`: Runs review/fix cycles per selected review type (including UI/UX), initializes `review/` with empty files for every review type, reads findings from the current review file, skips fixer when that file is empty, and truncates the same file after each completed fix cycle.
+- `review_worker.py`: Runs an optional pre-review unit-test-update pass (uses `git diff` and may add/edit tests) before review/fix cycles per selected review type (including UI/UX), initializes `review/` with empty files for every review type, reads findings from the current review file, skips fixer when that file is empty, and truncates the same file after each completed fix cycle.
 - `git_worker.py`: Hybrid git phase where code captures `git status --porcelain` and `git diff` and injects them into the LLM commit-message prompt, the LLM writes only a commit message file (`.agentharness/git-commit-message.txt`), then code performs `git add`, `git commit`, and optional `git push`, and truncates the commit-message file after a successful commit.
 - `__init__.py`: Module marker.
 
@@ -28,7 +28,7 @@ Implements QRunnable workers that execute each workflow phase asynchronously and
 - Update question generation flow or JSON file output: `question_worker.py`.
 - Modify task planning structure or description generation: `planning_worker.py`.
 - Change how tasks are chosen or marked complete: `execution_worker.py`.
-- Change review iteration rules, per-type review file behavior, or early-exit logic: `review_worker.py`.
+- Change pre-review unit-test-update behavior, review iteration rules, per-type review file behavior, or early-exit logic: `review_worker.py`.
 - Alter git commit/push behavior: `git_worker.py`.
 
 ## Change Map

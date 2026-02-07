@@ -101,6 +101,21 @@ CRITICAL RULES:
     # =========================================================================
     # Phase 4: Review Prompts
     # =========================================================================
+    PRE_REVIEW_UNIT_TEST_UPDATE = '''
+Before starting the review phase, inspect recent code changes and decide whether unit tests should be added or updated.
+
+Use `git diff` to inspect changes.
+
+If tests are needed:
+- Add new unit tests and/or update existing unit tests to match the code changes.
+- Keep tests deterministic and isolated.
+- Cover important edge cases and error paths that changed.
+
+If tests are not needed, do not make code changes.
+
+Always update recent-changes.md if you add or edit tests.
+'''
+
     REVIEW_PROMPTS = {
         ReviewType.GENERAL: '''
 Review the recent code changes.
@@ -272,7 +287,6 @@ GIT DIFF:
             ReviewType.ERROR_HANDLING,
             ReviewType.SAFETY,
             ReviewType.TESTING,
-            ReviewType.UNIT_TEST,
             ReviewType.DOCUMENTATION,
             ReviewType.UI_UX,
         ]
@@ -361,6 +375,11 @@ GIT DIFF:
             review_type=review_type,
             review_content=review_content
         )
+
+    @classmethod
+    def format_pre_review_unit_test_prompt(cls) -> str:
+        """Format prompt for the optional pre-review unit test update phase."""
+        return cls.PRE_REVIEW_UNIT_TEST_UPDATE
 
     @classmethod
     def format_git_commit_message_prompt(cls, message_file: str,

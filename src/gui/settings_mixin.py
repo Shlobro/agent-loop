@@ -70,7 +70,8 @@ class SettingsMixin:
             git_mode=exec_config.git_mode,
             working_directory=exec_config.working_directory,
             git_remote=exec_config.git_remote,
-            review_types=exec_config.review_types
+            review_types=exec_config.review_types,
+            run_unit_test_prep=exec_config.run_unit_test_prep
         )
         file_path, _ = QFileDialog.getSaveFileName(
             self,
@@ -123,7 +124,8 @@ class SettingsMixin:
                     working_directory=settings.working_directory,
                     git_remote=settings.git_remote,
                     git_mode=settings.git_mode,
-                    review_types=settings.review_types
+                    review_types=settings.review_types,
+                    run_unit_test_prep=settings.run_unit_test_prep
                 )
                 self.config_panel.set_config(exec_config)
                 self._apply_git_mode(settings.git_mode)
@@ -141,4 +143,3 @@ class SettingsMixin:
             except Exception as e:
                 self.log_viewer.append_log(f"Failed to load settings: {e}", "error")
                 QMessageBox.critical(self, "Error", f"Failed to load settings:\n{e}")
-
