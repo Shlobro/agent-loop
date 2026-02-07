@@ -28,7 +28,7 @@ class PromptTemplates:
 read the product-description.md file this is currently what we know the client wants.
 we want to send the client some questions to clarify a few things i want you come up with {question_count} questions to clarify.
 provide the user with 3-5 possible answers for each question.
-the format of the json should be: {{"questions":[{{"question":"...","options":["...","..."]}}]}}.\n\n'
+the format of the json should be: {{"questions":[{{"question":"...","options":["...","..."]}}]}}.\n\n
 there already exists an empty questions.json file. edit it and put the questions there.
 Do not implement any code I only want the clarifying questions in the `questions.json` file.
 Do not create any new files, only edit the existing questions.json with new questions and answers.

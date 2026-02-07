@@ -55,8 +55,6 @@ class FileManager:
             if not self.recent_changes_file.exists():
                 self.recent_changes_file.write_text("# Recent Changes\n\n", encoding="utf-8")
 
-            if not self.review_file.exists():
-                self.review_file.write_text("", encoding="utf-8")
             self.review_dir.mkdir(parents=True, exist_ok=True)
             description_path = self.working_dir / self.DESCRIPTION_FILE
             if not description_path.exists():

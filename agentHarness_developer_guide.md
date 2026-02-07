@@ -24,7 +24,7 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 5. Description molding runs after answers are submitted: it rewrites Q&A plus the current description into `product-description.md` using the dedicated `description_molding` stage/model; this step is file-first (`product-description.md` updates the UI, not the other way around).
 6. Task planning reads `product-description.md` when available and has the LLM write directly to `tasks.md`.
 7. Main execution completes one task per iteration and updates `recent-changes.md`.
-8. Review loop (including General, Unit Test, and UI/UX review types) initializes `review/` with one file per review type, writes findings to the active file only, skips fixer when that file is empty, and truncates the active file after each completed fix cycle.
+8. When a valid working directory is active (including the startup default path), initialization ensures `review/` exists with one file per review type; the review loop writes findings to the active file only, skips fixer when that file is empty, and truncates the active file after each completed fix cycle.
 9. Git operations run as a hybrid flow: code captures `git status --porcelain` plus a `git diff` snapshot and injects them into the git prompt, the LLM writes only a commit message into `.agentharness/git-commit-message.txt`, and the app performs `git add`, `git commit`, and optional `git push` in code; after a successful commit the message file is truncated.
 10. Debug step mode is controlled from `Settings -> Debug Settings`: stage-specific before/after breakpoints pause right before or right after each LLM call until the user clicks `Next Step`.
 11. A debug setting controls whether per-call live terminal windows are shown on Windows.
@@ -34,7 +34,6 @@ Created in the selected working directory (not the repo root):
 - `tasks.md`: Task checklist and completion state.
 - `recent-changes.md`: Rolling log of code changes.
 - `review/`: Per-review-type findings files (for example `review/general.md`, `review/unit_test.md`, `review/ui_ux.md`).
-- `review.md`: Legacy compatibility review file.
 - `product-description.md`: Synced project description from the UI.
 - `product-description.md`: Q&A-rewritten product definition used for task planning.
 - `session_state.json`: Pause/resume snapshot of workflow state.

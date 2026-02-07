@@ -70,6 +70,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.setup_menu_bar()
         self.setup_ui()
         self.connect_signals()
+        self._initialize_startup_working_directory()
         self.update_button_states()
 
     def setup_menu_bar(self):
@@ -224,6 +225,30 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.review_settings_action.triggered.connect(self.config_panel.open_review_settings)
         self.debug_settings_action.triggered.connect(self.on_open_debug_settings)
         self.debug_step_requested.connect(self.on_debug_step_requested)
+
+    def _initialize_startup_working_directory(self):
+        """Initialize artifacts for the startup/default working directory."""
+        self._prepare_working_directory(self.config_panel.get_working_directory())
+
+    def _prepare_working_directory(self, path: str):
+        """Ensure working-directory artifacts exist and are ready."""
+        if not path:
+            return
+        path_obj = Path(path)
+        if not path_obj.exists() or not path_obj.is_dir():
+            return
+
+        self.session_manager.set_working_directory(path)
+        self.file_manager = FileManager(path)
+        try:
+            self.file_manager.ensure_files_exist()
+            review_files = [
+                PromptTemplates.get_review_filename(review_type)
+                for review_type in PromptTemplates.get_all_review_types()
+            ]
+            self.file_manager.ensure_review_files_exist(review_files)
+        except Exception as exc:
+            self.log_viewer.append_log(f"Failed to initialize working directory files: {exc}", "warning")
 
     def set_git_mode(self, mode: str):
         """Set git mode and update related UI."""
@@ -644,31 +669,35 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     @Slot(str)
     def on_working_dir_changed(self, path: str):
         """Handle working directory change."""
-        if path:
-            self.session_manager.set_working_directory(path)
-            self.file_manager = FileManager(path)
-            existing = self._load_description_from_file()
-            if existing:
-                self.description_panel.set_description(existing)
-                self.state_machine.update_context(description=existing)
-            else:
-                self._sync_description_to_file(self.description_panel.get_description())
+        if not path:
+            return
+        path_obj = Path(path)
+        if not path_obj.exists() or not path_obj.is_dir():
+            return
 
-            # Check for existing session
-            if self.session_manager.has_saved_session():
-                info = self.session_manager.get_session_info()
-                if info:
-                    reply = QMessageBox.question(
-                        self, "Resume Session?",
-                        f"Found saved session from {info.get('saved_at', 'unknown')}.\n"
-                        f"Phase: {info.get('phase', 'unknown')}, "
-                        f"Iteration: {info.get('iteration', 0)}\n\n"
-                        "Would you like to resume it?",
-                        QMessageBox.Yes | QMessageBox.No
-                    )
+        self._prepare_working_directory(path)
+        existing = self._load_description_from_file()
+        if existing:
+            self.description_panel.set_description(existing)
+            self.state_machine.update_context(description=existing)
+        else:
+            self._sync_description_to_file(self.description_panel.get_description())
 
-                    if reply == QMessageBox.Yes:
-                        self.load_saved_session()
+        # Check for existing session
+        if self.session_manager.has_saved_session():
+            info = self.session_manager.get_session_info()
+            if info:
+                reply = QMessageBox.question(
+                    self, "Resume Session?",
+                    f"Found saved session from {info.get('saved_at', 'unknown')}.\n"
+                    f"Phase: {info.get('phase', 'unknown')}, "
+                    f"Iteration: {info.get('iteration', 0)}\n\n"
+                    "Would you like to resume it?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+
+                if reply == QMessageBox.Yes:
+                    self.load_saved_session()
 
     def load_saved_session(self):
         """Load and restore a saved session."""
