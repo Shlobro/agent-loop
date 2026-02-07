@@ -71,7 +71,8 @@ class SettingsMixin:
             working_directory=exec_config.working_directory,
             git_remote=exec_config.git_remote,
             review_types=exec_config.review_types,
-            run_unit_test_prep=exec_config.run_unit_test_prep
+            run_unit_test_prep=exec_config.run_unit_test_prep,
+            tasks_per_iteration=exec_config.tasks_per_iteration
         )
         file_path, _ = QFileDialog.getSaveFileName(
             self,
@@ -125,7 +126,8 @@ class SettingsMixin:
                     git_remote=settings.git_remote,
                     git_mode=settings.git_mode,
                     review_types=settings.review_types,
-                    run_unit_test_prep=settings.run_unit_test_prep
+                    run_unit_test_prep=settings.run_unit_test_prep,
+                    tasks_per_iteration=settings.tasks_per_iteration
                 )
                 self.config_panel.set_config(exec_config)
                 self._apply_git_mode(settings.git_mode)

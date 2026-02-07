@@ -451,6 +451,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             debug_breakpoints=self.debug_breakpoints,
             show_llm_terminals=self.show_llm_terminals,
             max_questions=config.max_questions,
+            tasks_per_iteration=config.tasks_per_iteration,
             current_question_num=0,
             qa_pairs=[],
             current_question_text="",
@@ -478,6 +479,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.log_viewer.append_log("WORKFLOW CONFIGURATION:", "info")
         self.log_viewer.append_log(f"  Working Directory: {working_dir}", "info")
         self.log_viewer.append_log(f"  Max Main Iterations: {config.max_main_iterations}", "info")
+        self.log_viewer.append_log(f"  Tasks Per Iteration: {config.tasks_per_iteration}", "info")
         self.log_viewer.append_log(f"  Number of Questions: {config.max_questions}", "info")
         self.log_viewer.append_log(f"  Debug Loop Iterations: {config.debug_loop_iterations}", "info")
         self.log_viewer.append_log(f"  Debug Step Mode: {'enabled' if self.debug_mode_enabled else 'disabled'}", "info")
@@ -723,7 +725,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
                 git_mode=ctx.git_mode,
                 max_questions=ctx.max_questions,
                 review_types=ctx.review_types,
-                run_unit_test_prep=ctx.run_unit_test_prep
+                run_unit_test_prep=ctx.run_unit_test_prep,
+                tasks_per_iteration=ctx.tasks_per_iteration
             ))
             self._apply_git_mode(ctx.git_mode)
 
@@ -921,6 +924,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             max_iterations=config.max_main_iterations,
             debug_iterations=config.debug_loop_iterations,
             max_questions=config.max_questions,
+            tasks_per_iteration=config.tasks_per_iteration,
             git_mode=config.git_mode,
             git_remote=config.git_remote,
             review_types=config.review_types,

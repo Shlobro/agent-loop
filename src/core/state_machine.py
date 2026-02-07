@@ -70,6 +70,7 @@ class StateContext:
         default_factory=lambda: [ReviewType.GENERAL.value]
     )
     run_unit_test_prep: bool = True
+    tasks_per_iteration: int = 1
     error_message: Optional[str] = None
     stop_requested: bool = False
     pause_requested: bool = False
@@ -305,6 +306,7 @@ class StateMachine(QObject):
                 "current_review_type": self._context.current_review_type,
                 "review_types": self._context.review_types,
                 "run_unit_test_prep": self._context.run_unit_test_prep,
+                "tasks_per_iteration": self._context.tasks_per_iteration,
                 "working_directory": self._context.working_directory,
                 "git_mode": self._context.git_mode,
                 "git_remote": self._context.git_remote,
@@ -342,6 +344,7 @@ class StateMachine(QObject):
             [ReviewType.GENERAL.value]
         )
         self._context.run_unit_test_prep = bool(ctx.get("run_unit_test_prep", True))
+        self._context.tasks_per_iteration = ctx.get("tasks_per_iteration", 1)
         self._context.working_directory = ctx.get("working_directory", "")
         self._context.git_mode = ctx.get("git_mode", "local")
         self._context.git_remote = ctx.get("git_remote", "")

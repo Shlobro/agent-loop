@@ -57,7 +57,8 @@ class WorkflowRunnerMixin:
             provider_name=ctx.llm_config.get("coder", "claude"),
             working_directory=ctx.working_directory,
             current_iteration=ctx.current_iteration,
-            model=ctx.llm_config.get("coder_model")
+            model=ctx.llm_config.get("coder_model"),
+            tasks_per_iteration=ctx.tasks_per_iteration
         )
 
         self._connect_worker_signals(worker)

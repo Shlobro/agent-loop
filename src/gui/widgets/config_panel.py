@@ -28,6 +28,7 @@ class ExecutionConfig:
         default_factory=lambda: [ReviewType.GENERAL.value]
     )
     run_unit_test_prep: bool = True
+    tasks_per_iteration: int = 1
 
 
 class ConfigPanel(QWidget):
@@ -73,6 +74,17 @@ class ConfigPanel(QWidget):
         self.max_iterations_spin.setToolTip("Maximum iterations for the main execution loop")
         self.max_iterations_spin.valueChanged.connect(self._on_config_changed)
         form.addRow("Max Main Iterations:", self.max_iterations_spin)
+
+        # Tasks per iteration
+        self.tasks_per_iteration_spin = QSpinBox()
+        self.tasks_per_iteration_spin.setRange(1, 20)
+        self.tasks_per_iteration_spin.setValue(1)
+        self.tasks_per_iteration_spin.setToolTip(
+            "Number of tasks the LLM should tackle per iteration. "
+            "Increase for stronger models that can handle multiple tasks at once."
+        )
+        self.tasks_per_iteration_spin.valueChanged.connect(self._on_config_changed)
+        form.addRow("Tasks Per Iteration:", self.tasks_per_iteration_spin)
 
         # Debug loop iterations
         self.debug_iterations_spin = QSpinBox()
@@ -297,7 +309,8 @@ class ConfigPanel(QWidget):
             git_mode=self._git_mode,
             max_questions=self.max_questions_spin.value(),
             review_types=self.get_review_types(),
-            run_unit_test_prep=self.get_run_unit_test_prep()
+            run_unit_test_prep=self.get_run_unit_test_prep(),
+            tasks_per_iteration=self.tasks_per_iteration_spin.value()
         )
 
     def set_config(self, config: ExecutionConfig):
@@ -311,6 +324,7 @@ class ConfigPanel(QWidget):
         selected = config.review_types if config.review_types is not None else self._all_review_types
         self._selected_review_types = [review for review in self._all_review_types if review in set(selected)]
         self._run_unit_test_prep = bool(config.run_unit_test_prep)
+        self.tasks_per_iteration_spin.setValue(config.tasks_per_iteration)
 
     def get_review_types(self) -> List[str]:
         """Get the selected review types."""
@@ -342,6 +356,7 @@ class ConfigPanel(QWidget):
         self.max_questions_spin.setEnabled(True)
         self.max_iterations_spin.setEnabled(True)
         self.debug_iterations_spin.setEnabled(True)
+        self.tasks_per_iteration_spin.setEnabled(True)
         self.browse_button.setEnabled(enabled)
 
     def set_git_mode(self, mode: str):

@@ -17,12 +17,14 @@ class ExecutionWorker(BaseWorker):
     def __init__(self, provider_name: str = "claude",
                  working_directory: str = None,
                  current_iteration: int = 0,
-                 model: str = None):
+                 model: str = None,
+                 tasks_per_iteration: int = 1):
         super().__init__()
         self.provider_name = provider_name
         self.working_directory = working_directory
         self.current_iteration = current_iteration
         self.model = model
+        self.tasks_per_iteration = tasks_per_iteration
 
     def execute(self):
         """Execute a single task."""
@@ -89,7 +91,8 @@ class ExecutionWorker(BaseWorker):
         prompt = PromptTemplates.format_execution_prompt(
             working_directory=self.working_directory,
             recent_changes=recent_changes,
-            tasks=tasks_content
+            tasks=tasks_content,
+            tasks_per_iteration=self.tasks_per_iteration
         )
         self.log(f"Built execution prompt ({len(prompt)} chars)", "debug")
 

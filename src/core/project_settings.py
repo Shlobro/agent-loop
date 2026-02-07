@@ -31,6 +31,7 @@ class ProjectSettings:
         default_factory=lambda: [ReviewType.GENERAL.value]
     )
     run_unit_test_prep: bool = True
+    tasks_per_iteration: int = 1
 
     # Execution Configuration
     max_main_iterations: int = 10
@@ -128,5 +129,7 @@ class ProjectSettingsManager:
             normalized["show_llm_terminals"] = True
         if "run_unit_test_prep" not in normalized:
             normalized["run_unit_test_prep"] = True
+        if "tasks_per_iteration" not in normalized:
+            normalized["tasks_per_iteration"] = 1
 
         return normalized
