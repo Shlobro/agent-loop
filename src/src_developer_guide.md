@@ -34,7 +34,7 @@ Application source package for AgentHarness. This is where the workflow, UI, LLM
 - Change phase sequencing or transitions: `core/state_machine.py` and `gui/main_window.py`.
 
 ## How It Fits
-`main.py` instantiates `gui/main_window.py`. The GUI coordinates workers, which call into core utilities and LLM providers to drive the multi-phase workflow.
+`main.py` first requires a startup working-directory selection (with recent-directory shortcuts), then instantiates `gui/main_window.py`. The GUI coordinates workers, which call into core utilities and LLM providers to drive the multi-phase workflow.
 
 ## Change Map
 - Core workflow or persistence: `core/`.

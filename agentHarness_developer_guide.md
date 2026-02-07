@@ -17,7 +17,7 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 - `.idea/`, `.claude/`, `.venv/`, `.git/`: Local tools, settings, and VCS metadata.
 
 ## Workflow Overview (High Level)
-1. UI collects description, LLM choices, and execution settings. Review type selection is exposed through the top menu `Settings -> Review Settings`. The description is synced to `product-description.md`, and the GUI value is force-written to that file before each question batch and before planning. After answers are submitted, only the current Q&A batch is rewritten into `product-description.md` using `PromptTemplates.format_definition_rewrite_prompt`; only this rewrite step pushes file content back into the GUI. Stored Q&A context is then cleared so the rewritten description is treated as the new initial input. During a run, LLM stage selections and iteration/question count controls remain editable and are applied to upcoming phases and iterations.
+1. On launch, the app first requires selecting a working directory (with recent-directory shortcuts). UI then collects description, LLM choices, and execution settings. Review type selection is exposed through the top menu `Settings -> Review Settings`. The description is synced to `product-description.md`, and the GUI value is force-written to that file before each question batch and before planning. After answers are submitted, only the current Q&A batch is rewritten into `product-description.md` using `PromptTemplates.format_definition_rewrite_prompt`; only this rewrite step pushes file content back into the GUI. Stored Q&A context is then cleared so the rewritten description is treated as the new initial input. During a run, LLM stage selections and iteration/question count controls remain editable and are applied to upcoming phases and iterations.
 2. When a working directory is selected (including the startup default), UI config handling ensures the directory is a git repo (`git init` if needed), surfaces a user-facing notice when git is missing, and configures `origin` if a remote URL is set. If `tasks.md` already has incomplete checklist items, the UI prompts whether to complete them; accepting that prompt makes the next Start run resume directly from main execution on existing tasks. The same git readiness check is run again when the user starts planning from the question flow.
 3. `StateMachine` tracks phase/context; `MainWindow` dispatches workers.
 4. Question generation initializes an empty `questions.json` and expects the LLM to write a batch into it in a single attempt (no stdout parsing or fallback prompts); generating another batch deletes the previous `questions.json`.
@@ -41,6 +41,7 @@ Created in the selected working directory (not the repo root):
 - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`: Governance prompt files; auto-created if missing.
 - `.agentharness/live-llm/*.log`: Per-run live output logs used to mirror LLM execution into popup terminal windows.
 - `.agentharness/git-commit-message.txt`: Startup-initialized commit message target for the git-ops LLM step; truncated after successful code-driven commit.
+- `.agentharness/project-settings.json`: Per-working-directory persisted UI settings, loaded automatically when the directory is selected and saved when the app closes.
 
 ## TODO-to-File Map
 Use this when picking up items from `TODO's`.

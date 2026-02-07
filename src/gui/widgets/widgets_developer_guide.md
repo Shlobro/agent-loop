@@ -7,7 +7,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - `description_panel.py`: Project description input and read-only handling; changes are synced to `product-description.md` by `MainWindow`.
 - `question_panel.py`: Single-question navigation for batch questions, answer capture, and live activity status display; enables submit once all questions are answered, shows an updating state after submission, and unlocks Generate More and Start Planning after the description rewrite completes.
 - `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry, including built-in default stage assignments; selectors stay editable during execution. Stages are displayed in execution order, with Unit Test Prep shown before Reviewer and Fixer to reflect that it runs first in the review phase.
-- `config_panel.py`: Execution settings (iterations, tasks per iteration, questions, working directory, git settings), stored review-type selections, and the optional pre-review unit-test-update toggle used by the review settings dialog; question count, iteration controls, and tasks-per-iteration stay editable during execution.
+- `config_panel.py`: Execution settings (iterations, tasks per iteration, questions, working directory, git settings), stored review-type selections, and the optional pre-review unit-test-update toggle used by the review settings dialog; question count, iteration controls, and tasks-per-iteration stay editable during execution. The working directory field starts empty and is expected to be set by the startup directory selection flow.
 - `log_viewer.py`: Color-coded log viewer with filtering and auto-scroll.
 - `status_panel.py`: Top-line workflow status and progress bar.
 - `__init__.py`: Module marker.

@@ -111,7 +111,6 @@ class ConfigPanel(QWidget):
         # Working directory
         dir_layout = QHBoxLayout()
         self.working_dir_edit = QLineEdit()
-        self.working_dir_edit.setText(r"C:\Users\shlob\Pycharm Projects\harness-test\harness-test-3")
         self.working_dir_edit.setPlaceholderText("Select project working directory...")
         self.working_dir_edit.setReadOnly(True)
         self.working_dir_edit.textChanged.connect(self._on_working_dir_changed)

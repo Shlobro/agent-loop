@@ -3,10 +3,10 @@
 import json
 from pathlib import Path
 from dataclasses import dataclass, asdict, field
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any, List
 
 from .debug_settings import default_debug_breakpoints, normalize_debug_breakpoints
-from ..llm.prompt_templates import PromptTemplates, ReviewType
+from ..llm.prompt_templates import ReviewType
 
 
 @dataclass
@@ -45,12 +45,14 @@ class ProjectSettings:
     git_mode: str = "local"
 
     # Project Configuration
-    working_directory: str = r"C:\Users\shlob\Pycharm Projects\harness-test\harness-test-3"
+    working_directory: str = ""
     git_remote: str = ""
 
 
 class ProjectSettingsManager:
     """Manages saving and loading of project settings."""
+    WORKING_DIR_SETTINGS_SUBDIR = ".agentharness"
+    WORKING_DIR_SETTINGS_FILE = "project-settings.json"
 
     @staticmethod
     def save_to_file(settings: ProjectSettings, file_path: str) -> None:
@@ -69,6 +71,39 @@ class ProjectSettingsManager:
                 json.dump(settings_dict, f, indent=2)
         except Exception as e:
             raise RuntimeError(f"Failed to save settings: {e}")
+
+    @staticmethod
+    def get_working_directory_settings_path(working_directory: str) -> Path:
+        """Return the per-directory settings file path."""
+        return (
+            Path(working_directory)
+            / ProjectSettingsManager.WORKING_DIR_SETTINGS_SUBDIR
+            / ProjectSettingsManager.WORKING_DIR_SETTINGS_FILE
+        )
+
+    @staticmethod
+    def has_working_directory_settings(working_directory: str) -> bool:
+        """Return True when a per-directory settings file exists."""
+        if not working_directory:
+            return False
+        return ProjectSettingsManager.get_working_directory_settings_path(working_directory).exists()
+
+    @staticmethod
+    def save_for_working_directory(settings: ProjectSettings, working_directory: str) -> None:
+        """Save settings in `.agentharness/project-settings.json` for a working directory."""
+        if not working_directory:
+            raise RuntimeError("Working directory is required to save settings.")
+        settings_path = ProjectSettingsManager.get_working_directory_settings_path(working_directory)
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        ProjectSettingsManager.save_to_file(settings, str(settings_path))
+
+    @staticmethod
+    def load_for_working_directory(working_directory: str) -> ProjectSettings:
+        """Load settings from `.agentharness/project-settings.json` for a working directory."""
+        if not working_directory:
+            raise RuntimeError("Working directory is required to load settings.")
+        settings_path = ProjectSettingsManager.get_working_directory_settings_path(working_directory)
+        return ProjectSettingsManager.load_from_file(str(settings_path))
 
     @staticmethod
     def load_from_file(file_path: str) -> ProjectSettings:
