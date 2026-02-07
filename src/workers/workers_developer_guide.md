@@ -11,7 +11,7 @@ Implements QRunnable workers that execute each workflow phase asynchronously and
 - `planning_worker.py`: Reads `product-description.md` (when available), prepares an empty `tasks.md`, and loads the task list after the LLM writes directly to it.
 - `execution_worker.py`: Executes a single task iteration and updates task state in `tasks.md`.
 - `review_worker.py`: Runs review/fix cycles per selected review type (including UI/UX), initializes `review/` with empty files for every review type, reads findings from the current review file, skips fixer when that file is empty, and truncates the same file after each completed fix cycle.
-- `git_worker.py`: Hybrid git phase where LLM writes only a commit message file (`.agentharness/git-commit-message.txt`), then code performs `git add`, `git commit`, and optional `git push`, and truncates the commit-message file after a successful commit.
+- `git_worker.py`: Hybrid git phase where code captures `git status --porcelain` and `git diff` and injects them into the LLM commit-message prompt, the LLM writes only a commit message file (`.agentharness/git-commit-message.txt`), then code performs `git add`, `git commit`, and optional `git push`, and truncates the commit-message file after a successful commit.
 - `__init__.py`: Module marker.
 
 ## Key Interactions

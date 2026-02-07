@@ -83,7 +83,7 @@ OUTPUT FORMAT (write directly into tasks.md):
     # =========================================================================
     MAIN_EXECUTION = '''
 INSTRUCTIONS:
-1. Read the recent-changes.md to understand the current project state
+1. Read the recent-changes.md
 2. Choose exactly ONE incomplete task from tasks.md list (marked with `- [ ]`)
 3. Implement that task completely and thoroughly
 4. After implementing, update the recent-changes.md file with what you changed
@@ -103,15 +103,9 @@ CRITICAL RULES:
     # =========================================================================
     REVIEW_PROMPTS = {
         ReviewType.GENERAL: '''
-Review the recent code changes with a GENERAL quality pass.
+Review the recent code changes.
 
-Use `git diff` to inspect changes in the working directory.
-
-Focus only on bugs, issues, and errors:
-- Correctness and behavioral regressions
-- Risky assumptions and edge cases
-- Missing validation or guards
-- Maintainability problems that can cause defects
+Use `git diff` to inspect changes.
 
 Write findings to `{review_file}` using only issues.
 If there are no issues, leave `{review_file}` empty.
@@ -121,12 +115,9 @@ Do not include positive observations.
         ReviewType.ARCHITECTURE: '''
 Review the recent code changes for ARCHITECTURAL concerns.
 
-Use `git diff` to inspect changes in the working directory.
+Use `git diff` to inspect changes.
 
-Focus only on bugs, issues, and errors:
-- Broken or risky module boundaries
-- Harmful coupling and poor separation of concerns
-- Design decisions likely to cause defects or regressions
+Focus only on ARCHITECTURAL bugs, issues, and errors.
 
 Write findings to `{review_file}` using only issues.
 If there are no issues, leave `{review_file}` empty.
@@ -136,12 +127,9 @@ Do not include positive observations.
         ReviewType.EFFICIENCY: '''
 Review the recent code changes for EFFICIENCY concerns.
 
-Use `git diff` to inspect changes in the working directory.
+Use `git diff` to inspect changes.
 
-Focus only on bugs, issues, and errors:
-- Inefficient algorithms and avoidable heavy operations
-- Resource leaks and unnecessary memory/CPU use
-- Query or I/O patterns likely to cause performance failures
+Focus only on EFFICIENCY bugs, issues, and errors.
 
 Write findings to `{review_file}` using only issues.
 If there are no issues, leave `{review_file}` empty.
@@ -151,12 +139,9 @@ Do not include positive observations.
         ReviewType.ERROR_HANDLING: '''
 Review the recent code changes for ERROR HANDLING concerns.
 
-Use `git diff` to inspect changes in the working directory.
+Use `git diff` to inspect changes.
 
-Focus only on bugs, issues, and errors:
-- Missing or incorrect exception handling
-- Unsafe failure paths and poor recovery behavior
-- Edge cases that can crash or corrupt state
+Focus only on ERROR HANDLING bugs, issues, and errors.
 
 Write findings to `{review_file}` using only issues.
 If there are no issues, leave `{review_file}` empty.
@@ -166,12 +151,9 @@ Do not include positive observations.
         ReviewType.SAFETY: '''
 Review the recent code changes for SAFETY and SECURITY concerns.
 
-Use `git diff` to inspect changes in the working directory.
+Use `git diff` to inspect changes.
 
-Focus only on bugs, issues, and errors:
-- Input validation and sanitization failures
-- Data exposure risks and authorization gaps
-- Vulnerabilities (injection, XSS, unsafe file handling, etc.)
+Focus only on SAFETY and SECURITY bugs, issues, and errors.
 
 Write findings to `{review_file}` using only issues.
 If there are no issues, leave `{review_file}` empty.
@@ -181,12 +163,9 @@ Do not include positive observations.
         ReviewType.TESTING: '''
 Review the recent code changes for TESTING concerns.
 
-Use `git diff` to inspect changes in the working directory.
+Use `git diff` to inspect changes.
 
-Focus only on bugs, issues, and errors:
-- Missing test coverage for changed behavior
-- Weak assertions that miss regressions
-- Missing critical edge/error-path tests
+Focus only on TESTING bugs, issues, and errors.
 
 Write findings to `{review_file}` using only issues.
 If there are no issues, leave `{review_file}` empty.
@@ -196,7 +175,7 @@ Do not include positive observations.
         ReviewType.UNIT_TEST: '''
 Review the recent code changes for UNIT TEST concerns.
 
-Use `git diff` to inspect changes in the working directory.
+Use `git diff` to inspect changes.
 
 Focus only on bugs, issues, and errors:
 - Missing unit tests for new or changed logic
@@ -211,12 +190,9 @@ Do not include positive observations.
         ReviewType.DOCUMENTATION: '''
 Review the recent code changes for DOCUMENTATION concerns.
 
-Use `git diff` to inspect changes in the working directory.
+Use `git diff` to inspect changes.
 
-Focus only on bugs, issues, and errors:
-- Missing docs that can cause incorrect implementation/use
-- Inaccurate comments/docstrings that mislead maintainers
-- Missing usage/setup details required to avoid failures
+Focus only on DOCUMENTATION bugs, issues, and errors:
 
 Write findings to `{review_file}` using only issues.
 If there are no issues, leave `{review_file}` empty.
@@ -226,12 +202,9 @@ Do not include positive observations.
         ReviewType.UI_UX: '''
 Review the recent code changes for UI/UX concerns.
 
-Use `git diff` to inspect changes in the working directory.
+Use `git diff` to inspect changes.
 
-Focus only on bugs, issues, and errors:
-- Broken user flows and unclear task completion paths
-- Accessibility defects (focus, contrast, keyboard navigation)
-- Responsiveness/state-feedback issues that cause user-facing failures
+Focus only on UI/UX bugs, issues, and errors:
 
 Write findings to `{review_file}` using only issues.
 If there are no issues, leave `{review_file}` empty.
@@ -244,8 +217,6 @@ Do not include positive observations.
     # =========================================================================
     FIXER = '''A code review has been performed for {review_type}.
 
-REVIEW FINDINGS:
-{review_content}
 
 Your task:
 1. Read each issue found in the review
@@ -254,6 +225,9 @@ Your task:
 
 After making changes:
 1. Update recent-changes.md with what you fixed
+
+REVIEW FINDINGS:
+{review_content}
 '''
 
     # =========================================================================
@@ -263,14 +237,20 @@ After making changes:
 
 Rules:
 1. Only edit `{message_file}`.
-2. Write exactly one commit message line (no bullets, no markdown, no quotes).
-3. Do not run git commands.
+2. Write a concise commit message following standards.
+3. Use the provided git status and diff snapshot; do not run git commands.
 4. Do not create or modify any other file.
 
 Commit message quality:
 - Start with a verb (Add, Fix, Update, Implement, Refactor, etc.)
 - Be concise but specific
-- Reflect the main change just completed
+- Reflect the main change just completed in the provided git diff snapshot and in the recent changes file
+
+GIT STATUS (PORCELAIN):
+{git_status}
+
+GIT DIFF:
+{git_diff}
 '''
 
     @classmethod
@@ -383,6 +363,12 @@ Commit message quality:
         )
 
     @classmethod
-    def format_git_commit_message_prompt(cls, message_file: str) -> str:
+    def format_git_commit_message_prompt(cls, message_file: str,
+                                         git_status: str,
+                                         git_diff: str) -> str:
         """Format prompt for commit-message-only generation."""
-        return cls.GIT_COMMIT_MESSAGE.format(message_file=message_file)
+        return cls.GIT_COMMIT_MESSAGE.format(
+            message_file=message_file,
+            git_status=git_status,
+            git_diff=git_diff
+        )

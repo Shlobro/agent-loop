@@ -38,6 +38,8 @@ class GitWorker(BaseWorker):
         if not status.stdout.strip():
             self.log("No changes detected - skipping git operations", "info")
             return {"committed": False, "pushed": False, "skipped": True}
+        git_status = status.stdout.strip()
+        git_diff = self._build_git_diff_for_prompt()
 
         provider = LLMProviderRegistry.get(self.provider_name)
         self.log(f"Using LLM provider: {provider.display_name}", "info")
@@ -50,7 +52,11 @@ class GitWorker(BaseWorker):
         message_path.write_text("", encoding="utf-8")
         relative_message_path = self._relative_message_path(message_path)
 
-        commit_prompt = PromptTemplates.format_git_commit_message_prompt(relative_message_path)
+        commit_prompt = PromptTemplates.format_git_commit_message_prompt(
+            relative_message_path,
+            git_status=git_status,
+            git_diff=git_diff
+        )
         self.log(f"Commit message prompt: {commit_prompt[:200]}...", "debug")
 
         commit_worker = LLMWorker(
@@ -197,3 +203,14 @@ class GitWorker(BaseWorker):
             ["remote", "get-url", "origin"],
             step_name="git remote get-url origin"
         )
+
+    def _build_git_diff_for_prompt(self) -> str:
+        """Build the git diff text included in the commit-message prompt."""
+        diff_result = self._run_git_command(
+            ["diff", "--", "."],
+            step_name="git diff"
+        )
+        diff_text = (diff_result.stdout or "").strip()
+        if diff_text:
+            return diff_text
+        return "(No tracked-file diff output. Changes may be untracked files.)"
