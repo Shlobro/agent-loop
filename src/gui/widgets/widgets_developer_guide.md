@@ -5,9 +5,9 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 
 ## Contents
 - `description_panel.py`: Project description input and read-only handling; changes are synced to `product-description.md` by `MainWindow`.
-- `question_panel.py`: Single-question navigation for batch questions, answer capture, and live activity status display; enables submit once all questions are answered, shows an updating state after submission, and unlocks Generate More and Start Planning after the description rewrite completes.
-- `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry, including built-in default stage assignments; selectors stay editable during execution. Stages are displayed in execution order, with Unit Test Prep shown before Reviewer and Fixer to reflect that it runs first in the review phase.
-- `config_panel.py`: Execution settings (iterations, tasks per iteration, questions, working directory, git settings), stored review-type selections, and the optional pre-review unit-test-update toggle used by the review settings dialog; question count, iteration controls, and tasks-per-iteration stay editable during execution. The working directory field starts empty and is expected to be set by the startup directory selection flow.
+- `question_panel.py`: Hidden signal bridge for question flow. It opens `dialogs/question_answer_dialog.py` as a modal window when questions are ready, emits submitted Q&A pairs, and auto-advances to planning after description rewrite completes.
+- `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry, including built-in default stage assignments; hosted by `Settings -> LLM Settings` and used as the canonical in-memory stage config for the run. Stages are displayed in execution order, with Unit Test Prep shown before Reviewer and Fixer to reflect that it runs first in the review phase.
+- `config_panel.py`: Execution settings (iterations, tasks per iteration, questions, working directory, git settings), stored review-type selections, and the optional pre-review unit-test-update toggle used by the review settings dialog; hosted by `Settings -> Configuration Settings`, while values stay live-editable during execution.
 - `log_viewer.py`: Color-coded log viewer with filtering and auto-scroll.
 - `status_panel.py`: Top-line workflow status and progress bar.
 - `__init__.py`: Module marker.
@@ -25,7 +25,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - `ConfigPanel` exposes `ExecutionConfig`; review type selections are edited through the main menu action `Settings -> Review Settings` and include all active review categories (General, Architecture, Efficiency, Error Handling, Safety, Testing, Documentation, UI/UX). The same dialog also controls whether the optional pre-review unit-test-update pass runs.
 - `ConfigPanel` keeps `Number of Questions`, `Max Main Iterations`, `Tasks Per Iteration`, and `Debug Loop Iterations` enabled during active runs so users can change upcoming question batches, loop limits, and tasks-per-iteration without stopping.
 - `ConfigPanel` performs git bootstrap checks for the selected working directory both when the directory/remote changes and when planning starts: checks whether the directory is already a git repo, runs `git init` when needed, shows a user-facing install notice if git commands are unavailable/fail, and configures `origin` when a remote URL is set.
-- `QuestionPanel` emits signals for submitted batch answers, generating another batch, or start planning.
+- `QuestionPanel` remains connected to `MainWindow` signal wiring but is not used as a visible section in the right column.
 - `LogViewer` listens to worker log and LLM output signals from `MainWindow`.
 
 ## When to Edit Widgets
@@ -37,7 +37,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 
 ## Change Map
 - Description input UX: `description_panel.py`.
-- Question flow, answer capture, and live-status view: `question_panel.py`.
+- Question flow modal launch and question-phase signal bridging: `question_panel.py`.
 - Provider/model selector behavior: `llm_selector_panel.py`.
 - Run configuration options and working directory selection: `config_panel.py`.
 - Log rendering, filtering, and scroll behavior: `log_viewer.py`.

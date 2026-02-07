@@ -119,6 +119,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.git_mode_actions[self.git_mode].setChecked(True)
 
         settings_menu = menu_bar.addMenu("&Settings")
+        self.configuration_settings_action = QAction("&Configuration Settings...", self)
+        settings_menu.addAction(self.configuration_settings_action)
+        self.llm_settings_action = QAction("&LLM Settings...", self)
+        settings_menu.addAction(self.llm_settings_action)
         self.review_settings_action = QAction("&Review Settings...", self)
         settings_menu.addAction(self.review_settings_action)
         self.debug_settings_action = QAction("&Debug Settings...", self)
@@ -139,32 +143,16 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         right_column_layout = QVBoxLayout(right_column)
         right_column_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Top section of right column: Description + Config/LLM
-        top_splitter = QSplitter(Qt.Horizontal)
-
-        # Description panel
+        # Top section of right column: Description
         self.description_panel = DescriptionPanel()
-        top_splitter.addWidget(self.description_panel)
-
-        # Config and LLM selection side by side
-        config_widget = QWidget()
-        config_layout = QVBoxLayout(config_widget)
-        config_layout.setContentsMargins(0, 0, 0, 0)
+        right_column_layout.addWidget(self.description_panel, stretch=1)
 
         self.llm_selector_panel = LLMSelectorPanel()
-        config_layout.addWidget(self.llm_selector_panel)
+        self.llm_selector_panel.hide()
 
         self.config_panel = ConfigPanel()
         self.config_panel.set_git_mode(self.git_mode)
-        config_layout.addWidget(self.config_panel)
-
-        config_layout.addStretch()
-        top_splitter.addWidget(config_widget)
-
-        # Set top splitter sizes (60% description, 40% config)
-        top_splitter.setSizes([500, 350])
-
-        right_column_layout.addWidget(top_splitter, stretch=1)
+        self.config_panel.hide()
 
         # Bottom section of right column: Clarifying Questions (larger)
         self.question_panel = QuestionPanel()
@@ -226,6 +214,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.config_panel.working_directory_changed.connect(self.on_working_dir_changed)
         self.config_panel.config_changed.connect(self.on_runtime_config_changed)
         self.llm_selector_panel.config_changed.connect(self.on_runtime_llm_config_changed)
+        self.configuration_settings_action.triggered.connect(self.on_open_configuration_settings)
+        self.llm_settings_action.triggered.connect(self.on_open_llm_settings)
         self.review_settings_action.triggered.connect(self.config_panel.open_review_settings)
         self.debug_settings_action.triggered.connect(self.on_open_debug_settings)
         self.debug_step_requested.connect(self.on_debug_step_requested)

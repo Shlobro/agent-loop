@@ -4,7 +4,9 @@ from PySide6.QtCore import Slot
 from PySide6.QtWidgets import QFileDialog, QMessageBox, QSplitter
 from pathlib import Path
 
+from .dialogs.configuration_settings_dialog import ConfigurationSettingsDialog
 from .dialogs.debug_settings_dialog import DebugSettingsDialog
+from .dialogs.llm_settings_dialog import LLMSettingsDialog
 from .widgets.config_panel import ExecutionConfig
 from ..core.project_settings import ProjectSettings, ProjectSettingsManager
 from ..workers.llm_worker import LLMWorker
@@ -196,6 +198,40 @@ class SettingsMixin:
             f"Left logs panel {'enabled' if self._logs_panel_visible else 'disabled'}",
             "info"
         )
+
+    @Slot()
+    def on_open_llm_settings(self):
+        """Open modal LLM settings dialog."""
+        dialog = LLMSettingsDialog(
+            current_config=self.llm_selector_panel.get_config_dict(),
+            parent=self
+        )
+        if not dialog.exec():
+            return
+
+        self.llm_selector_panel.set_config(dialog.get_config_dict())
+        self.on_runtime_llm_config_changed()
+        self.log_viewer.append_log("Updated LLM provider/model settings", "info")
+
+    @Slot()
+    def on_open_configuration_settings(self):
+        """Open modal configuration settings dialog."""
+        current_config = self.config_panel.get_config()
+        current_config.git_mode = self.git_mode
+        dialog = ConfigurationSettingsDialog(
+            current_config=current_config,
+            parent=self
+        )
+        dialog.config_panel.set_git_mode(self.git_mode)
+
+        if not dialog.exec():
+            return
+
+        updated_config = dialog.get_config()
+        self.config_panel.set_config(updated_config)
+        self._apply_git_mode(updated_config.git_mode)
+        self.on_runtime_config_changed()
+        self.log_viewer.append_log("Updated configuration settings", "info")
 
     def _set_logs_panel_visible(self, visible: bool):
         """Show or hide the left logs panel and keep splitter sizing usable."""

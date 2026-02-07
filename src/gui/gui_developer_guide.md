@@ -5,10 +5,10 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 
 ## Contents
 - `main_window.py`: Application controller and UI shell. Wires panels, manages phase transitions, and delegates worker execution to mixins.
-- `settings_mixin.py`: Settings handlers used by `MainWindow` (save/load project settings, debug settings dialog wiring, left logs-panel visibility control, and automatic per-working-directory settings sync under `.agentharness/project-settings.json`).
+- `settings_mixin.py`: Settings handlers used by `MainWindow` (save/load project settings, configuration/LLM/review/debug settings dialog wiring, left logs-panel visibility control, and automatic per-working-directory settings sync under `.agentharness/project-settings.json`).
 - `workflow_runner.py`: Worker execution mixin for planning, execution, review, and git phases.
-- `widgets/`: Reusable UI panels (description, questions, logs, config, status, LLM selection).
-- `dialogs/`: Modal dialogs (git approval, review settings, debug settings, startup working-directory selection).
+- `widgets/`: Reusable UI panels (description, hidden question-flow bridge, logs, config, status, LLM selection).
+- `dialogs/`: Modal dialogs (git approval, review settings, debug settings, startup working-directory selection, keyboard-first question answering).
 - `__init__.py`: Module marker.
 
 ## Key Interactions
@@ -16,11 +16,11 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 - `main.py` shows `dialogs/startup_directory_dialog.py` before creating `MainWindow`; app startup now requires selecting a working directory and supports recent-directory shortcuts.
 - `MainWindow` also controls debug-step gating for every LLM call through `Settings -> Debug Settings` and a `Next Step` button in the main controls row.
 - Worker results and log output are streamed back to UI via `WorkerSignals`.
-- UI panels emit signals for user actions (start/pause/stop, batch question answers, settings changes); `MainWindow` keeps `product-description.md` synced with the description widget, force-syncs the current GUI description to `product-description.md` before each question batch and before task planning, initializes an empty `questions.json` before each question batch, rewrites only the current submitted Q&A batch into `product-description.md` right after answers are submitted using the dedicated `description_molding` stage, then updates the description widget from `product-description.md` only for that rewrite step, clears stored Q&A context so the rewritten description becomes the new baseline, and keeps LLM/iteration/question settings live-editable so updates apply to upcoming phases and iterations.
+- UI panels emit signals for user actions (start/pause/stop, batch question answers, settings changes); question answering is handled in a modal keyboard-driven window that cannot be dismissed until final submission, while `MainWindow` keeps `product-description.md` synced with the description widget, force-syncs the current GUI description to `product-description.md` before each question batch and before task planning, initializes an empty `questions.json` before each question batch, rewrites only the current submitted Q&A batch into `product-description.md` right after answers are submitted using the dedicated `description_molding` stage, then updates the description widget from `product-description.md` only for that rewrite step, clears stored Q&A context so the rewritten description becomes the new baseline, and keeps configuration/LLM settings live-editable so updates apply to upcoming phases and iterations.
 - `MainWindow` initializes working-directory artifacts as soon as a valid directory is active (including the startup default path), including pre-creating `review/<type>.md` files for all active review types.
 - When a user switches to a working directory that already contains incomplete checklist items in `tasks.md`, `MainWindow` prompts: "There are incomplete tasks in this project. Would you like to complete them?" If accepted, the next Start run skips question/planning and resumes directly in main execution against the existing tasks.
 - `ConfigPanel` performs git repository bootstrap as soon as the working directory is set (including app startup default directory) and is rechecked immediately before task planning starts from the question flow: it ensures the directory is a git repo and applies configured `origin` remote URL.
-- `LLMSelectorPanel` seeds default provider/model values per stage at UI setup (including `description_molding` and `unit_test_prep`); `MainWindow` stores this in `StateContext.llm_config` and keeps it synced when the user edits selectors during execution. The stages are displayed in execution order: unit test prep is shown before reviewer and fixer to reflect that it runs first in the review phase.
+- `LLMSelectorPanel` seeds default provider/model values per stage at UI setup (including `description_molding` and `unit_test_prep`); the selectors are edited from `Settings -> LLM Settings`, while `MainWindow` stores values in `StateContext.llm_config` and keeps them synced during execution. The stages are displayed in execution order: unit test prep is shown before reviewer and fixer to reflect that it runs first in the review phase.
 - Review labels shown in UI/logs use `PromptTemplates.get_review_display_name`.
 
 ## MainWindow Responsibilities
@@ -29,8 +29,10 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 - Update UI state (enable/disable panels, status bar, activity panel).
 - Manage working directory artifacts via `FileManager`.
 - Manage session save/resume through `SessionManager`.
+- Expose menu actions including `Settings -> LLM Settings` for stage provider/model choices.
+- Expose menu actions including `Settings -> Configuration Settings` for execution controls and working directory/git remote.
 - Expose menu actions including `Settings -> Review Settings`, which opens the review selection dialog and optional pre-review unit-test-update toggle.
-- Expose menu actions including `Settings -> Review Settings` and `Settings -> Debug Settings` (which now also controls left logs-panel visibility).
+- Expose menu actions including `Settings -> Debug Settings` (which also controls left logs-panel visibility).
 
 ## When to Edit GUI
 - Start/pause/stop flow or phase routing: `main_window.py`.
