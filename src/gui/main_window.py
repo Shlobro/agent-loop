@@ -22,6 +22,7 @@ from ..core.debug_settings import DEBUG_STAGE_LABELS, default_debug_breakpoints
 from ..core.file_manager import FileManager
 from ..core.session_manager import SessionManager
 from ..llm.prompt_templates import PromptTemplates
+from ..utils.markdown_parser import has_incomplete_tasks
 
 from ..workers.question_worker import QuestionWorker, DefinitionRewriteWorker
 from ..workers.llm_worker import LLMWorker
@@ -57,6 +58,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         }
         self._last_phase = None
         self._suppress_description_sync = False
+        self._resume_incomplete_tasks_directory = ""
         self.debug_mode_enabled = False
         self.debug_breakpoints = default_debug_breakpoints()
         self.show_llm_terminals = True
@@ -251,6 +253,19 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             self.file_manager.ensure_review_files_exist(review_files)
         except Exception as exc:
             self.log_viewer.append_log(f"Failed to initialize working directory files: {exc}", "warning")
+
+    def _working_directory_has_incomplete_tasks(self, path: str) -> bool:
+        """Return True when tasks.md exists and contains unchecked tasks."""
+        if not path:
+            return False
+        tasks_path = Path(path) / FileManager.TASKS_FILE
+        if not tasks_path.exists():
+            return False
+        try:
+            return has_incomplete_tasks(tasks_path.read_text(encoding="utf-8"))
+        except OSError as exc:
+            self.log_viewer.append_log(f"Failed to read tasks.md: {exc}", "warning")
+            return False
 
     def set_git_mode(self, mode: str):
         """Set git mode and update related UI."""
@@ -487,15 +502,15 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             f"  LLM Terminal Windows: {'shown' if self.show_llm_terminals else 'hidden'}",
             "info"
         )
+        self.log_viewer.append_log(
+            f"  Unit Test Prep (runs first): {'enabled' if config.run_unit_test_prep else 'disabled'}",
+            "info"
+        )
         review_types = config.review_types or []
         review_labels = ", ".join(
             [PromptTemplates.get_review_display_name(r) for r in review_types]
         ) or "(none)"
-        self.log_viewer.append_log(f"  Review Types: {review_labels}", "info")
-        self.log_viewer.append_log(
-            f"  Pre-Review Unit Test Update: {'enabled' if config.run_unit_test_prep else 'disabled'}",
-            "info"
-        )
+        self.log_viewer.append_log(f"  Review Types (after unit tests): {review_labels}", "info")
         self.log_viewer.append_log(f"  Git Mode: {self.git_mode}", "info")
         self.log_viewer.append_log(f"  Git Remote: {config.git_remote or '(not set)'}", "info")
         self.log_viewer.append_log("LLM PROVIDERS:", "info")
@@ -507,6 +522,21 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.log_viewer.append_log(f"  Fixer: {llm_config.get('fixer', 'N/A')}", "info")
         self.log_viewer.append_log(f"  Git Ops: {llm_config.get('git_ops', 'N/A')}", "info")
         self.log_viewer.append_log("=" * 50, "info")
+
+        resume_incomplete_tasks = (
+            self._resume_incomplete_tasks_directory == working_dir
+            and self._working_directory_has_incomplete_tasks(working_dir)
+        )
+        if resume_incomplete_tasks:
+            self.log_viewer.append_log(
+                "Resuming existing incomplete tasks from tasks.md in the selected working directory.",
+                "info"
+            )
+            self.question_panel.clear_question()
+            self.question_panel.set_readonly(True)
+            self.state_machine.transition_to(Phase.MAIN_EXECUTION)
+            self.run_main_execution()
+            return
 
         # Start Phase 1: Question Generation (or skip if max_questions is 0)
         if config.max_questions == 0:
@@ -684,6 +714,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         if not path_obj.exists() or not path_obj.is_dir():
             return
 
+        self._resume_incomplete_tasks_directory = ""
         self._prepare_working_directory(path)
         existing = self._load_description_from_file()
         if existing:
@@ -691,6 +722,20 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             self.state_machine.update_context(description=existing)
         else:
             self._sync_description_to_file(self.description_panel.get_description())
+
+        if self._working_directory_has_incomplete_tasks(path):
+            reply = QMessageBox.question(
+                self,
+                "Incomplete Tasks Found",
+                "There are incomplete tasks in this project.\n"
+                "Would you like to complete them?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            if reply == QMessageBox.Yes:
+                self._resume_incomplete_tasks_directory = path
+            else:
+                self._resume_incomplete_tasks_directory = ""
 
         # Check for existing session
         if self.session_manager.has_saved_session():

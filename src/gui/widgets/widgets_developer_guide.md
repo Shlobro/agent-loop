@@ -6,21 +6,21 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 ## Contents
 - `description_panel.py`: Project description input and read-only handling; changes are synced to `product-description.md` by `MainWindow`.
 - `question_panel.py`: Single-question navigation for batch questions, answer capture, and live activity status display; enables submit once all questions are answered, shows an updating state after submission, and unlocks Generate More and Start Planning after the description rewrite completes.
-- `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry, including built-in default stage assignments; selectors stay editable during execution.
+- `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry, including built-in default stage assignments; selectors stay editable during execution. Stages are displayed in execution order, with Unit Test Prep shown before Reviewer and Fixer to reflect that it runs first in the review phase.
 - `config_panel.py`: Execution settings (iterations, tasks per iteration, questions, working directory, git settings), stored review-type selections, and the optional pre-review unit-test-update toggle used by the review settings dialog; question count, iteration controls, and tasks-per-iteration stay editable during execution.
 - `log_viewer.py`: Color-coded log viewer with filtering and auto-scroll.
 - `status_panel.py`: Top-line workflow status and progress bar.
 - `__init__.py`: Module marker.
 
 ## Key Interactions
-- `LLMSelectorPanel` queries `LLMProviderRegistry` to populate providers/models and then applies stage defaults:
+- `LLMSelectorPanel` queries `LLMProviderRegistry` to populate providers/models and then applies stage defaults (in execution order):
 - Question generation: Gemini + `gemini-3-pro-preview`
 - Description molding: Gemini + `gemini-3-pro-preview`
 - Task planning: Claude + `claude-opus-4-6`
 - Coder: Claude + `claude-opus-4-6`
+- Unit Test Prep (runs first in review): Gemini + `gemini-3-pro-preview`
 - Reviewer: Codex + `gpt-5.3-codex`
 - Fixer: Codex + `gpt-5.3-codex`
-- Unit Test Prep: Gemini + `gemini-3-pro-preview`
 - Git operations: Gemini + `gemini-3-pro-preview`
 - `ConfigPanel` exposes `ExecutionConfig`; review type selections are edited through the main menu action `Settings -> Review Settings` and include all active review categories (General, Architecture, Efficiency, Error Handling, Safety, Testing, Documentation, UI/UX). The same dialog also controls whether the optional pre-review unit-test-update pass runs.
 - `ConfigPanel` keeps `Number of Questions`, `Max Main Iterations`, `Tasks Per Iteration`, and `Debug Loop Iterations` enabled during active runs so users can change upcoming question batches, loop limits, and tasks-per-iteration without stopping.

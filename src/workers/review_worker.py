@@ -66,10 +66,10 @@ class ReviewWorker(BaseWorker):
         _, reviewer_model, reviewer_provider = self._get_reviewer_runtime()
         _, fixer_model, fixer_provider = self._get_fixer_runtime()
         _, unit_test_model, unit_test_provider = self._get_unit_test_prep_runtime()
+        if self.run_unit_test_prep:
+            self.log(f"Unit Test Prep LLM (runs first): {unit_test_provider.display_name}", "info")
         self.log(f"Reviewer LLM: {reviewer_provider.display_name}", "info")
         self.log(f"Fixer LLM: {fixer_provider.display_name}", "info")
-        if self.run_unit_test_prep:
-            self.log(f"Unit Test Prep LLM: {unit_test_provider.display_name}", "info")
 
         file_manager = FileManager(self.working_directory)
         file_manager.ensure_files_exist()
@@ -85,9 +85,9 @@ class ReviewWorker(BaseWorker):
 
         if self.run_unit_test_prep:
             if not self._run_pre_review_unit_test_phase(unit_test_provider, unit_test_model):
-                self.log("Pre-review unit test phase interrupted", "warning")
+                self.log("Unit test prep phase interrupted", "warning")
         else:
-            self.log("Skipping optional pre-review unit test phase (disabled)", "info")
+            self.log("Skipping unit test prep phase (disabled) - proceeding directly to review", "info")
 
         iteration = self.start_iteration + 1
         while iteration <= self._get_iteration_limit():
@@ -136,9 +136,9 @@ class ReviewWorker(BaseWorker):
 
     def _run_pre_review_unit_test_phase(self, fixer_provider, fixer_model: str) -> bool:
         """Optionally update unit tests before any review cycles begin."""
-        self.update_status("Pre-review: Unit Test Update")
-        self.log("--- PRE-REVIEW UNIT TEST UPDATE ---", "info")
-        self.log("Running optional unit test update pass using git diff...", "info")
+        self.update_status("Unit Test Prep (before review)")
+        self.log("--- UNIT TEST PREP (RUNS BEFORE REVIEW) ---", "info")
+        self.log("Running unit test update pass using git diff...", "info")
 
         pre_review_worker = LLMWorker(
             provider=fixer_provider,
@@ -155,7 +155,7 @@ class ReviewWorker(BaseWorker):
         if pre_review_worker._is_cancelled or self.should_stop():
             return False
 
-        self.log("Completed optional pre-review unit test pass", "success")
+        self.log("Completed unit test prep phase (review cycles will follow)", "success")
         return True
 
     def _run_review_cycle(self, review_type: ReviewType,

@@ -52,9 +52,9 @@ class LLMSelectorPanel(QWidget):
         ("description_molding", "Description Molding"),
         ("task_planning", "Task Planning"),
         ("coder", "Coder (Main Loop)"),
+        ("unit_test_prep", "Unit Test Prep (runs before review)"),
         ("reviewer", "Reviewer"),
         ("fixer", "Fixer"),
-        ("unit_test_prep", "Unit Test Prep"),
         ("git_ops", "Git Operations"),
     ]
     DEFAULT_STAGE_CONFIG = {

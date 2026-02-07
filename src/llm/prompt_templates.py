@@ -118,7 +118,7 @@ CRITICAL RULES:
     # Phase 4: Review Prompts
     # =========================================================================
     PRE_REVIEW_UNIT_TEST_UPDATE = '''
-Before starting the review phase, inspect recent code changes and decide whether unit tests should be added or updated.
+inspect recent code changes and decide whether unit tests should be added or updated.
 
 Use `git diff` to inspect changes.
 
