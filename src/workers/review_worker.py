@@ -1,5 +1,7 @@
 """Worker for Phase 4: Debug/Review Loop."""
 
+from typing import Callable, Dict, Optional
+
 from .base_worker import BaseWorker
 from .llm_worker import LLMWorker
 from ..llm.base_provider import LLMProviderRegistry
@@ -21,7 +23,8 @@ class ReviewWorker(BaseWorker):
                  review_types: list = None,
                  run_unit_test_prep: bool = True,
                  reviewer_model: str = None,
-                 fixer_model: str = None):
+                 fixer_model: str = None,
+                 runtime_config_provider: Optional[Callable[[], Dict[str, object]]] = None):
         super().__init__()
         self.reviewer_provider_name = reviewer_provider_name
         self.fixer_provider_name = fixer_provider_name
@@ -33,13 +36,17 @@ class ReviewWorker(BaseWorker):
         self.run_unit_test_prep = run_unit_test_prep
         self.reviewer_model = reviewer_model
         self.fixer_model = fixer_model
+        self.runtime_config_provider = runtime_config_provider
 
     def execute(self):
         """Run the review loop."""
         self.update_status("Starting code review loop...")
         self.log(f"=== DEBUG/REVIEW PHASE START ===", "phase")
         self.log(f"Working directory: {self.working_directory}", "info")
-        self.log(f"Total iterations planned: {self.iterations}, Starting from: {self.start_iteration}", "info")
+        self.log(
+            f"Total iterations planned: {self._get_iteration_limit()}, Starting from: {self.start_iteration}",
+            "info"
+        )
         if self.review_sequence:
             review_sequence_labels = " -> ".join(
                 [PromptTemplates.get_review_display_name(r) for r in self.review_sequence]
@@ -52,8 +59,8 @@ class ReviewWorker(BaseWorker):
                 "stopped_early": False
             }
 
-        reviewer_provider = LLMProviderRegistry.get(self.reviewer_provider_name)
-        fixer_provider = LLMProviderRegistry.get(self.fixer_provider_name)
+        _, reviewer_model, reviewer_provider = self._get_reviewer_runtime()
+        _, fixer_model, fixer_provider = self._get_fixer_runtime()
         self.log(f"Reviewer LLM: {reviewer_provider.display_name}", "info")
         self.log(f"Fixer LLM: {fixer_provider.display_name}", "info")
 
@@ -70,12 +77,13 @@ class ReviewWorker(BaseWorker):
         )
 
         if self.run_unit_test_prep:
-            if not self._run_pre_review_unit_test_phase(fixer_provider):
+            if not self._run_pre_review_unit_test_phase(fixer_provider, fixer_model):
                 self.log("Pre-review unit test phase interrupted", "warning")
         else:
             self.log("Skipping optional pre-review unit test phase (disabled)", "info")
 
-        for iteration in range(self.start_iteration + 1, self.iterations + 1):
+        iteration = self.start_iteration + 1
+        while iteration <= self._get_iteration_limit():
             if self.should_stop():
                 if self._is_paused:
                     self.log("Review loop paused", "warning")
@@ -84,9 +92,10 @@ class ReviewWorker(BaseWorker):
                     self.log("Review loop stopped by user", "warning")
                     break
 
+            current_limit = max(iteration, self._get_iteration_limit())
             self.current_iteration = iteration
-            self.update_progress(iteration, self.iterations)
-            self.log(f"Debug iteration {iteration}/{self.iterations}", "phase")
+            self.update_progress(iteration, current_limit)
+            self.log(f"Debug iteration {iteration}/{current_limit}", "phase")
             review_labels = ", ".join(
                 [PromptTemplates.get_review_display_name(r) for r in self.review_sequence]
             )
@@ -98,11 +107,10 @@ class ReviewWorker(BaseWorker):
 
                 self._run_review_cycle(
                     review_type,
-                    reviewer_provider,
-                    fixer_provider,
                     file_manager,
                     iteration
                 )
+            iteration += 1
 
         self.log(f"=== DEBUG/REVIEW PHASE END ===", "phase")
         self.log(f"Completed {self.current_iteration} review iterations", "info")
@@ -119,7 +127,7 @@ class ReviewWorker(BaseWorker):
         selected = set(review_types)
         return [r for r in PromptTemplates.get_all_review_types() if r.value in selected]
 
-    def _run_pre_review_unit_test_phase(self, fixer_provider) -> bool:
+    def _run_pre_review_unit_test_phase(self, fixer_provider, fixer_model: str) -> bool:
         """Optionally update unit tests before any review cycles begin."""
         self.update_status("Pre-review: Unit Test Update")
         self.log("--- PRE-REVIEW UNIT TEST UPDATE ---", "info")
@@ -129,7 +137,7 @@ class ReviewWorker(BaseWorker):
             provider=fixer_provider,
             prompt=PromptTemplates.format_pre_review_unit_test_prompt(),
             working_directory=self.working_directory,
-            model=self.fixer_model,
+            model=fixer_model,
             debug_stage="fixer"
         )
         pre_review_worker.signals.llm_output.connect(
@@ -144,9 +152,10 @@ class ReviewWorker(BaseWorker):
         return True
 
     def _run_review_cycle(self, review_type: ReviewType,
-                          reviewer_provider, fixer_provider,
                           file_manager: FileManager, iteration: int):
         """Run a single review -> fix cycle."""
+        _, reviewer_model, reviewer_provider = self._get_reviewer_runtime()
+        _, fixer_model, fixer_provider = self._get_fixer_runtime()
         review_name = PromptTemplates.get_review_display_name(review_type)
         review_file = PromptTemplates.get_review_filename(review_type)
         file_manager.truncate_review_file(review_file)
@@ -162,7 +171,7 @@ class ReviewWorker(BaseWorker):
             provider=reviewer_provider,
             prompt=review_prompt,
             working_directory=self.working_directory,
-            model=self.reviewer_model,
+            model=reviewer_model,
             debug_stage="reviewer"
         )
 
@@ -210,7 +219,7 @@ class ReviewWorker(BaseWorker):
             provider=fixer_provider,
             prompt=fixer_prompt,
             working_directory=self.working_directory,
-            model=self.fixer_model,
+            model=fixer_model,
             debug_stage="fixer"
         )
 
@@ -230,3 +239,39 @@ class ReviewWorker(BaseWorker):
 
         self.log(f"Completed {review_name} cycle", "success")
         self.signals.review_complete.emit(review_type.value, "complete")
+
+    def _get_runtime_config(self) -> Dict[str, object]:
+        """Return live run config when available."""
+        if self.runtime_config_provider is None:
+            return {}
+        try:
+            config = self.runtime_config_provider()
+        except Exception:
+            return {}
+        return config if isinstance(config, dict) else {}
+
+    def _get_iteration_limit(self) -> int:
+        """Return the current review-iteration limit."""
+        runtime = self._get_runtime_config()
+        raw_value = runtime.get("debug_iterations", self.iterations)
+        try:
+            limit = int(raw_value)
+        except (TypeError, ValueError):
+            limit = self.iterations
+        return max(limit, 0)
+
+    def _get_reviewer_runtime(self):
+        """Resolve live reviewer provider/model values."""
+        runtime = self._get_runtime_config()
+        provider_name = str(runtime.get("reviewer", self.reviewer_provider_name))
+        model = runtime.get("reviewer_model", self.reviewer_model)
+        provider = LLMProviderRegistry.get(provider_name)
+        return provider_name, model, provider
+
+    def _get_fixer_runtime(self):
+        """Resolve live fixer provider/model values."""
+        runtime = self._get_runtime_config()
+        provider_name = str(runtime.get("fixer", self.fixer_provider_name))
+        model = runtime.get("fixer_model", self.fixer_model)
+        provider = LLMProviderRegistry.get(provider_name)
+        return provider_name, model, provider

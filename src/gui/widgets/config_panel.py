@@ -336,11 +336,12 @@ class ConfigPanel(QWidget):
         return bool(path) and Path(path).exists() and Path(path).is_dir()
 
     def set_enabled(self, enabled: bool):
-        """Enable or disable all controls."""
+        """Enable or disable controls that must remain static during a run."""
         self._controls_enabled = enabled
-        self.max_questions_spin.setEnabled(enabled)
-        self.max_iterations_spin.setEnabled(enabled)
-        self.debug_iterations_spin.setEnabled(enabled)
+        # These remain editable so users can adjust upcoming phases/iterations live.
+        self.max_questions_spin.setEnabled(True)
+        self.max_iterations_spin.setEnabled(True)
+        self.debug_iterations_spin.setEnabled(True)
         self.browse_button.setEnabled(enabled)
 
     def set_git_mode(self, mode: str):

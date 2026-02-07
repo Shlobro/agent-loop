@@ -16,10 +16,10 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 - `MainWindow` owns the `StateMachine` and a `QThreadPool`, and mixes in worker handlers from `WorkflowRunnerMixin`.
 - `MainWindow` also controls debug-step gating for every LLM call through `Settings -> Debug Settings` and a `Next Step` button in the main controls row.
 - Worker results and log output are streamed back to UI via `WorkerSignals`.
-- UI panels emit signals for user actions (start/pause/stop, batch question answers, settings changes); `MainWindow` keeps `product-description.md` synced with the description widget, force-syncs the current GUI description to `product-description.md` before each question batch and before task planning, initializes an empty `questions.json` before each question batch, rewrites only the current submitted Q&A batch into `product-description.md` right after answers are submitted using the dedicated `description_molding` stage, then updates the description widget from `product-description.md` only for that rewrite step, clears stored Q&A context so the rewritten description becomes the new baseline, unlocks description editing after the rewrite completes, and only then enables Generate More/Start Planning.
+- UI panels emit signals for user actions (start/pause/stop, batch question answers, settings changes); `MainWindow` keeps `product-description.md` synced with the description widget, force-syncs the current GUI description to `product-description.md` before each question batch and before task planning, initializes an empty `questions.json` before each question batch, rewrites only the current submitted Q&A batch into `product-description.md` right after answers are submitted using the dedicated `description_molding` stage, then updates the description widget from `product-description.md` only for that rewrite step, clears stored Q&A context so the rewritten description becomes the new baseline, and keeps LLM/iteration/question settings live-editable so updates apply to upcoming phases and iterations.
 - `MainWindow` initializes working-directory artifacts as soon as a valid directory is active (including the startup default path), including pre-creating `review/<type>.md` files for all active review types.
 - `ConfigPanel` now performs git repository bootstrap as soon as the working directory is set (including app startup default directory): it ensures the directory is a git repo and applies configured `origin` remote URL.
-- `LLMSelectorPanel` seeds default provider/model values per stage at UI setup (including `description_molding`); `MainWindow` reads that config on Start and stores it in `StateContext.llm_config`.
+- `LLMSelectorPanel` seeds default provider/model values per stage at UI setup (including `description_molding`); `MainWindow` stores this in `StateContext.llm_config` and keeps it synced when the user edits selectors during execution.
 - Review labels shown in UI/logs use `PromptTemplates.get_review_display_name`.
 
 ## MainWindow Responsibilities
@@ -34,7 +34,7 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 ## When to Edit GUI
 - Start/pause/stop flow or phase routing: `main_window.py`.
 - Worker execution flow (planning/execution/review/git): `workflow_runner.py`.
-- Enable LLM changes mid-run or add new UI actions: `main_window.py`, `widgets/llm_selector_panel.py`.
+- Enable or refine mid-run LLM/config changes: `main_window.py`, `widgets/llm_selector_panel.py`, `widgets/config_panel.py`.
 - Add new controls or settings (including review type selection via settings dropdown): `widgets/config_panel.py`, `dialogs/review_settings_dialog.py`.
 - Fix log rendering/filtering: `widgets/log_viewer.py`.
 - Show description/task progress in the UI: `widgets/description_panel.py`, `widgets/status_panel.py`, `main_window.py`.

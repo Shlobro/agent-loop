@@ -222,6 +222,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
         # Config panel
         self.config_panel.working_directory_changed.connect(self.on_working_dir_changed)
+        self.config_panel.config_changed.connect(self.on_runtime_config_changed)
+        self.llm_selector_panel.config_changed.connect(self.on_runtime_llm_config_changed)
         self.review_settings_action.triggered.connect(self.config_panel.open_review_settings)
         self.debug_settings_action.triggered.connect(self.on_open_debug_settings)
         self.debug_step_requested.connect(self.on_debug_step_requested)
@@ -309,7 +311,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         ctx = self.state_machine.context
         description_editable = is_idle or (is_awaiting and ctx.questions_answered and self.current_worker is None)
         self.description_panel.set_readonly(not description_editable)
-        self.llm_selector_panel.set_enabled(is_idle)
+        self.llm_selector_panel.set_enabled(True)
         self.config_panel.set_enabled(is_idle)
 
     def _reset_activity_state(self):
@@ -910,6 +912,31 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             return
         self.state_machine.update_context(description=text)
         self._sync_description_to_file(text)
+
+    @Slot()
+    def on_runtime_config_changed(self):
+        """Apply live config edits to the current run context."""
+        config = self.config_panel.get_config()
+        self.state_machine.update_context(
+            max_iterations=config.max_main_iterations,
+            debug_iterations=config.debug_loop_iterations,
+            max_questions=config.max_questions,
+            git_mode=config.git_mode,
+            git_remote=config.git_remote,
+            review_types=config.review_types,
+            run_unit_test_prep=config.run_unit_test_prep
+        )
+        if self._should_show_activity(self.state_machine.phase):
+            self.activity_state["agent"] = self._get_agent_label(self.state_machine.phase)
+            self._refresh_activity_panel()
+
+    @Slot()
+    def on_runtime_llm_config_changed(self):
+        """Apply live LLM selection edits to the current run context."""
+        self.state_machine.update_context(llm_config=self.llm_selector_panel.get_config_dict())
+        if self._should_show_activity(self.state_machine.phase):
+            self.activity_state["agent"] = self._get_agent_label(self.state_machine.phase)
+            self._refresh_activity_panel()
 
     def _sync_description_to_file(self, text: str):
         """Persist the current description to product-description.md."""

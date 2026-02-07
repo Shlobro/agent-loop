@@ -119,7 +119,14 @@ class WorkflowRunnerMixin:
             review_types=ctx.review_types,
             run_unit_test_prep=ctx.run_unit_test_prep,
             reviewer_model=ctx.llm_config.get("reviewer_model"),
-            fixer_model=ctx.llm_config.get("fixer_model")
+            fixer_model=ctx.llm_config.get("fixer_model"),
+            runtime_config_provider=lambda: {
+                "debug_iterations": self.state_machine.context.debug_iterations,
+                "reviewer": self.state_machine.context.llm_config.get("reviewer", "claude"),
+                "fixer": self.state_machine.context.llm_config.get("fixer", "claude"),
+                "reviewer_model": self.state_machine.context.llm_config.get("reviewer_model"),
+                "fixer_model": self.state_machine.context.llm_config.get("fixer_model"),
+            }
         )
 
         self._connect_worker_signals(worker)
