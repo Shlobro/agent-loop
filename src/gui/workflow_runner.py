@@ -51,6 +51,15 @@ class WorkflowRunnerMixin:
         # Check max iterations limit
         if ctx.current_iteration >= ctx.max_iterations:
             self.log_viewer.append_log(f"Max iterations ({ctx.max_iterations}) reached", "warning")
+
+            # Check if there are still incomplete tasks
+            from ..utils.markdown_parser import has_incomplete_tasks
+            if self.file_manager:
+                tasks_content = self.file_manager.read_tasks()
+                if has_incomplete_tasks(tasks_content):
+                    self._prompt_continue_iterations()
+                    return
+
             self.state_machine.transition_to(Phase.COMPLETED)
             return
 

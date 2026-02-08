@@ -9,3 +9,4 @@
 - keep system temp directories (for example `%TEMP%/`) ignored via `.gitignore`.
 - always ask if a commit message is good before commiting.
 - .md files should be ignored when counting how many files in a folder. there should not be more than 10 code files in a folder.
+- Always verify code changes by running linters and ensuring the project builds without errors.

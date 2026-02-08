@@ -9,8 +9,8 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry, including built-in default stage assignments; hosted by `Settings -> LLM Settings` and used as the canonical in-memory stage config for the run. Stages are displayed in execution order, with Unit Test Prep shown before Reviewer and Fixer to reflect that it runs first in the review phase.
 - `config_panel.py`: Execution settings (iterations, tasks per iteration, questions, working directory, git settings), stored review-type selections, and the optional pre-review unit-test-update toggle used by the review settings dialog; hosted by `Settings -> Configuration Settings`, while values stay live-editable during execution.
 - `log_viewer.py`: Color-coded log viewer with filtering and auto-scroll; uses an enlarged monospace font for clearer streaming output.
-- `status_panel.py`: Top-line workflow status, iteration label, and top-right progress bar; progress is task-list based (`completed tasks / total tasks`) during loop execution.
-- `task_loop_panel.py`: Main-loop priority panel that shows the current agent action plus completed/incomplete task counts and Markdown-rendered task lists.
+- `status_panel.py`: Top-line workflow status, iteration label, top-right progress bar, and a "Resume Tasks" button that appears when incomplete tasks exist and the workflow is idle or completed; progress is task-list based (`completed tasks / total tasks`) during loop execution.
+- `task_loop_panel.py`: Main-loop priority panel with tabbed interface showing two tabs: (1) Product Description tab displays the current `product-description.md` content with Markdown rendering, (2) Task List tab shows the current agent action plus completed/incomplete task counts and Markdown-rendered task lists.
 - `__init__.py`: Module marker.
 
 ## Key Interactions
@@ -29,7 +29,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - `ConfigPanel` performs git bootstrap checks for the selected working directory both when the directory/remote changes and when planning starts: checks whether the directory is already a git repo, runs `git init` when needed, shows a user-facing install notice if git commands are unavailable/fail, and configures `origin` when a remote URL is set.
 - `QuestionPanel` remains connected to `MainWindow` signal wiring but is not used as a visible section in the main layout.
 - `DescriptionPanel` keeps a Markdown preview surface in sync with editor text via `QTextBrowser.setMarkdown(...)` and swaps editor/preview in the same box through a `QStackedWidget`; the explicit `Edit`/`Preview` controls are hidden by default and can be enabled from the `View` menu.
-- `TaskLoopPanel` renders completed/incomplete lists in Markdown-capable `QTextBrowser` widgets so task text formatting is preserved.
+- `TaskLoopPanel` uses a `QTabWidget` with two tabs: the Product Description tab displays `product-description.md` content, and the Task List tab renders completed/incomplete lists in Markdown-capable `QTextBrowser` widgets so task text formatting is preserved.
 - `LogViewer` listens to worker log and LLM output signals from `MainWindow`.
 
 ## When to Edit Widgets
@@ -37,7 +37,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - Change per-stage LLM selector behavior or enable runtime edits: `llm_selector_panel.py`.
 - Adjust visual tone for logs/status/description surfaces while preserving behavior: `description_panel.py`, `log_viewer.py`, `status_panel.py`, and shared styles in `../theme.py`.
 - Fix log filtering for existing entries: `log_viewer.py`.
-- Add or refine loop-centric task detail display: `task_loop_panel.py` and `status_panel.py`.
+- Add or refine loop-centric task detail display or product description tab: `task_loop_panel.py` and `status_panel.py`.
 - Adjust batch question UX or activity display: `question_panel.py`.
 
 ## Change Map
@@ -46,5 +46,5 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - Provider/model selector behavior: `llm_selector_panel.py`.
 - Run configuration options and working directory selection: `config_panel.py`.
 - Log rendering, filtering, and scroll behavior: `log_viewer.py`.
-- Phase/iteration display and task-percent progress bar: `status_panel.py`.
-- Main-loop action + Markdown-rendered completed/incomplete task lists: `task_loop_panel.py`.
+- Phase/iteration display, task-percent progress bar, and resume button for incomplete tasks: `status_panel.py`.
+- Tabbed interface with Product Description and Task List tabs, where Task List shows main-loop action + Markdown-rendered completed/incomplete task lists: `task_loop_panel.py`.

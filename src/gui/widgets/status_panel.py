@@ -1,9 +1,9 @@
 """Status panel showing current phase, iteration, and task-based progress."""
 
 from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QLabel, QProgressBar, QFrame
+    QWidget, QHBoxLayout, QLabel, QProgressBar, QFrame, QPushButton
 )
-from PySide6.QtCore import Slot, Qt
+from PySide6.QtCore import Slot, Qt, Signal
 
 
 class StatusPanel(QWidget):
@@ -13,7 +13,10 @@ class StatusPanel(QWidget):
     - Current iteration number
     - Overall progress bar
     - Sub-status for detailed info
+    - Resume button for incomplete tasks
     """
+
+    resume_incomplete_tasks = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -63,6 +66,38 @@ class StatusPanel(QWidget):
         self.progress_bar.setMaximumWidth(200)
         self.progress_bar.setTextVisible(True)
         layout.addWidget(self.progress_bar)
+
+        # Resume button for incomplete tasks
+        self.resume_button = QPushButton("Resume Tasks")
+        self.resume_button.setToolTip("Resume incomplete tasks from tasks.md")
+        self.resume_button.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #2f8fd1, stop:1 #266da9);
+                color: white;
+                border: 1px solid #57a7dc;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-weight: 600;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #3b9ce0, stop:1 #2d78b8);
+                border-color: #6eb5e3;
+            }
+            QPushButton:pressed {
+                background: #245f95;
+            }
+            QPushButton:disabled {
+                background: #1d2a36;
+                border-color: #2a3e4f;
+                color: #7f9bb4;
+            }
+        """)
+        self.resume_button.clicked.connect(self.resume_incomplete_tasks.emit)
+        self.resume_button.hide()
+        layout.addWidget(self.resume_button)
 
     @Slot(str)
     def set_phase(self, phase: str):
@@ -129,3 +164,8 @@ class StatusPanel(QWidget):
             self.progress_bar.setStyleSheet("")
         else:
             self.progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #5f6872; }")
+
+    @Slot(bool)
+    def set_resume_button_visible(self, visible: bool):
+        """Show or hide the resume tasks button."""
+        self.resume_button.setVisible(visible)

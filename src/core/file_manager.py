@@ -1,4 +1,4 @@
-"""File manager for tasks.md, recent-changes.md, and review artifacts."""
+"""File manager for tasks.md, recent-changes.md, product-description.md, and review artifacts."""
 
 from pathlib import Path
 from typing import Optional
@@ -7,7 +7,7 @@ from .exceptions import FileOperationError
 
 class FileManager:
     """
-    Manages I/O for tasks.md, recent-changes.md, and review files.
+    Manages I/O for tasks.md, recent-changes.md, product-description.md, and review files.
     Provides atomic write operations and error handling.
     """
 
@@ -93,6 +93,7 @@ class FileManager:
             "- Do not create files over 1000 lines; split files when necessary.",
             "- Keep folders under 10 code files; `.md` files do not count.",
             "- Keep .md developer guides under 500 lines long. if there is a developer guide that is longer then compact it while making sure it still gives all the information needed to understand all code files in that folder.",
+            "- Always verify code changes by running linters and ensuring the project builds without errors.",
         ]) + "\n"
 
     @staticmethod
@@ -140,6 +141,16 @@ class FileManager:
         """Append to recent-changes.md."""
         existing = self.read_recent_changes()
         self.write_recent_changes(existing + "\n" + content)
+
+    def read_description(self) -> str:
+        """Read product-description.md content."""
+        try:
+            description_path = self.working_dir / self.DESCRIPTION_FILE
+            if description_path.exists():
+                return description_path.read_text(encoding="utf-8")
+            return ""
+        except OSError as e:
+            raise FileOperationError(f"Failed to read product-description.md: {e}")
 
     def read_review(self) -> str:
         """Read review.md content."""

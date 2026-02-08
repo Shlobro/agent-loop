@@ -82,6 +82,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     def setup_menu_bar(self):
         """Initialize the menu bar with File menu."""
         menu_bar = self.menuBar()
+        menu_bar.setCornerWidget(self._create_workflow_icon_buttons(), Qt.TopRightCorner)
 
         file_menu = menu_bar.addMenu("&File")
         save_action = QAction("&Save Settings...", self)
@@ -191,6 +192,106 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             self.on_toggle_description_preview
         )
         view_menu.addAction(self.toggle_description_preview_action)
+
+    def _create_workflow_icon_buttons(self):
+        """Create icon buttons for workflow control in the menu bar."""
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 8, 0)
+        layout.setSpacing(4)
+
+        # Start button
+        self.menu_start_button = QPushButton()
+        self.menu_start_button.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
+        self.menu_start_button.setToolTip("Start workflow (Ctrl+Return)")
+        self.menu_start_button.setFixedSize(32, 28)
+        self.menu_start_button.clicked.connect(self.on_start_clicked)
+        self.menu_start_button.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #2f8fd1, stop:1 #266da9);
+                color: white;
+                border: 1px solid #57a7dc;
+                border-radius: 4px;
+                padding: 4px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #3b9ce0, stop:1 #2d78b8);
+                border-color: #6eb5e3;
+            }
+            QPushButton:pressed {
+                background: #245f95;
+            }
+            QPushButton:disabled {
+                background: #1d2a36;
+                border-color: #2a3e4f;
+                color: #7f9bb4;
+            }
+        """)
+        layout.addWidget(self.menu_start_button)
+
+        # Pause button
+        self.menu_pause_button = QPushButton()
+        self.menu_pause_button.setIcon(self.style().standardIcon(QStyle.SP_MediaPause))
+        self.menu_pause_button.setToolTip("Pause workflow (Ctrl+Shift+P)")
+        self.menu_pause_button.setFixedSize(32, 28)
+        self.menu_pause_button.clicked.connect(self.on_pause_clicked)
+        self.menu_pause_button.setEnabled(False)
+        self.menu_pause_button.setStyleSheet("""
+            QPushButton {
+                background: #1d2a36;
+                color: white;
+                border: 1px solid #3a4856;
+                border-radius: 4px;
+                padding: 4px;
+            }
+            QPushButton:hover {
+                background: #2a3e4f;
+                border-color: #4f6377;
+            }
+            QPushButton:pressed {
+                background: #16212b;
+            }
+            QPushButton:disabled {
+                background: #1d2a36;
+                border-color: #2a3e4f;
+                color: #7f9bb4;
+            }
+        """)
+        layout.addWidget(self.menu_pause_button)
+
+        # Stop button
+        self.menu_stop_button = QPushButton()
+        self.menu_stop_button.setIcon(self.style().standardIcon(QStyle.SP_MediaStop))
+        self.menu_stop_button.setToolTip("Stop workflow (Ctrl+.)")
+        self.menu_stop_button.setFixedSize(32, 28)
+        self.menu_stop_button.clicked.connect(self.on_stop_clicked)
+        self.menu_stop_button.setEnabled(False)
+        self.menu_stop_button.setStyleSheet("""
+            QPushButton {
+                background: #c74545;
+                color: white;
+                border: 1px solid #d86565;
+                border-radius: 4px;
+                padding: 4px;
+            }
+            QPushButton:hover {
+                background: #d95656;
+                border-color: #e87676;
+            }
+            QPushButton:pressed {
+                background: #b03434;
+            }
+            QPushButton:disabled {
+                background: #1d2a36;
+                border-color: #2a3e4f;
+                color: #7f9bb4;
+            }
+        """)
+        layout.addWidget(self.menu_stop_button)
+
+        return container
 
     def setup_ui(self):
         """Initialize and layout all UI components."""
@@ -343,9 +444,44 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.debug_settings_action.triggered.connect(self.on_open_debug_settings)
         self.debug_step_requested.connect(self.on_debug_step_requested)
 
+        # Status panel
+        self.status_panel.resume_incomplete_tasks.connect(self.on_resume_incomplete_tasks_clicked)
+
     def _initialize_startup_working_directory(self):
         """Initialize artifacts for the startup/default working directory."""
-        self._prepare_working_directory(self.config_panel.get_working_directory())
+        path = self.config_panel.get_working_directory()
+        self._prepare_working_directory(path)
+
+        # Check for incomplete tasks at startup
+        if path and self._working_directory_has_incomplete_tasks(path):
+            reply = QMessageBox.question(
+                self,
+                "Incomplete Tasks Found",
+                "There are incomplete tasks in this project.\n"
+                "Would you like to continue?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            if reply == QMessageBox.Yes:
+                # Ask for iteration count
+                iterations, ok = self._prompt_iteration_count()
+                if ok and iterations > 0:
+                    self._resume_incomplete_tasks_directory = path
+                    # Set max iterations for the resume
+                    self.state_machine.update_context(max_iterations=iterations)
+                    self.log_viewer.append_log(
+                        f"Resuming incomplete tasks with {iterations} iterations...",
+                        "info"
+                    )
+                    # Automatically start the workflow after a short delay to ensure UI is ready
+                    from PySide6.QtCore import QTimer
+                    QTimer.singleShot(100, self.on_start_clicked)
+                else:
+                    self.log_viewer.append_log("Resume cancelled by user (no iterations specified).", "info")
+                    self._resume_incomplete_tasks_directory = ""
+            else:
+                self.log_viewer.append_log("Resume declined by user.", "info")
+                self._resume_incomplete_tasks_directory = ""
 
     def _prepare_working_directory(self, path: str):
         """Ensure working-directory artifacts exist and are ready."""
@@ -379,6 +515,24 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         except OSError as exc:
             self.log_viewer.append_log(f"Failed to read tasks.md: {exc}", "warning")
             return False
+
+    def _update_resume_button_visibility(self):
+        """Update the resume button visibility based on current state."""
+        phase = self.state_machine.phase
+        working_dir = self.config_panel.get_working_directory()
+
+        # Show resume button when:
+        # 1. Phase is IDLE or COMPLETED
+        # 2. There are incomplete tasks in tasks.md
+        # 3. Not already resuming (to avoid confusion)
+        show_button = bool(
+            phase in (Phase.IDLE, Phase.COMPLETED)
+            and working_dir
+            and self._working_directory_has_incomplete_tasks(working_dir)
+            and self._resume_incomplete_tasks_directory != working_dir
+        )
+
+        self.status_panel.set_resume_button_visible(show_button)
 
     def set_git_mode(self, mode: str):
         """Set git mode and update related UI."""
@@ -439,6 +593,27 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.stop_workflow_action.setEnabled(is_running or is_paused or is_awaiting)
         self.next_step_button.setEnabled(self._debug_waiting)
         self.next_step_action.setEnabled(self._debug_waiting)
+
+        # Update menu bar icon buttons
+        if hasattr(self, 'menu_start_button'):
+            self.menu_start_button.setEnabled(is_idle or is_paused)
+            self.menu_start_button.setToolTip(
+                f"{'Resume' if is_paused else 'Start'} workflow (Ctrl+Return)"
+            )
+            # Update icon
+            if is_paused:
+                self.menu_start_button.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
+            else:
+                self.menu_start_button.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
+
+        if hasattr(self, 'menu_pause_button'):
+            self.menu_pause_button.setEnabled(is_running)
+
+        if hasattr(self, 'menu_stop_button'):
+            self.menu_stop_button.setEnabled(is_running or is_paused or is_awaiting)
+
+        # Update resume button visibility
+        self._update_resume_button_visibility()
 
         # Also update panel states
         ctx = self.state_machine.context
@@ -523,6 +698,13 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
         current_action = action or self.activity_state.get("action") or self.status_panel.sub_status_label.text()
         self.task_loop_panel.set_current_action(current_action)
+
+        # Update product description tab
+        try:
+            description_content = self.file_manager.read_description()
+            self.task_loop_panel.set_description(description_content)
+        except Exception as exc:
+            self.log_viewer.append_log(f"Failed to read product-description.md for UI update: {exc}", "warning")
 
     def _update_loop_priority_visibility(self, phase: Phase):
         """Toggle loop-priority panel visibility based on workflow phase."""
@@ -652,8 +834,19 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     def start_workflow(self):
         """Start a new workflow from the beginning."""
         self._release_debug_wait()
-        # Validate inputs
-        if self.description_panel.is_empty():
+
+        # Initialize state
+        working_dir = self.config_panel.get_working_directory()
+        config = self.config_panel.get_config()
+
+        # Check if we're resuming incomplete tasks
+        resume_incomplete_tasks = (
+            self._resume_incomplete_tasks_directory == working_dir
+            and self._working_directory_has_incomplete_tasks(working_dir)
+        )
+
+        # Validate inputs (skip description check if resuming incomplete tasks)
+        if not resume_incomplete_tasks and self.description_panel.is_empty():
             QMessageBox.warning(self, "Missing Description",
                                 "Please enter a project description.")
             return
@@ -671,9 +864,6 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             )
             return
 
-        # Initialize state
-        working_dir = self.config_panel.get_working_directory()
-        config = self.config_panel.get_config()
         llm_config = self.llm_selector_panel.get_config_dict()
 
         self.state_machine.update_context(
@@ -745,10 +935,6 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.log_viewer.append_log(f"  Git Ops: {llm_config.get('git_ops', 'N/A')}", "info")
         self.log_viewer.append_log("=" * 50, "info")
 
-        resume_incomplete_tasks = (
-            self._resume_incomplete_tasks_directory == working_dir
-            and self._working_directory_has_incomplete_tasks(working_dir)
-        )
         if resume_incomplete_tasks:
             self.log_viewer.append_log(
                 "Resuming existing incomplete tasks from tasks.md in the selected working directory.",
@@ -843,6 +1029,129 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
                 self.current_worker.cancel()
 
             self.state_machine.transition_to(Phase.CANCELLED)
+
+    @Slot()
+    def on_resume_incomplete_tasks_clicked(self):
+        """Resume incomplete tasks from tasks.md."""
+        working_dir = self.config_panel.get_working_directory()
+        if not working_dir or not self._working_directory_has_incomplete_tasks(working_dir):
+            QMessageBox.warning(
+                self,
+                "No Incomplete Tasks",
+                "There are no incomplete tasks to resume."
+            )
+            return
+
+        # Ask for iteration count
+        iterations, ok = self._prompt_iteration_count()
+        if ok and iterations > 0:
+            self._resume_incomplete_tasks_directory = working_dir
+            # Set max iterations for the resume
+            self.state_machine.update_context(max_iterations=iterations)
+            self.on_start_clicked()
+        else:
+            self.log_viewer.append_log("Resume cancelled by user.", "info")
+
+    def _prompt_iteration_count(self):
+        """
+        Prompt user for number of iterations to run.
+        Returns (iterations, ok) tuple where ok is True if user accepted.
+        """
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QSpinBox, QDialogButtonBox
+        from PySide6.QtCore import Qt
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Set Iteration Count")
+        dialog.setMinimumWidth(350)
+
+        layout = QVBoxLayout(dialog)
+
+        message = QLabel("How many iterations would you like to run?")
+        message.setWordWrap(True)
+        message.setAlignment(Qt.AlignCenter)
+        layout.addWidget(message)
+
+        iteration_label = QLabel("Number of iterations:")
+        layout.addWidget(iteration_label)
+
+        spin_box = QSpinBox()
+        spin_box.setMinimum(1)
+        spin_box.setMaximum(999)
+        spin_box.setValue(10)
+        layout.addWidget(spin_box)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        result = dialog.exec()
+
+        if result == QDialog.Accepted:
+            return spin_box.value(), True
+        else:
+            return 0, False
+
+    def _prompt_continue_iterations(self):
+        """Prompt user to continue with more iterations when max is reached but tasks remain."""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QSpinBox, QDialogButtonBox
+        from PySide6.QtCore import Qt
+
+        ctx = self.state_machine.context
+        completed = ctx.current_iteration
+        total = ctx.max_iterations
+
+        # Play notification sound
+        QApplication.beep()
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Iterations Complete")
+        dialog.setMinimumWidth(400)
+
+        layout = QVBoxLayout(dialog)
+
+        message = QLabel(
+            f"{completed}/{total} iterations complete.\n\n"
+            "There are still tasks incomplete.\n"
+            "Would you like to keep going?"
+        )
+        message.setWordWrap(True)
+        message.setAlignment(Qt.AlignCenter)
+        layout.addWidget(message)
+
+        iteration_label = QLabel("Additional iterations:")
+        layout.addWidget(iteration_label)
+
+        spin_box = QSpinBox()
+        spin_box.setMinimum(1)
+        spin_box.setMaximum(999)
+        spin_box.setValue(10)
+        layout.addWidget(spin_box)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.Yes | QDialogButtonBox.No
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        result = dialog.exec()
+
+        if result == QDialog.Accepted:
+            additional_iterations = spin_box.value()
+            new_max = ctx.current_iteration + additional_iterations
+            self.log_viewer.append_log(
+                f"User chose to continue with {additional_iterations} more iterations (new max: {new_max})",
+                "info"
+            )
+            self.state_machine.update_context(max_iterations=new_max)
+            # Continue execution
+            self.run_main_execution()
+        else:
+            self.log_viewer.append_log("User chose to stop at max iterations", "info")
+            self.state_machine.transition_to(Phase.COMPLETED)
 
     @Slot(object, object)
     def on_phase_changed(self, phase: Phase, sub_phase: SubPhase):
@@ -964,8 +1273,24 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
                 QMessageBox.Yes
             )
             if reply == QMessageBox.Yes:
-                self._resume_incomplete_tasks_directory = path
+                # Ask for iteration count
+                iterations, ok = self._prompt_iteration_count()
+                if ok and iterations > 0:
+                    self._resume_incomplete_tasks_directory = path
+                    # Set max iterations for the resume
+                    self.state_machine.update_context(max_iterations=iterations)
+                    self.log_viewer.append_log(
+                        f"Resuming incomplete tasks with {iterations} iterations...",
+                        "info"
+                    )
+                    # Automatically start the workflow
+                    from PySide6.QtCore import QTimer
+                    QTimer.singleShot(100, self.on_start_clicked)
+                else:
+                    self.log_viewer.append_log("Resume cancelled by user (no iterations specified).", "info")
+                    self._resume_incomplete_tasks_directory = ""
             else:
+                self.log_viewer.append_log("Resume declined by user.", "info")
                 self._resume_incomplete_tasks_directory = ""
 
         # Check for existing session
