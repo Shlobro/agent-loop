@@ -2,10 +2,11 @@
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QSplitter, QPushButton, QMessageBox, QApplication, QInputDialog, QLabel, QFrame
+    QSplitter, QPushButton, QMessageBox, QApplication, QInputDialog,
+    QStyle, QGraphicsDropShadowEffect
 )
-from PySide6.QtCore import Qt, Slot, QThreadPool, Signal
-from PySide6.QtGui import QAction, QActionGroup
+from PySide6.QtCore import Qt, Slot, QThreadPool, Signal, QSize
+from PySide6.QtGui import QAction, QActionGroup, QColor
 from pathlib import Path
 import threading
 
@@ -131,6 +132,66 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.debug_settings_action = QAction("&Debug Settings...", self)
         settings_menu.addAction(self.debug_settings_action)
 
+        workflow_menu = menu_bar.addMenu("&Workflow")
+        self.start_workflow_action = QAction("&Start", self)
+        self.start_workflow_action.setShortcut("Ctrl+Return")
+        self.start_workflow_action.triggered.connect(self.on_start_clicked)
+        workflow_menu.addAction(self.start_workflow_action)
+
+        self.pause_workflow_action = QAction("&Pause", self)
+        self.pause_workflow_action.setShortcut("Ctrl+Shift+P")
+        self.pause_workflow_action.triggered.connect(self.on_pause_clicked)
+        workflow_menu.addAction(self.pause_workflow_action)
+
+        self.stop_workflow_action = QAction("S&top", self)
+        self.stop_workflow_action.setShortcut("Ctrl+.")
+        self.stop_workflow_action.triggered.connect(self.on_stop_clicked)
+        workflow_menu.addAction(self.stop_workflow_action)
+
+        self.next_step_action = QAction("&Next Step", self)
+        self.next_step_action.setShortcut("F10")
+        self.next_step_action.triggered.connect(self.on_next_step_clicked)
+        workflow_menu.addAction(self.next_step_action)
+
+        view_menu = menu_bar.addMenu("&View")
+        self.show_status_panel_action = QAction("Show Status Panel", self, checkable=True)
+        self.show_status_panel_action.setChecked(False)
+        self.show_status_panel_action.toggled.connect(self.on_toggle_status_panel)
+        view_menu.addAction(self.show_status_panel_action)
+
+        self.show_logs_panel_action = QAction("Show Logs Panel", self, checkable=True)
+        self.show_logs_panel_action.setChecked(False)
+        self.show_logs_panel_action.toggled.connect(self.on_toggle_logs_panel)
+        view_menu.addAction(self.show_logs_panel_action)
+
+        self.show_task_loop_panel_action = QAction("Show Task Loop Panel", self, checkable=True)
+        self.show_task_loop_panel_action.setChecked(False)
+        self.show_task_loop_panel_action.toggled.connect(self.on_toggle_task_loop_panel)
+        view_menu.addAction(self.show_task_loop_panel_action)
+
+        self.show_control_buttons_action = QAction("Show Control Buttons", self, checkable=True)
+        self.show_control_buttons_action.setChecked(False)
+        self.show_control_buttons_action.toggled.connect(self.on_toggle_control_buttons)
+        view_menu.addAction(self.show_control_buttons_action)
+
+        self.show_description_controls_action = QAction(
+            "Show Description Edit/Preview Controls", self, checkable=True
+        )
+        self.show_description_controls_action.setChecked(False)
+        self.show_description_controls_action.toggled.connect(
+            self.on_toggle_description_controls
+        )
+        view_menu.addAction(self.show_description_controls_action)
+
+        self.toggle_description_preview_action = QAction(
+            "Toggle Description Preview", self, checkable=True
+        )
+        self.toggle_description_preview_action.setChecked(False)
+        self.toggle_description_preview_action.toggled.connect(
+            self.on_toggle_description_preview
+        )
+        view_menu.addAction(self.toggle_description_preview_action)
+
     def setup_ui(self):
         """Initialize and layout all UI components."""
         central = QWidget()
@@ -139,22 +200,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         main_layout.setContentsMargins(14, 12, 14, 14)
         main_layout.setSpacing(10)
 
-        header_row = QHBoxLayout()
-        hero_label = QLabel("AgentHarness")
-        hero_label.setProperty("role", "hero")
-        sub_label = QLabel("Orchestrated coding workflow with human-in-the-loop controls")
-        sub_label.setProperty("role", "hero_subtitle")
-        divider = QFrame()
-        divider.setFrameShape(QFrame.HLine)
-        divider.setFrameShadow(QFrame.Plain)
-        header_row.addWidget(hero_label)
-        header_row.addSpacing(8)
-        header_row.addWidget(sub_label)
-        header_row.addStretch()
-        main_layout.addLayout(header_row)
-        main_layout.addWidget(divider)
-
         self.status_panel = StatusPanel()
+        self.status_panel.hide()
         main_layout.addWidget(self.status_panel)
         main_splitter = QSplitter(Qt.Horizontal)
         main_splitter.setHandleWidth(4)
@@ -182,10 +229,11 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         # Bottom section of right column: Clarifying Questions (larger)
         self.question_panel = QuestionPanel()
         self.question_panel.setMinimumHeight(300)
-        right_column_layout.addWidget(self.question_panel, stretch=0)
 
         # Control buttons at bottom of right column
-        button_layout = QHBoxLayout()
+        self.control_button_container = QWidget()
+        button_layout = QHBoxLayout(self.control_button_container)
+        button_layout.setContentsMargins(0, 0, 0, 0)
 
         self.start_button = QPushButton("Start")
         self.start_button.setMinimumWidth(100)
@@ -214,7 +262,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
         button_layout.addStretch()
 
-        right_column_layout.addLayout(button_layout)
+        self.control_button_container.hide()
+        right_column_layout.addWidget(self.control_button_container, stretch=0)
 
         main_splitter.addWidget(right_column)
 
@@ -222,9 +271,53 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         main_splitter.setSizes([480, 720])
 
         main_layout.addWidget(main_splitter, stretch=1)
-        animate_fade_in(self.status_panel, duration_ms=300, delay_ms=60)
         animate_fade_in(self.log_viewer, duration_ms=420, delay_ms=100)
         animate_fade_in(right_column, duration_ms=440, delay_ms=160)
+
+        self.floating_start_button = QPushButton(self.centralWidget())
+        self.floating_start_button.setObjectName("floatingStartButton")
+        self.floating_start_button.setToolTip("Start question phase")
+        self.floating_start_button.setCursor(Qt.PointingHandCursor)
+        self.floating_start_button.setIcon(
+            self.style().standardIcon(QStyle.SP_ArrowForward)
+        )
+        self.floating_start_button.setIconSize(QSize(22, 22))
+        self.floating_start_button.setFixedSize(56, 56)
+        self.floating_start_button.clicked.connect(self.on_start_clicked)
+        polish_button(self.floating_start_button, "primary")
+        self.floating_start_button.setStyleSheet(
+            "QPushButton#floatingStartButton {"
+            "padding: 0;"
+            "border-radius: 28px;"
+            "border: 1px solid #57a7dc;"
+            "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, "
+            "stop:0 #2f8fd1, stop:1 #266da9);"
+            "color: #f4fbff;"
+            "}"
+            "QPushButton#floatingStartButton:hover {"
+            "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, "
+            "stop:0 #3b9ce0, stop:1 #2d78b8);"
+            "border-color: #6eb5e3;"
+            "}"
+            "QPushButton#floatingStartButton:pressed {"
+            "background: #245f95;"
+            "border-color: #4f95c7;"
+            "}"
+            "QPushButton#floatingStartButton:disabled {"
+            "background: #1d2a36;"
+            "border-color: #2a3e4f;"
+            "color: #7f9bb4;"
+            "}"
+        )
+        floating_shadow = QGraphicsDropShadowEffect(self.floating_start_button)
+        floating_shadow.setBlurRadius(28)
+        floating_shadow.setOffset(0, 7)
+        floating_shadow.setColor(QColor(5, 12, 20, 160))
+        self.floating_start_button.setGraphicsEffect(floating_shadow)
+        self.floating_start_button.hide()
+        self._position_floating_start_button()
+
+        self._set_logs_panel_visible(False)
 
     def connect_signals(self):
         """Connect UI signals to slots."""
@@ -337,17 +430,24 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
         self.start_button.setEnabled(is_idle or is_paused)
         self.start_button.setText("Resume" if is_paused else "Start")
+        self.start_workflow_action.setEnabled(is_idle or is_paused)
+        self.start_workflow_action.setText("&Resume" if is_paused else "&Start")
 
         self.pause_button.setEnabled(is_running)
+        self.pause_workflow_action.setEnabled(is_running)
         self.stop_button.setEnabled(is_running or is_paused or is_awaiting)
+        self.stop_workflow_action.setEnabled(is_running or is_paused or is_awaiting)
         self.next_step_button.setEnabled(self._debug_waiting)
+        self.next_step_action.setEnabled(self._debug_waiting)
 
         # Also update panel states
         ctx = self.state_machine.context
         description_editable = is_idle or (is_awaiting and ctx.questions_answered and self.current_worker is None)
         self.description_panel.set_readonly(not description_editable)
+        self.toggle_description_preview_action.setChecked(self.description_panel.is_preview_mode())
         self.llm_selector_panel.set_enabled(True)
         self.config_panel.set_enabled(is_idle)
+        self._update_floating_start_button_visibility()
 
     def _reset_activity_state(self):
         """Clear activity panel state for a fresh run."""
@@ -426,12 +526,68 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
     def _update_loop_priority_visibility(self, phase: Phase):
         """Toggle loop-priority panel visibility based on workflow phase."""
-        if self._is_main_loop_phase(phase):
+        if self.show_task_loop_panel_action.isChecked() and self._is_main_loop_phase(phase):
             self.task_loop_panel.show()
             self._refresh_task_loop_snapshot()
             return
         self.task_loop_panel.hide()
         self.status_panel.set_task_progress(0, 0)
+
+    @Slot(bool)
+    def on_toggle_status_panel(self, visible: bool):
+        """Show/hide the status summary row."""
+        self.status_panel.setVisible(bool(visible))
+
+    @Slot(bool)
+    def on_toggle_logs_panel(self, visible: bool):
+        """Show/hide logs panel via existing splitter-aware helper."""
+        self._set_logs_panel_visible(bool(visible))
+
+    @Slot(bool)
+    def on_toggle_task_loop_panel(self, visible: bool):
+        """Enable/disable task loop panel visibility."""
+        if not visible:
+            self.task_loop_panel.hide()
+            return
+        self._update_loop_priority_visibility(self.state_machine.phase)
+
+    @Slot(bool)
+    def on_toggle_control_buttons(self, visible: bool):
+        """Show/hide manual control buttons row."""
+        self.control_button_container.setVisible(bool(visible))
+        self._position_floating_start_button()
+
+    @Slot(bool)
+    def on_toggle_description_controls(self, visible: bool):
+        """Show/hide description Edit/Preview controls."""
+        self.description_panel.set_preview_controls_visible(bool(visible))
+
+    @Slot(bool)
+    def on_toggle_description_preview(self, enabled: bool):
+        """Switch description editor between edit and preview modes."""
+        self.description_panel.set_preview_mode(bool(enabled))
+
+    def _position_floating_start_button(self):
+        """Anchor the floating start button to the lower-right of the content area."""
+        if not hasattr(self, "floating_start_button"):
+            return
+        host = self.centralWidget()
+        if not host:
+            return
+        margin = 20
+        x = max(0, host.width() - self.floating_start_button.width() - margin)
+        y = max(0, host.height() - self.floating_start_button.height() - margin)
+        self.floating_start_button.move(x, y)
+
+    def _update_floating_start_button_visibility(self):
+        """Show minimalist start button only when starting a new run is valid."""
+        can_show = (
+            self.state_machine.phase == Phase.IDLE
+            and not self.description_panel.is_empty()
+            and self.start_workflow_action.isEnabled()
+        )
+        self.floating_start_button.setVisible(can_show)
+        self._position_floating_start_button()
 
     @Slot()
     def on_next_step_clicked(self):
@@ -456,6 +612,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         """Toggle waiting state for debug step mode controls."""
         self._debug_waiting = waiting
         self.next_step_button.setEnabled(waiting)
+        self.next_step_action.setEnabled(waiting)
 
     def _release_debug_wait(self):
         """Release any blocked debug wait to avoid deadlock on pause/stop."""
@@ -1035,6 +1192,12 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             return
         self.state_machine.update_context(description=text)
         self._sync_description_to_file(text)
+        self._update_floating_start_button_visibility()
+
+    def resizeEvent(self, event):
+        """Keep floating start control anchored after window resizes."""
+        super().resizeEvent(event)
+        self._position_floating_start_button()
 
     @Slot()
     def on_runtime_config_changed(self):

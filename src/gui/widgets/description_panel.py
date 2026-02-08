@@ -1,7 +1,8 @@
 """Panel for user project description input."""
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QTextEdit, QGroupBox, QTextBrowser
+    QWidget, QVBoxLayout, QLabel, QTextEdit, QTextBrowser,
+    QHBoxLayout, QPushButton, QStackedWidget
 )
 from PySide6.QtCore import Signal
 
@@ -21,47 +22,49 @@ class DescriptionPanel(QWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
 
-        # Group box for visual grouping
-        group = QGroupBox("Project Description")
-        group.setObjectName("descriptionGroup")
-        group_layout = QVBoxLayout(group)
+        self.prompt_label = QLabel("Product Description")
+        self.prompt_label.setProperty("role", "hero")
+        self.prompt_label.setWordWrap(True)
+        layout.addWidget(self.prompt_label)
 
-        # Instructions label
-        instructions = QLabel(
-            "Describe what you want to build. Be specific about features, "
-            "requirements, and any technical constraints."
-        )
-        instructions.setWordWrap(True)
-        instructions.setProperty("role", "muted")
-        instructions.setStyleSheet("font-size: 16px;")
-        group_layout.addWidget(instructions)
-
-        # Text input
         self.text_edit = QTextEdit()
-        self.text_edit.setPlaceholderText(
-            "Example: I want to build a REST API for a library catalog system. "
-            "It should have endpoints for managing books (CRUD operations), "
-            "authors, and borrowing records. Users should be able to search "
-            "books by title, author, or ISBN. The API should use JWT for "
-            "authentication and PostgreSQL for the database..."
-        )
         self.text_edit.setStyleSheet("font-size: 17px;")
-        self.text_edit.setMinimumHeight(150)
+        self.text_edit.setMinimumHeight(300)
         self.text_edit.textChanged.connect(self._on_text_changed)
-        group_layout.addWidget(self.text_edit)
-
-        preview_title = QLabel("Markdown Preview")
-        preview_title.setStyleSheet("font-size: 15px; font-weight: 600;")
-        group_layout.addWidget(preview_title)
 
         self.preview = QTextBrowser()
         self.preview.setOpenExternalLinks(True)
-        self.preview.setMinimumHeight(180)
-        group_layout.addWidget(self.preview)
+        self.preview.setMinimumHeight(300)
 
-        layout.addWidget(group)
+        self.mode_row_widget = QWidget()
+        mode_row = QHBoxLayout(self.mode_row_widget)
+        mode_row.setContentsMargins(0, 0, 0, 0)
+        mode_label = QLabel("View")
+        mode_label.setProperty("role", "muted")
+        mode_row.addWidget(mode_label)
+
+        self.edit_mode_button = QPushButton("Edit")
+        self.edit_mode_button.setCheckable(True)
+        self.edit_mode_button.clicked.connect(self._enter_edit_mode)
+        mode_row.addWidget(self.edit_mode_button)
+
+        self.preview_mode_button = QPushButton("Preview")
+        self.preview_mode_button.setCheckable(True)
+        self.preview_mode_button.clicked.connect(self._enter_preview_mode)
+        mode_row.addWidget(self.preview_mode_button)
+
+        mode_row.addStretch(1)
+        layout.addWidget(self.mode_row_widget)
+
+        self.content_stack = QStackedWidget()
+        self.content_stack.addWidget(self.text_edit)
+        self.content_stack.addWidget(self.preview)
+        layout.addWidget(self.content_stack)
         self._refresh_preview()
+        self._set_mode(edit_mode=True)
+        self.set_preview_controls_visible(False)
 
     def _on_text_changed(self):
         """Emit signal when text changes."""
@@ -80,6 +83,23 @@ class DescriptionPanel(QWidget):
     def set_readonly(self, readonly: bool):
         """Enable or disable editing."""
         self.text_edit.setReadOnly(readonly)
+        self.edit_mode_button.setEnabled(not readonly)
+        if readonly:
+            self._set_mode(edit_mode=False)
+        elif not self.is_preview_mode():
+            self._set_mode(edit_mode=True)
+
+    def set_preview_controls_visible(self, visible: bool):
+        """Show or hide explicit Edit/Preview controls."""
+        self.mode_row_widget.setVisible(bool(visible))
+
+    def set_preview_mode(self, enabled: bool):
+        """Switch between edit and markdown preview mode."""
+        self._set_mode(edit_mode=not enabled)
+
+    def is_preview_mode(self) -> bool:
+        """Return True when markdown preview mode is active."""
+        return self.content_stack.currentWidget() is self.preview
 
     def append_qa_pairs(self, qa_pairs: list):
         """Append answered clarifying questions to the description text."""
@@ -116,3 +136,14 @@ class DescriptionPanel(QWidget):
         self.preview.setMarkdown(
             "_Markdown preview appears here once the project description has content._"
         )
+
+    def _set_mode(self, edit_mode: bool):
+        self.content_stack.setCurrentWidget(self.text_edit if edit_mode else self.preview)
+        self.edit_mode_button.setChecked(edit_mode)
+        self.preview_mode_button.setChecked(not edit_mode)
+
+    def _enter_edit_mode(self):
+        self._set_mode(edit_mode=True)
+
+    def _enter_preview_mode(self):
+        self._set_mode(edit_mode=False)

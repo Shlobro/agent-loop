@@ -5,17 +5,20 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 
 ## Contents
 - `main_window.py`: Application controller and UI shell. Wires panels, manages phase transitions, and delegates worker execution to mixins.
-- `settings_mixin.py`: Settings handlers used by `MainWindow` (save/load project settings, configuration/LLM/review/debug settings dialog wiring, left logs-panel visibility control, and automatic per-working-directory settings sync under `.agentharness/project-settings.json`).
+- `settings_mixin.py`: Settings handlers used by `MainWindow` (save/load project settings, configuration/LLM/review/debug settings dialog wiring, left logs-panel visibility control, and automatic per-working-directory settings sync under `.agentharness/project-settings.json`). UI default is hidden left logs panel unless a directory settings file enables it.
 - `workflow_runner.py`: Worker execution mixin for planning, execution, review, and git phases.
 - `theme.py`: Centralized Qt Fusion stylesheet plus helper utilities for button variants and fade-in animations. It defines the global typography scale (base font, inputs, group titles, buttons, hero labels, and list-item spacing) used across dialogs and widgets.
-- `widgets/`: Reusable UI panels (description with Markdown preview, main-loop task status with Markdown rendering, hidden question-flow bridge, logs, config, status, LLM selection).
+- `widgets/`: Reusable UI panels (description with single-box Markdown edit/preview modes, main-loop task status with Markdown rendering, hidden question-flow bridge, logs, config, status, LLM selection).
 - `dialogs/`: Modal dialogs (git approval, review settings, debug settings, startup working-directory selection, keyboard-first question answering).
 - `__init__.py`: Module marker.
 
 ## Key Interactions
 - `MainWindow` owns the `StateMachine` and a `QThreadPool`, and mixes in worker handlers from `WorkflowRunnerMixin`.
 - `main.py` shows `dialogs/startup_directory_dialog.py` before creating `MainWindow`; app startup now requires selecting a working directory and supports recent-directory shortcuts.
+- After directory selection, `MainWindow` defaults to a minimalist composition: a `Product Description` header and a single input surface only. Runtime/status/logs/control surfaces are hidden behind `View` menu toggles, and workflow commands are exposed in the `Workflow` menu with shortcuts.
+- To keep startup minimal while preserving discoverability, `MainWindow` also renders a floating circular start button (standard forward icon, gradient fill, soft shadow) that appears only when the app is idle and the description is non-empty; it triggers the same start path as `Workflow -> Start`.
 - `MainWindow` also controls debug-step gating for every LLM call through `Settings -> Debug Settings` and a `Next Step` button in the main controls row.
+- The same workflow controls are always accessible from `Workflow` menu actions (`Start/Resume`, `Pause`, `Stop`, `Next Step`), so hiding the control row does not remove functionality.
 - Worker results and log output are streamed back to UI via `WorkerSignals`.
 - During `MAIN_EXECUTION`/`DEBUG_REVIEW`/`GIT_OPERATIONS` (and `COMPLETED`), `MainWindow` prioritizes loop visibility with `widgets/task_loop_panel.py`: current action, completed/incomplete counts, and explicit Markdown-rendered completed/incomplete task lists sourced from `tasks.md`.
 - The top-right status-bar progress percentage is driven by task completion ratio from `tasks.md`, not by max-iteration count.
@@ -34,8 +37,9 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 - Manage session save/resume through `SessionManager`.
 - Expose menu actions including `Settings -> LLM Settings` for stage provider/model choices.
 - Expose menu actions including `Settings -> Configuration Settings` for execution controls and working directory/git remote.
-- Expose menu actions including `Settings -> Review Settings`, which opens the review selection dialog and optional pre-review unit-test-update toggle.
+- Expose menu actions including `Settings -> Review Settings`, which opens a dialog with separate sections for one-time pre-review unit-test prep and per-iteration review-loop type selection.
 - Expose menu actions including `Settings -> Debug Settings` (which also controls left logs-panel visibility).
+- Expose menu actions for `Workflow` (run controls) and `View` (status/log/task/control/description-view toggles) to preserve a minimalist default layout.
 
 ## When to Edit GUI
 - Start/pause/stop flow or phase routing: `main_window.py`.
@@ -43,7 +47,7 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 - Enable or refine mid-run LLM/config changes: `main_window.py`, `widgets/llm_selector_panel.py`, `widgets/config_panel.py`.
 - Add new controls or settings (including review type selection via settings dropdown): `widgets/config_panel.py`, `dialogs/review_settings_dialog.py`.
 - Fix log rendering/filtering: `widgets/log_viewer.py`.
-- Show description (editor + Markdown preview) and loop-priority task progress/list rendering in the UI: `widgets/description_panel.py`, `widgets/task_loop_panel.py`, `widgets/status_panel.py`, `main_window.py`.
+- Show description (single-box Edit/Preview Markdown modes) and loop-priority task progress/list rendering in the UI: `widgets/description_panel.py`, `widgets/task_loop_panel.py`, `widgets/status_panel.py`, `main_window.py`.
 
 ## Change Map
 - Workflow control or signal wiring: `main_window.py`.

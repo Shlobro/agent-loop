@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QDialogButtonBox,
+    QGroupBox,
     QLabel,
     QVBoxLayout,
 )
@@ -26,11 +27,27 @@ class ReviewSettingsDialog(QDialog):
         self.review_checkboxes: Dict[str, QCheckBox] = {}
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Choose which reviewers should run:"))
 
-        self.unit_test_prep_checkbox = QCheckBox("Run pre-review unit test update phase")
+        prep_group = QGroupBox("Pre-Review Preparation")
+        prep_layout = QVBoxLayout(prep_group)
+        prep_note = QLabel(
+            "Runs once before the review loop starts (not a review-type cycle)."
+        )
+        prep_note.setWordWrap(True)
+        prep_note.setProperty("role", "muted")
+        prep_layout.addWidget(prep_note)
+
+        self.unit_test_prep_checkbox = QCheckBox("Run unit test prep before review loop")
         self.unit_test_prep_checkbox.setChecked(run_unit_test_prep)
-        layout.addWidget(self.unit_test_prep_checkbox)
+        prep_layout.addWidget(self.unit_test_prep_checkbox)
+        layout.addWidget(prep_group)
+
+        review_group = QGroupBox("Review Loop Types")
+        review_layout = QVBoxLayout(review_group)
+        review_note = QLabel("Choose which reviewers run inside each review iteration.")
+        review_note.setWordWrap(True)
+        review_note.setProperty("role", "muted")
+        review_layout.addWidget(review_note)
 
         for review_type in PromptTemplates.get_all_review_types():
             value = review_type.value
@@ -38,7 +55,8 @@ class ReviewSettingsDialog(QDialog):
             checkbox = QCheckBox(label)
             checkbox.setChecked(value in selected)
             self.review_checkboxes[value] = checkbox
-            layout.addWidget(checkbox)
+            review_layout.addWidget(checkbox)
+        layout.addWidget(review_group)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)

@@ -16,13 +16,14 @@ class SettingsMixin:
     """Save/load and debug-settings handlers for the main window."""
     _settings_sync_suspended = False
     _active_working_directory = ""
-    _logs_panel_visible = True
+    _logs_panel_visible = False
     _last_main_splitter_sizes = None
 
     def initialize_directory_settings(self, startup_directory: str):
         """Initialize automatic per-directory settings behavior and set startup directory."""
         self._settings_sync_suspended = False
         self._active_working_directory = ""
+        self._set_logs_panel_visible(self._logs_panel_visible)
         self.config_panel.working_directory_changed.connect(self.on_working_directory_settings_changed)
         if startup_directory:
             self.config_panel.set_working_directory(startup_directory)
@@ -236,6 +237,10 @@ class SettingsMixin:
     def _set_logs_panel_visible(self, visible: bool):
         """Show or hide the left logs panel and keep splitter sizing usable."""
         self._logs_panel_visible = bool(visible)
+        if hasattr(self, "show_logs_panel_action"):
+            was_blocked = self.show_logs_panel_action.blockSignals(True)
+            self.show_logs_panel_action.setChecked(self._logs_panel_visible)
+            self.show_logs_panel_action.blockSignals(was_blocked)
         splitter = self.log_viewer.parentWidget()
         if not isinstance(splitter, QSplitter):
             self.log_viewer.setVisible(self._logs_panel_visible)

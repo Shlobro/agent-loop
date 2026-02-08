@@ -4,7 +4,7 @@
 Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 
 ## Contents
-- `description_panel.py`: Project description Markdown editor with live Markdown preview; changes are synced to `product-description.md` by `MainWindow`. The instructions/editor use larger text sizing for readability during long-form drafting.
+- `description_panel.py`: Minimal-first project description surface. Default view shows a single header (`Product Description`) and one large input area. Markdown edit/preview behavior is still available and can be surfaced from `View` menu toggles in `MainWindow`; changes are synced to `product-description.md`.
 - `question_panel.py`: Hidden signal bridge for question flow. It opens `dialogs/question_answer_dialog.py` as a modal window when questions are ready, emits submitted Q&A pairs, and then opens `dialogs/question_flow_decision_dialog.py` after rewrite so the user explicitly chooses `Ask More Questions` or `Start Main Loop`.
 - `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry, including built-in default stage assignments; hosted by `Settings -> LLM Settings` and used as the canonical in-memory stage config for the run. Stages are displayed in execution order, with Unit Test Prep shown before Reviewer and Fixer to reflect that it runs first in the review phase.
 - `config_panel.py`: Execution settings (iterations, tasks per iteration, questions, working directory, git settings), stored review-type selections, and the optional pre-review unit-test-update toggle used by the review settings dialog; hosted by `Settings -> Configuration Settings`, while values stay live-editable during execution.
@@ -27,8 +27,8 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - `ConfigPanel` exposes `ExecutionConfig`; review type selections are edited through the main menu action `Settings -> Review Settings` and include all active review categories (General, Architecture, Efficiency, Error Handling, Safety, Testing, Documentation, UI/UX). The same dialog also controls whether the optional pre-review unit-test-update pass runs.
 - `ConfigPanel` keeps `Number of Questions`, `Max Main Iterations`, `Tasks Per Iteration`, and `Debug Loop Iterations` enabled during active runs so users can change upcoming question batches, loop limits, and tasks-per-iteration without stopping.
 - `ConfigPanel` performs git bootstrap checks for the selected working directory both when the directory/remote changes and when planning starts: checks whether the directory is already a git repo, runs `git init` when needed, shows a user-facing install notice if git commands are unavailable/fail, and configures `origin` when a remote URL is set.
-- `QuestionPanel` remains connected to `MainWindow` signal wiring but is not used as a visible section in the right column.
-- `DescriptionPanel` keeps a preview surface in sync with editor text via `QTextBrowser.setMarkdown(...)`, so Markdown formatting is visible while drafting.
+- `QuestionPanel` remains connected to `MainWindow` signal wiring but is not used as a visible section in the main layout.
+- `DescriptionPanel` keeps a Markdown preview surface in sync with editor text via `QTextBrowser.setMarkdown(...)` and swaps editor/preview in the same box through a `QStackedWidget`; the explicit `Edit`/`Preview` controls are hidden by default and can be enabled from the `View` menu.
 - `TaskLoopPanel` renders completed/incomplete lists in Markdown-capable `QTextBrowser` widgets so task text formatting is preserved.
 - `LogViewer` listens to worker log and LLM output signals from `MainWindow`.
 
@@ -41,7 +41,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - Adjust batch question UX or activity display: `question_panel.py`.
 
 ## Change Map
-- Description Markdown editing/preview UX: `description_panel.py`.
+- Description single-box Markdown edit/preview UX: `description_panel.py`.
 - Question flow modal launch and question-phase signal bridging: `question_panel.py`.
 - Provider/model selector behavior: `llm_selector_panel.py`.
 - Run configuration options and working directory selection: `config_panel.py`.
