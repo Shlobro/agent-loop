@@ -73,9 +73,9 @@ class LogViewer(QWidget):
         self.text_edit.setLineWrapMode(QPlainTextEdit.WidgetWidth)
 
         # Use monospace font
-        font = QFont("Consolas", 9)
+        font = QFont("Consolas", 11)
         if not font.exactMatch():
-            font = QFont("Courier New", 9)
+            font = QFont("Courier New", 11)
         self.text_edit.setFont(font)
 
         group_layout.addWidget(self.text_edit)

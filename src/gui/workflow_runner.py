@@ -37,6 +37,7 @@ class WorkflowRunnerMixin:
         """Handle generated tasks."""
         self.state_machine.update_context(tasks_content=tasks_content)
         self.log_viewer.append_success("Task list created")
+        self._refresh_task_loop_snapshot(action="Task list created")
 
         # Move to main execution
         self.log_viewer.append_log("Transitioning to Main Execution phase...", "info")
@@ -74,11 +75,13 @@ class WorkflowRunnerMixin:
         ctx = self.state_machine.context
         self.state_machine.update_context(current_iteration=iteration)
         self.status_panel.set_iteration(iteration, ctx.max_iterations)
+        self._refresh_task_loop_snapshot(action=f"Iteration {iteration} completed")
 
     @Slot(object)
     def on_single_task_complete(self, result: dict):
         """Handle single task execution completion - then proceed to review and git."""
         self.log_viewer.append_log(f"Single task execution result: {result}", "debug")
+        self._refresh_task_loop_snapshot(action=f"Main loop iteration {result.get('iteration', 0)} finished")
 
         if result.get("stopped_early"):
             self.log_viewer.append_log("Execution stopped early", "warning")
@@ -147,6 +150,7 @@ class WorkflowRunnerMixin:
         self.state_machine.update_context(current_review_type=review_type)
         review_label = PromptTemplates.get_review_display_name(review_type)
         self.status_panel.set_sub_status(f"Completed: {review_label}")
+        self._refresh_task_loop_snapshot(action=f"Completed review: {review_label}")
 
         if self._should_show_activity(self.state_machine.phase):
             self.activity_state["review"] = review_label
@@ -201,6 +205,7 @@ class WorkflowRunnerMixin:
     def on_git_complete(self, result: dict):
         """Handle git operations completion - then check for more tasks."""
         self.log_viewer.append_log(f"Git operations result: {result}", "debug")
+        self._refresh_task_loop_snapshot(action="Git operations finished")
 
         if result.get("skipped"):
             self.log_viewer.append_log("Git operations skipped (no changes detected)", "info")

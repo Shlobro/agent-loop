@@ -1,7 +1,7 @@
 """Panel for user project description input."""
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QTextEdit, QGroupBox
+    QWidget, QVBoxLayout, QLabel, QTextEdit, QGroupBox, QTextBrowser
 )
 from PySide6.QtCore import Signal
 
@@ -34,6 +34,7 @@ class DescriptionPanel(QWidget):
         )
         instructions.setWordWrap(True)
         instructions.setProperty("role", "muted")
+        instructions.setStyleSheet("font-size: 16px;")
         group_layout.addWidget(instructions)
 
         # Text input
@@ -45,14 +46,26 @@ class DescriptionPanel(QWidget):
             "books by title, author, or ISBN. The API should use JWT for "
             "authentication and PostgreSQL for the database..."
         )
+        self.text_edit.setStyleSheet("font-size: 17px;")
         self.text_edit.setMinimumHeight(150)
         self.text_edit.textChanged.connect(self._on_text_changed)
         group_layout.addWidget(self.text_edit)
 
+        preview_title = QLabel("Markdown Preview")
+        preview_title.setStyleSheet("font-size: 15px; font-weight: 600;")
+        group_layout.addWidget(preview_title)
+
+        self.preview = QTextBrowser()
+        self.preview.setOpenExternalLinks(True)
+        self.preview.setMinimumHeight(180)
+        group_layout.addWidget(self.preview)
+
         layout.addWidget(group)
+        self._refresh_preview()
 
     def _on_text_changed(self):
         """Emit signal when text changes."""
+        self._refresh_preview()
         self.description_changed.emit(self.get_description())
 
     def get_description(self) -> str:
@@ -62,6 +75,7 @@ class DescriptionPanel(QWidget):
     def set_description(self, text: str):
         """Set the description text."""
         self.text_edit.setPlainText(text)
+        self._refresh_preview()
 
     def set_readonly(self, readonly: bool):
         """Enable or disable editing."""
@@ -87,7 +101,18 @@ class DescriptionPanel(QWidget):
     def clear(self):
         """Clear the description."""
         self.text_edit.clear()
+        self._refresh_preview()
 
     def is_empty(self) -> bool:
         """Check if description is empty."""
         return len(self.get_description()) == 0
+
+    def _refresh_preview(self):
+        """Render current description as Markdown preview."""
+        markdown = self.get_description()
+        if markdown:
+            self.preview.setMarkdown(markdown)
+            return
+        self.preview.setMarkdown(
+            "_Markdown preview appears here once the project description has content._"
+        )

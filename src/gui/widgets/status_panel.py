@@ -1,4 +1,4 @@
-"""Status panel showing current phase, iteration, and progress."""
+"""Status panel showing current phase, iteration, and task-based progress."""
 
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QLabel, QProgressBar, QFrame
@@ -26,7 +26,7 @@ class StatusPanel(QWidget):
 
         # Phase indicator
         self.phase_label = QLabel("Phase: Idle")
-        self.phase_label.setStyleSheet("font-weight: 700;")
+        self.phase_label.setStyleSheet("font-size: 17px; font-weight: 700;")
         layout.addWidget(self.phase_label)
 
         # Separator
@@ -38,6 +38,7 @@ class StatusPanel(QWidget):
         # Iteration indicator
         self.iteration_label = QLabel("Iteration: -")
         self.iteration_label.setMinimumWidth(100)
+        self.iteration_label.setStyleSheet("font-size: 15px;")
         layout.addWidget(self.iteration_label)
 
         # Separator
@@ -49,6 +50,7 @@ class StatusPanel(QWidget):
         # Sub-status (detailed info)
         self.sub_status_label = QLabel("")
         self.sub_status_label.setProperty("role", "muted")
+        self.sub_status_label.setStyleSheet("font-size: 15px;")
         layout.addWidget(self.sub_status_label)
 
         layout.addStretch()
@@ -82,18 +84,24 @@ class StatusPanel(QWidget):
             "Cancelled": "#e8937d",
         }
         color = colors.get(phase, "white")
-        self.phase_label.setStyleSheet(f"font-weight: 700; color: {color};")
+        self.phase_label.setStyleSheet(f"font-size: 17px; font-weight: 700; color: {color};")
 
     @Slot(int, int)
     def set_iteration(self, current: int, total: int):
-        """Set iteration display and update progress bar."""
+        """Set iteration display."""
         if total > 0:
             self.iteration_label.setText(f"Iteration: {current}/{total}")
-            progress = int((current / total) * 100)
-            self.progress_bar.setValue(progress)
         else:
             self.iteration_label.setText("Iteration: -")
+
+    @Slot(int, int)
+    def set_task_progress(self, completed: int, total: int):
+        """Set progress bar from task completion counts."""
+        if total <= 0:
             self.progress_bar.setValue(0)
+            return
+        progress = int((completed / total) * 100)
+        self.progress_bar.setValue(max(0, min(100, progress)))
 
     @Slot(str)
     def set_sub_status(self, status: str):
@@ -108,7 +116,7 @@ class StatusPanel(QWidget):
     def reset(self):
         """Reset all status indicators."""
         self.phase_label.setText("Phase: Idle")
-        self.phase_label.setStyleSheet("font-weight: 700; color: #8e99a6;")
+        self.phase_label.setStyleSheet("font-size: 17px; font-weight: 700; color: #8e99a6;")
         self.iteration_label.setText("Iteration: -")
         self.sub_status_label.setText("")
         self.progress_bar.setValue(0)

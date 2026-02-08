@@ -4,12 +4,13 @@
 Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 
 ## Contents
-- `description_panel.py`: Project description input and read-only handling; changes are synced to `product-description.md` by `MainWindow`.
-- `question_panel.py`: Hidden signal bridge for question flow. It opens `dialogs/question_answer_dialog.py` as a modal window when questions are ready, emits submitted Q&A pairs, and auto-advances to planning after description rewrite completes.
+- `description_panel.py`: Project description Markdown editor with live Markdown preview; changes are synced to `product-description.md` by `MainWindow`. The instructions/editor use larger text sizing for readability during long-form drafting.
+- `question_panel.py`: Hidden signal bridge for question flow. It opens `dialogs/question_answer_dialog.py` as a modal window when questions are ready, emits submitted Q&A pairs, and then opens `dialogs/question_flow_decision_dialog.py` after rewrite so the user explicitly chooses `Ask More Questions` or `Start Main Loop`.
 - `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry, including built-in default stage assignments; hosted by `Settings -> LLM Settings` and used as the canonical in-memory stage config for the run. Stages are displayed in execution order, with Unit Test Prep shown before Reviewer and Fixer to reflect that it runs first in the review phase.
 - `config_panel.py`: Execution settings (iterations, tasks per iteration, questions, working directory, git settings), stored review-type selections, and the optional pre-review unit-test-update toggle used by the review settings dialog; hosted by `Settings -> Configuration Settings`, while values stay live-editable during execution.
-- `log_viewer.py`: Color-coded log viewer with filtering and auto-scroll.
-- `status_panel.py`: Top-line workflow status and progress bar.
+- `log_viewer.py`: Color-coded log viewer with filtering and auto-scroll; uses an enlarged monospace font for clearer streaming output.
+- `status_panel.py`: Top-line workflow status, iteration label, and top-right progress bar; progress is task-list based (`completed tasks / total tasks`) during loop execution.
+- `task_loop_panel.py`: Main-loop priority panel that shows the current agent action plus completed/incomplete task counts and Markdown-rendered task lists.
 - `__init__.py`: Module marker.
 
 ## Key Interactions
@@ -27,6 +28,8 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - `ConfigPanel` keeps `Number of Questions`, `Max Main Iterations`, `Tasks Per Iteration`, and `Debug Loop Iterations` enabled during active runs so users can change upcoming question batches, loop limits, and tasks-per-iteration without stopping.
 - `ConfigPanel` performs git bootstrap checks for the selected working directory both when the directory/remote changes and when planning starts: checks whether the directory is already a git repo, runs `git init` when needed, shows a user-facing install notice if git commands are unavailable/fail, and configures `origin` when a remote URL is set.
 - `QuestionPanel` remains connected to `MainWindow` signal wiring but is not used as a visible section in the right column.
+- `DescriptionPanel` keeps a preview surface in sync with editor text via `QTextBrowser.setMarkdown(...)`, so Markdown formatting is visible while drafting.
+- `TaskLoopPanel` renders completed/incomplete lists in Markdown-capable `QTextBrowser` widgets so task text formatting is preserved.
 - `LogViewer` listens to worker log and LLM output signals from `MainWindow`.
 
 ## When to Edit Widgets
@@ -34,13 +37,14 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - Change per-stage LLM selector behavior or enable runtime edits: `llm_selector_panel.py`.
 - Adjust visual tone for logs/status/description surfaces while preserving behavior: `description_panel.py`, `log_viewer.py`, `status_panel.py`, and shared styles in `../theme.py`.
 - Fix log filtering for existing entries: `log_viewer.py`.
-- Add task checklist/progress display: `status_panel.py` or a new widget in this folder.
+- Add or refine loop-centric task detail display: `task_loop_panel.py` and `status_panel.py`.
 - Adjust batch question UX or activity display: `question_panel.py`.
 
 ## Change Map
-- Description input UX: `description_panel.py`.
+- Description Markdown editing/preview UX: `description_panel.py`.
 - Question flow modal launch and question-phase signal bridging: `question_panel.py`.
 - Provider/model selector behavior: `llm_selector_panel.py`.
 - Run configuration options and working directory selection: `config_panel.py`.
 - Log rendering, filtering, and scroll behavior: `log_viewer.py`.
-- Phase/iteration display and progress bar: `status_panel.py`.
+- Phase/iteration display and task-percent progress bar: `status_panel.py`.
+- Main-loop action + Markdown-rendered completed/incomplete task lists: `task_loop_panel.py`.

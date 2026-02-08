@@ -34,7 +34,7 @@ class QuestionAnswerDialog(QDialog):
         self.setModal(True)
         self.setWindowFlag(Qt.WindowCloseButtonHint, False)
         self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
-        self.resize(820, 500)
+        self.resize(940, 620)
 
         self._setup_ui()
         self._load_question(0)
@@ -44,25 +44,29 @@ class QuestionAnswerDialog(QDialog):
 
         self.counter_label = QLabel("")
         self.counter_label.setProperty("role", "muted")
+        self.counter_label.setStyleSheet("font-size: 15px;")
         layout.addWidget(self.counter_label)
 
         self.question_label = QLabel("")
         self.question_label.setWordWrap(True)
-        self.question_label.setStyleSheet("font-size: 16px; font-weight: 700;")
+        self.question_label.setStyleSheet("font-size: 24px; font-weight: 700; line-height: 1.3;")
         layout.addWidget(self.question_label)
 
         self.hint_label = QLabel(
             "Up/Down: choose answer  Left/Right: previous/next question  Enter: submit and continue"
         )
         self.hint_label.setProperty("role", "muted")
+        self.hint_label.setStyleSheet("font-size: 14px;")
         layout.addWidget(self.hint_label)
 
         self.options_list = QListWidget()
+        self.options_list.setStyleSheet("font-size: 18px;")
         self.options_list.currentRowChanged.connect(self._on_option_changed)
         layout.addWidget(self.options_list, stretch=1)
 
         self.custom_input = QLineEdit()
         self.custom_input.setPlaceholderText("Type custom answer and press Enter")
+        self.custom_input.setStyleSheet("font-size: 17px;")
         self.custom_input.hide()
         self.custom_input.returnPressed.connect(self._submit_current_and_advance)
         layout.addWidget(self.custom_input)

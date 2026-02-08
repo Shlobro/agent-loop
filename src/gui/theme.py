@@ -15,15 +15,15 @@ def apply_app_theme(app: QApplication):
             color: #ece6de;
             background: #111315;
             font-family: "Segoe UI Variable Text";
-            font-size: 13px;
+            font-size: 15px;
         }
         QMainWindow, QDialog {
             background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
                                         stop:0 #101214, stop:0.5 #12161a, stop:1 #0f1317);
         }
         QLabel[role="muted"] { color: #9aa4b1; }
-        QLabel[role="hero"] { color: #f3eee7; font-size: 20px; font-weight: 600; }
-        QLabel[role="hero_subtitle"] { color: #a8b5c2; font-size: 12px; }
+        QLabel[role="hero"] { color: #f3eee7; font-size: 26px; font-weight: 700; }
+        QLabel[role="hero_subtitle"] { color: #a8b5c2; font-size: 15px; }
         QGroupBox {
             border: 1px solid #232a31;
             border-radius: 14px;
@@ -37,15 +37,28 @@ def apply_app_theme(app: QApplication):
             left: 12px;
             padding: 0 8px;
             color: #c9d3dd;
+            font-size: 16px;
         }
-        QPlainTextEdit, QTextEdit, QLineEdit, QListWidget, QSpinBox, QComboBox {
+        QPlainTextEdit, QTextEdit, QTextBrowser, QLineEdit, QListWidget, QSpinBox, QComboBox {
             background: #0f1419;
             border: 1px solid #29313a;
             border-radius: 10px;
-            padding: 6px 8px;
+            font-size: 15px;
+            padding: 8px 10px;
             selection-background-color: #2f6f9d;
         }
-        QPlainTextEdit:focus, QTextEdit:focus, QLineEdit:focus, QListWidget:focus,
+        QTextBrowser {
+            line-height: 1.45;
+        }
+        QListWidget::item {
+            padding: 10px 10px;
+            margin: 2px 0;
+            border-radius: 8px;
+        }
+        QListWidget::item:selected {
+            background: #27577a;
+        }
+        QPlainTextEdit:focus, QTextEdit:focus, QTextBrowser:focus, QLineEdit:focus, QListWidget:focus,
         QSpinBox:focus, QComboBox:focus {
             border: 1px solid #4f95c7;
         }
@@ -78,7 +91,8 @@ def apply_app_theme(app: QApplication):
         }
         QMenuBar::item {
             background: transparent;
-            padding: 6px 10px;
+            font-size: 14px;
+            padding: 7px 11px;
             border-radius: 6px;
         }
         QMenuBar::item:selected, QMenu::item:selected {
@@ -93,7 +107,8 @@ def apply_app_theme(app: QApplication):
             background: #202a33;
             border: 1px solid #2f3e4d;
             border-radius: 10px;
-            padding: 8px 14px;
+            font-size: 15px;
+            padding: 10px 16px;
             color: #e7edf4;
             font-weight: 600;
         }

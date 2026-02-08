@@ -15,6 +15,7 @@ from .widgets.llm_selector_panel import LLMSelectorPanel
 from .widgets.config_panel import ConfigPanel, ExecutionConfig
 from .widgets.log_viewer import LogViewer
 from .widgets.status_panel import StatusPanel
+from .widgets.task_loop_panel import TaskLoopPanel
 from .settings_mixin import SettingsMixin
 from .workflow_runner import WorkflowRunnerMixin
 from .theme import apply_app_theme, polish_button, animate_fade_in
@@ -23,7 +24,7 @@ from ..core.debug_settings import DEBUG_STAGE_LABELS, default_debug_breakpoints
 from ..core.file_manager import FileManager
 from ..core.session_manager import SessionManager
 from ..llm.prompt_templates import PromptTemplates
-from ..utils.markdown_parser import has_incomplete_tasks
+from ..utils.markdown_parser import has_incomplete_tasks, parse_tasks
 
 from ..workers.question_worker import QuestionWorker, DefinitionRewriteWorker
 from ..workers.llm_worker import LLMWorker
@@ -167,6 +168,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.description_panel = DescriptionPanel()
         right_column_layout.addWidget(self.description_panel, stretch=1)
 
+        self.task_loop_panel = TaskLoopPanel()
+        self.task_loop_panel.hide()
+        right_column_layout.addWidget(self.task_loop_panel, stretch=2)
+
         self.llm_selector_panel = LLMSelectorPanel()
         self.llm_selector_panel.hide()
 
@@ -177,7 +182,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         # Bottom section of right column: Clarifying Questions (larger)
         self.question_panel = QuestionPanel()
         self.question_panel.setMinimumHeight(300)
-        right_column_layout.addWidget(self.question_panel, stretch=2)
+        right_column_layout.addWidget(self.question_panel, stretch=0)
 
         # Control buttons at bottom of right column
         button_layout = QHBoxLayout()
@@ -386,6 +391,48 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             findings=self.activity_state.get("findings", ""),
         )
 
+    def _is_main_loop_phase(self, phase: Phase) -> bool:
+        """Return True when the UI should prioritize live task loop status."""
+        return phase in (
+            Phase.MAIN_EXECUTION,
+            Phase.DEBUG_REVIEW,
+            Phase.GIT_OPERATIONS,
+            Phase.AWAITING_GIT_APPROVAL,
+            Phase.COMPLETED,
+        )
+
+    def _refresh_task_loop_snapshot(self, action: str = ""):
+        """Refresh task-loop panel and task-based top-right progress."""
+        if not self.file_manager:
+            self.task_loop_panel.clear()
+            self.status_panel.set_task_progress(0, 0)
+            return
+
+        try:
+            tasks_content = self.file_manager.read_tasks()
+        except Exception as exc:
+            self.log_viewer.append_log(f"Failed to read tasks.md for UI update: {exc}", "warning")
+            return
+
+        tasks = parse_tasks(tasks_content)
+        completed_tasks = [task.text for task in tasks if task.completed]
+        incomplete_tasks = [task.text for task in tasks if not task.completed]
+
+        self.task_loop_panel.set_tasks(completed_tasks, incomplete_tasks)
+        self.status_panel.set_task_progress(len(completed_tasks), len(tasks))
+
+        current_action = action or self.activity_state.get("action") or self.status_panel.sub_status_label.text()
+        self.task_loop_panel.set_current_action(current_action)
+
+    def _update_loop_priority_visibility(self, phase: Phase):
+        """Toggle loop-priority panel visibility based on workflow phase."""
+        if self._is_main_loop_phase(phase):
+            self.task_loop_panel.show()
+            self._refresh_task_loop_snapshot()
+            return
+        self.task_loop_panel.hide()
+        self.status_panel.set_task_progress(0, 0)
+
     @Slot()
     def on_next_step_clicked(self):
         """Continue execution after a debug breakpoint."""
@@ -496,6 +543,9 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             llm_config=llm_config
         )
         self._reset_activity_state()
+        self.task_loop_panel.clear()
+        self.task_loop_panel.hide()
+        self.status_panel.set_task_progress(0, 0)
 
         # Initialize file manager
         self.file_manager = FileManager(working_dir)
@@ -648,9 +698,12 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.status_panel.set_phase(phase_name)
         if sub_name:
             self.status_panel.set_sub_status(sub_name)
+        else:
+            self.status_panel.set_sub_status("")
 
         self.log_viewer.append_phase(phase_name)
         self.update_button_states()
+        self._update_loop_priority_visibility(phase)
 
         if self._should_show_activity(phase):
             if phase_changed:
@@ -664,6 +717,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             if sub_name and not self.activity_state["action"]:
                 self.activity_state["action"] = sub_name
             self._refresh_activity_panel()
+            self._refresh_task_loop_snapshot(action=self.activity_state["action"])
 
     @Slot(str)
     def on_worker_status(self, status: str):
@@ -687,6 +741,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
                     self.activity_state["findings"] = ""
 
         self._refresh_activity_panel()
+        self._refresh_task_loop_snapshot(action=status)
 
     @Slot(str, int)
     def on_review_summary(self, review_type: str, issue_count: int):
@@ -719,6 +774,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
         self.update_button_states()
         self.status_panel.set_running(False)
+        self._refresh_task_loop_snapshot(action="Workflow completed")
 
     @Slot(str)
     def on_working_dir_changed(self, path: str):
@@ -731,6 +787,9 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
         self._resume_incomplete_tasks_directory = ""
         self._prepare_working_directory(path)
+        self.task_loop_panel.clear()
+        self.task_loop_panel.hide()
+        self.status_panel.set_task_progress(0, 0)
         existing = self._load_description_from_file()
         if existing:
             self.description_panel.set_description(existing)
@@ -800,6 +859,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             self.log_viewer.append_log("Session restored", "success")
             if self.state_machine.phase == Phase.AWAITING_ANSWERS:
                 self._restore_question_ui()
+            self._update_loop_priority_visibility(self.state_machine.phase)
             self.update_button_states()
 
         except Exception as e:

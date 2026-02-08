@@ -7,6 +7,7 @@ from typing import Union
 class ReviewType(Enum):
     """Types of code review."""
     GENERAL = "general"
+    FUNCTIONALITY = "functionality"
     ARCHITECTURE = "architecture"
     EFFICIENCY = "efficiency"
     ERROR_HANDLING = "error_handling"
@@ -137,6 +138,18 @@ Always update recent-changes.md if you add or edit tests.
 Review the recent code changes.
 
 Use `git diff` to inspect changes.
+
+Write findings to `{review_file}` using only issues.
+If there are no issues, leave `{review_file}` empty.
+Do not include positive observations.
+''',
+
+        ReviewType.FUNCTIONALITY: '''
+Review the recent code changes for FUNCTIONALITY concerns.
+
+Use `git diff` to inspect changes.
+
+Focus only on FUNCTIONALITY bugs, issues, and errors.
 
 Write findings to `{review_file}` using only issues.
 If there are no issues, leave `{review_file}` empty.
@@ -298,6 +311,7 @@ GIT DIFF:
         """Get list of all review types in order."""
         return [
             ReviewType.GENERAL,
+            ReviewType.FUNCTIONALITY,
             ReviewType.ARCHITECTURE,
             ReviewType.EFFICIENCY,
             ReviewType.ERROR_HANDLING,
