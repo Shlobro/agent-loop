@@ -3,7 +3,7 @@
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QLabel, QProgressBar, QFrame, QPushButton
 )
-from PySide6.QtCore import Slot, Qt, Signal
+from PySide6.QtCore import Slot, Signal
 
 
 class StatusPanel(QWidget):

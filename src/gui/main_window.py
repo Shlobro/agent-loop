@@ -74,6 +74,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.error_recovery_tracker = ErrorRecoveryTracker()
         self._initial_description_message_id = None
         self._last_worker_status = ""
+        self._task_progress_cycle_active = False
+        self._task_progress_cycle_baseline_completed = 0
 
         # File watcher for external edits to product-description.md
         self.description_watcher = DescriptionFileWatcher(self)
@@ -702,6 +704,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         }
         self._last_phase = None
         self._last_worker_status = ""
+        self._task_progress_cycle_active = False
+        self._task_progress_cycle_baseline_completed = 0
 
     def _should_show_activity(self, phase: Phase) -> bool:
         """Return True if the activity panel should be visible for this phase."""
@@ -877,6 +881,65 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         """Refresh task list display in the Tasks tab (wrapper for _refresh_task_loop_snapshot)."""
         self._refresh_task_loop_snapshot()
 
+    def _begin_task_progress_cycle(self):
+        """Start a new per-task progress cycle at the beginning of main execution."""
+        baseline = 0
+        if self.file_manager:
+            try:
+                tasks_content = self.file_manager.read_tasks()
+                tasks = parse_tasks(tasks_content)
+                baseline = sum(1 for task in tasks if task.completed)
+            except Exception:
+                baseline = 0
+        self._task_progress_cycle_baseline_completed = max(0, baseline)
+        self._task_progress_cycle_active = True
+
+    def _get_task_phase_progress_weight(self, phase: Phase, action_text: str) -> float:
+        """Return phase weight for earned progress on tasks completed in the current cycle."""
+        action_lower = (action_text or "").lower()
+        if phase == Phase.MAIN_EXECUTION:
+            return 0.45
+        if phase == Phase.DEBUG_REVIEW:
+            return 0.80
+        if phase in (Phase.GIT_OPERATIONS, Phase.AWAITING_GIT_APPROVAL):
+            if "git operations finished" in action_lower:
+                return 1.0
+            if "pushing changes" in action_lower:
+                return 0.98
+            if "committing changes" in action_lower:
+                return 0.96
+            if "generating commit message" in action_lower:
+                return 0.90
+            return 0.92
+        return 1.0
+
+    def _get_display_completed_progress(self, completed_count: int, total_count: int, action_text: str) -> float:
+        """Return progress-completed value that is phase-weighted during active loop work."""
+        if total_count <= 0:
+            return 0.0
+
+        phase = self.state_machine.phase
+        if phase == Phase.COMPLETED:
+            return float(completed_count)
+
+        if phase not in (Phase.MAIN_EXECUTION, Phase.DEBUG_REVIEW, Phase.GIT_OPERATIONS, Phase.AWAITING_GIT_APPROVAL):
+            return float(completed_count)
+
+        if not self._task_progress_cycle_active:
+            self._task_progress_cycle_baseline_completed = completed_count
+            self._task_progress_cycle_active = True
+
+        if completed_count < self._task_progress_cycle_baseline_completed:
+            self._task_progress_cycle_baseline_completed = completed_count
+
+        newly_completed = max(0, completed_count - self._task_progress_cycle_baseline_completed)
+        if newly_completed == 0:
+            return float(completed_count)
+
+        weight = self._get_task_phase_progress_weight(phase, action_text)
+        weighted_completed = self._task_progress_cycle_baseline_completed + (newly_completed * weight)
+        return max(0.0, min(float(completed_count), weighted_completed))
+
     def _refresh_task_loop_snapshot(self, action: str = ""):
         """Refresh task list in description panel and task-based top-right progress."""
         if not self.file_manager:
@@ -896,9 +959,13 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         incomplete_tasks = [task.text for task in tasks if not task.completed]
 
         self.description_panel.set_tasks(completed_tasks, incomplete_tasks)
-        self.status_panel.set_task_progress(len(completed_tasks), len(tasks))
-
         current_action = action or self.activity_state.get("action") or self.status_panel.sub_status_label.text()
+        display_completed = self._get_display_completed_progress(
+            completed_count=len(completed_tasks),
+            total_count=len(tasks),
+            action_text=current_action
+        )
+        self.status_panel.set_task_progress(display_completed, len(tasks))
         self.description_panel.set_current_action(current_action)
 
     def _update_loop_priority_visibility(self, phase: Phase):
@@ -913,6 +980,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             self.description_panel._set_mode("task_list")
             self._refresh_task_loop_snapshot()
             return
+        self._task_progress_cycle_active = False
+        self._task_progress_cycle_baseline_completed = 0
         self.status_panel.set_task_progress(0, 0)
 
     # Status panel is always visible - no toggle needed
@@ -1491,6 +1560,9 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.update_button_states()
         self._update_loop_priority_visibility(phase)
         self._update_chat_bot_activity(phase, sub_name)
+
+        if phase_changed and phase == Phase.MAIN_EXECUTION:
+            self._begin_task_progress_cycle()
 
         if self._should_show_activity(phase):
             if phase_changed:
