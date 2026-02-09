@@ -1,6 +1,6 @@
 """Chat panel for sending messages to LLM during workflow execution."""
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTextEdit, QTextBrowser, QLabel
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTextEdit, QTextBrowser, QLabel, QCheckBox
 from PySide6.QtCore import Signal
 from datetime import datetime
 
@@ -9,11 +9,11 @@ class ChatPanel(QWidget):
     """
     Chat interface for client messages during workflow execution.
 
-    Provides message input, send button, and message history display
-    showing status (queued/processing/completed) and LLM answers.
+    Provides message input, send button, message history display,
+    and checkboxes to control LLM behavior (update description, add tasks, provide answer).
     """
 
-    message_sent = Signal(str)  # Emits message content
+    message_sent = Signal(str, bool, bool, bool)  # Emits: message, update_desc, add_tasks, provide_answer
 
     def __init__(self):
         super().__init__()
@@ -43,9 +43,28 @@ class ChatPanel(QWidget):
         layout.addWidget(input_label)
 
         self.input_area = QTextEdit()
-        self.input_area.setPlaceholderText("Type your message to the LLM...")
+        self.input_area.setPlaceholderText("Enter your project description here...")
         self.input_area.setMaximumHeight(100)
         layout.addWidget(self.input_area, stretch=1)
+
+        # Checkboxes for controlling LLM behavior
+        checkbox_layout = QHBoxLayout()
+        checkbox_layout.setSpacing(15)
+
+        self.update_description_cb = QCheckBox("Update description")
+        self.update_description_cb.setToolTip("Update product-description.md with information from the message")
+        checkbox_layout.addWidget(self.update_description_cb)
+
+        self.add_tasks_cb = QCheckBox("Add tasks")
+        self.add_tasks_cb.setToolTip("Add new tasks to tasks.md based on the message")
+        checkbox_layout.addWidget(self.add_tasks_cb)
+
+        self.provide_answer_cb = QCheckBox("Provide answer in text")
+        self.provide_answer_cb.setToolTip("Write a response to the client in answer.md")
+        checkbox_layout.addWidget(self.provide_answer_cb)
+
+        checkbox_layout.addStretch()
+        layout.addLayout(checkbox_layout)
 
         # Send button
         button_layout = QHBoxLayout()
@@ -65,11 +84,19 @@ class ChatPanel(QWidget):
         if not message:
             return
 
-        # Emit signal
-        self.message_sent.emit(message)
+        # Get checkbox states
+        update_desc = self.update_description_cb.isChecked()
+        add_tasks = self.add_tasks_cb.isChecked()
+        provide_answer = self.provide_answer_cb.isChecked()
 
-        # Clear input
+        # Emit signal with checkbox states
+        self.message_sent.emit(message, update_desc, add_tasks, provide_answer)
+
+        # Clear input and reset checkboxes
         self.input_area.clear()
+        self.update_description_cb.setChecked(False)
+        self.add_tasks_cb.setChecked(False)
+        self.provide_answer_cb.setChecked(False)
 
     def add_message(self, message_id: str, content: str, status: str = "queued"):
         """Add a message to the history display."""
@@ -161,3 +188,13 @@ class ChatPanel(QWidget):
         """Enable/disable message input."""
         self.input_area.setEnabled(enabled)
         self.send_button.setEnabled(enabled)
+        self.update_description_cb.setEnabled(enabled)
+        self.add_tasks_cb.setEnabled(enabled)
+        self.provide_answer_cb.setEnabled(enabled)
+
+    def update_placeholder_text(self, has_description: bool):
+        """Update placeholder text based on whether product description exists."""
+        if has_description:
+            self.input_area.setPlaceholderText("Ask a question or request changes...")
+        else:
+            self.input_area.setPlaceholderText("Enter your project description here...")

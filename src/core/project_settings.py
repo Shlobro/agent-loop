@@ -42,6 +42,8 @@ class ProjectSettings:
     debug_breakpoints: Dict[str, Dict[str, bool]] = field(default_factory=default_debug_breakpoints)
     show_llm_terminals: bool = True
     show_logs_panel: bool = False
+    show_description_tab: bool = False
+    show_tasks_tab: bool = False
     max_questions: int = 5
     git_mode: str = "local"
 
@@ -171,6 +173,10 @@ class ProjectSettingsManager:
             normalized["show_llm_terminals"] = True
         if "show_logs_panel" not in normalized:
             normalized["show_logs_panel"] = False
+        if "show_description_tab" not in normalized:
+            normalized["show_description_tab"] = False
+        if "show_tasks_tab" not in normalized:
+            normalized["show_tasks_tab"] = False
         if "run_unit_test_prep" not in normalized:
             normalized["run_unit_test_prep"] = True
         if "tasks_per_iteration" not in normalized:

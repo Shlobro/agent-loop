@@ -4,13 +4,13 @@
 Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 
 ## Contents
-- `description_panel.py`: Multi-mode project description surface supporting three view modes: Edit (default), Preview (Markdown rendering), and Task List (shows current action, completed/incomplete task counts and lists during iteration). View controls can be shown via `View` menu in `MainWindow`; changes are synced to `product-description.md`. During main loop execution, automatically switches to Task List mode.
+- `description_panel.py`: Task list panel located ONLY in the left tab widget (Tasks tab). Shows task progress with current action, completed/incomplete task counts, and tabbed task filtering (All/Completed/Incomplete). The panel no longer handles description preview - that's now in a separate QTextBrowser in the Description tab of the left panel. Description content is stored in MainWindow's `_description_content` variable. View mode controls are hidden since the panel is always in Task List mode when used in the left tab. The Tasks tab can be toggled via `View -> Show Tasks` in `MainWindow`.
 - `question_panel.py`: Hidden signal bridge for question flow. It opens `dialogs/question_answer_dialog.py` as a modal window when questions are ready, emits submitted Q&A pairs, and then opens `dialogs/question_flow_decision_dialog.py` after rewrite so the user explicitly chooses `Ask More Questions` or `Start Main Loop`.
 - `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry, including built-in default stage assignments; hosted by `Settings -> LLM Settings` and used as the canonical in-memory stage config for the run. Stages are displayed in execution order, with Unit Test Prep shown before Reviewer and Fixer to reflect that it runs first in the review phase. Includes Client Message Handler stage for processing user messages during workflow execution.
 - `config_panel.py`: Execution settings (iterations, tasks per iteration, questions, working directory, git settings), stored review-type selections, and the optional pre-review unit-test-update toggle used by the review settings dialog; hosted by `Settings -> Configuration Settings`, while values stay live-editable during execution.
 - `log_viewer.py`: Color-coded log viewer with filtering and auto-scroll; uses an enlarged monospace font for clearer streaming output.
 - `status_panel.py`: Top-line workflow status, iteration label, top-right progress bar, and a "Resume Tasks" button that appears when incomplete tasks exist and the workflow is idle or completed; progress is task-list based (`completed tasks / total tasks`) during loop execution.
-- `chat_panel.py`: Chat interface for sending messages to LLM during workflow execution. Messages queue and are processed at iteration boundaries after git operations. Shows message history with status indicators and LLM answers. Hidden by default; toggle via `View -> Show Chat Panel`.
+- `chat_panel.py`: Chat interface for initializing and updating product description, plus sending messages to LLM during workflow execution. Includes 3 checkboxes to control LLM behavior: "Update description" (updates product-description.md), "Add tasks" (adds tasks to tasks.md), and "Provide answer in text" (writes response to answer.md). When description is empty, first message initializes `product-description.md` and auto-triggers question generation if max_questions > 0. When description exists, messages are processed based on checkbox selections (see CHECKBOX_PROMPTS.md for details). Placeholder text changes based on description state. Messages queue during workflow and process at iteration boundaries. Shows message history with status indicators and LLM answers. Always visible as the primary input method.
 - `__init__.py`: Module marker.
 
 ## Key Interactions
@@ -28,7 +28,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - `ConfigPanel` keeps `Number of Questions`, `Max Main Iterations`, `Tasks Per Iteration`, and `Debug Loop Iterations` enabled during active runs so users can change upcoming question batches, loop limits, and tasks-per-iteration without stopping.
 - `ConfigPanel` performs git bootstrap checks for the selected working directory both when the directory/remote changes and when planning starts: checks whether the directory is already a git repo, runs `git init` when needed, shows a user-facing install notice if git commands are unavailable/fail, and configures `origin` when a remote URL is set.
 - `QuestionPanel` remains connected to `MainWindow` signal wiring but is not used as a visible section in the main layout.
-- `DescriptionPanel` uses a `QStackedWidget` to manage three view modes: Edit mode (editable text), Preview mode (Markdown rendering via `QTextBrowser.setMarkdown(...)`), and Task List mode (shows current agent action plus completed/incomplete task counts and Markdown-rendered task lists). The explicit `Edit`/`Preview`/`Task List` controls are hidden by default and can be enabled from the `View` menu. During main loop phases, the panel automatically switches to Task List mode and shows controls.
+- `DescriptionPanel` is now used ONLY for Task List mode and appears ONLY in the left tab widget (Tasks tab). It shows current agent action plus completed/incomplete task counts and tabbed Markdown-rendered task lists with All/Completed/Incomplete filters. The panel no longer has Preview mode - that's handled by a separate QTextBrowser in the Description tab. The explicit mode controls are always hidden since it's always in task list mode. Description content is managed in MainWindow via `_description_content` variable and helper methods `_get_description()` and `_set_description()`.
 - `LogViewer` listens to worker log and LLM output signals from `MainWindow`.
 
 ## When to Edit Widgets
@@ -46,21 +46,26 @@ Chat interface for sending messages to LLM during workflow execution or when idl
 
 Features:
 - Message input area with send button
+- 3 checkboxes to control LLM behavior:
+  - "Update description" - updates product-description.md
+  - "Add tasks" - adds tasks to tasks.md
+  - "Provide answer in text" - writes response to answer.md
 - Message history showing status (queued/processing/completed)
-- Displays LLM answers inline with blue background
+- Displays LLM answers inline with blue background, or shows status messages when LLM updates files instead (e.g., "Updated product description", "Updated tasks")
 - Enabled whenever a working directory is active (except during ERROR/CANCELLED phases)
 - Messages queue during execution and process at iteration boundaries
 - Messages process immediately when workflow is idle
-- Hidden by default (show via View menu)
+- Checkboxes reset after each message is sent
+- Always visible as the primary input method
 
 Signals:
-- `message_sent(str)` - emitted when user sends a message
+- `message_sent(str, bool, bool, bool)` - emitted when user sends a message with checkbox states (message, update_description, add_tasks, provide_answer)
 
 Key methods:
 - `add_message(id, content, status)` - add message to history
 - `update_message_status(id, status)` - update message status
-- `add_answer(id, answer)` - add LLM answer to message
-- `set_input_enabled(bool)` - enable/disable input
+- `add_answer(id, answer)` - add LLM answer to message (also used for status messages like "Updated product description")
+- `set_input_enabled(bool)` - enable/disable input and checkboxes
 
 ## Change Map
 - Description multi-mode UX (Edit/Preview/Task List) with automatic mode switching during iteration: `description_panel.py`.

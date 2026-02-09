@@ -23,13 +23,14 @@ class SettingsMixin:
         """Initialize automatic per-directory settings behavior and set startup directory."""
         self._settings_sync_suspended = False
         self._active_working_directory = ""
-        self._set_logs_panel_visible(self._logs_panel_visible)
+        # Connect signal before setting directory so we can load settings
         self.config_panel.working_directory_changed.connect(self.on_working_directory_settings_changed)
         if startup_directory:
+            # This will trigger on_working_directory_settings_changed which loads settings
             self.config_panel.set_working_directory(startup_directory)
         else:
             self._active_working_directory = self.config_panel.get_working_directory()
-        self._save_settings_for_working_directory(self.config_panel.get_working_directory())
+        # Note: settings are saved on app quit via aboutToQuit signal in main.py
 
     def build_current_project_settings(self, working_directory: str = "") -> ProjectSettings:
         """Build a ProjectSettings snapshot from current UI state."""
@@ -58,7 +59,9 @@ class SettingsMixin:
             debug_mode_enabled=self.debug_mode_enabled,
             debug_breakpoints=self.debug_breakpoints,
             show_llm_terminals=self.show_llm_terminals,
-            show_logs_panel=self._logs_panel_visible,
+            show_logs_panel=getattr(self, "_logs_enabled", False),
+            show_description_tab=getattr(self, "_description_enabled", False),
+            show_tasks_tab=getattr(self, "_tasks_enabled", False),
             max_questions=exec_config.max_questions,
             git_mode=exec_config.git_mode,
             working_directory=target_working_directory,
@@ -106,6 +109,8 @@ class SettingsMixin:
         self.debug_breakpoints = settings.debug_breakpoints
         self.show_llm_terminals = settings.show_llm_terminals
         self._set_logs_panel_visible(settings.show_logs_panel)
+        self._set_description_tab_visible(settings.show_description_tab)
+        self._set_tasks_tab_visible(settings.show_tasks_tab)
         LLMWorker.set_show_live_terminal_windows(self.show_llm_terminals)
         self.state_machine.update_context(
             debug_mode_enabled=self.debug_mode_enabled,
@@ -235,36 +240,37 @@ class SettingsMixin:
         self.log_viewer.append_log("Updated configuration settings", "info")
 
     def _set_logs_panel_visible(self, visible: bool):
-        """Show or hide the left logs panel and keep splitter sizing usable."""
+        """Show or hide the logs tab in the left panel."""
         self._logs_panel_visible = bool(visible)
-        if hasattr(self, "show_logs_panel_action"):
-            was_blocked = self.show_logs_panel_action.blockSignals(True)
-            self.show_logs_panel_action.setChecked(self._logs_panel_visible)
-            self.show_logs_panel_action.blockSignals(was_blocked)
-        splitter = self.log_viewer.parentWidget()
-        if not isinstance(splitter, QSplitter):
-            self.log_viewer.setVisible(self._logs_panel_visible)
-            return
+        self._logs_enabled = bool(visible)  # Keep both in sync
+        if hasattr(self, "show_logs_action"):
+            was_blocked = self.show_logs_action.blockSignals(True)
+            self.show_logs_action.setChecked(bool(visible))
+            self.show_logs_action.blockSignals(was_blocked)
+        if hasattr(self, "_update_left_tabs"):
+            self._update_left_tabs()
 
-        previous_sizes = splitter.sizes()
-        self.log_viewer.setVisible(self._logs_panel_visible)
+    def _set_description_tab_visible(self, visible: bool):
+        """Show or hide the description tab in the left panel."""
+        if hasattr(self, "show_description_action"):
+            was_blocked = self.show_description_action.blockSignals(True)
+            self.show_description_action.setChecked(bool(visible))
+            self.show_description_action.blockSignals(was_blocked)
+        if hasattr(self, "_description_enabled"):
+            self._description_enabled = bool(visible)
+        if hasattr(self, "_update_left_tabs"):
+            self._update_left_tabs()
 
-        if self._logs_panel_visible:
-            if (
-                self._last_main_splitter_sizes
-                and len(self._last_main_splitter_sizes) == len(previous_sizes)
-            ):
-                splitter.setSizes(self._last_main_splitter_sizes)
-            elif len(previous_sizes) >= 2 and previous_sizes[0] == 0:
-                splitter.setSizes([480, 720])
-            return
-
-        if len(previous_sizes) >= 2 and previous_sizes[0] > 0:
-            self._last_main_splitter_sizes = previous_sizes
-            right_width = previous_sizes[1] if previous_sizes[1] > 0 else sum(previous_sizes)
-        else:
-            right_width = sum(previous_sizes) if previous_sizes else 1
-        splitter.setSizes([0, max(1, right_width)])
+    def _set_tasks_tab_visible(self, visible: bool):
+        """Show or hide the tasks tab in the left panel."""
+        if hasattr(self, "show_tasks_action"):
+            was_blocked = self.show_tasks_action.blockSignals(True)
+            self.show_tasks_action.setChecked(bool(visible))
+            self.show_tasks_action.blockSignals(was_blocked)
+        if hasattr(self, "_tasks_enabled"):
+            self._tasks_enabled = bool(visible)
+        if hasattr(self, "_update_left_tabs"):
+            self._update_left_tabs()
 
     @Slot()
     def on_save_settings(self):

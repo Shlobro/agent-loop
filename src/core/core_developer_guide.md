@@ -4,12 +4,13 @@
 Implements the workflow state machine, persistence, file/session I/O, and shared exceptions.
 
 ## Contents
-- `state_machine.py`: `Phase`, `SubPhase`, `StateContext`, and transitions (includes UI/UX review sub-phases). Emits signals used by `MainWindow`.
+- `state_machine.py`: `Phase`, `SubPhase`, `StateContext`, and transitions (includes UI/UX review sub-phases). `StateContext.tasks_content` tracks the current state of tasks.md for change detection when client messages update tasks. Emits signals used by `MainWindow`.
 - `debug_settings.py`: Shared debug-stage identifiers, labels, and breakpoint normalization/default helpers. Defaults pause **before** every stage LLM call when debug mode is on (after-call pauses default off).
 - `file_manager.py`: Atomic read/write for `tasks.md`, `recent-changes.md`, `review/` artifacts (one file per review type), `product-description.md`, git commit-message artifact (`.agentharness/git-commit-message.txt`), and governance prompt files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`).
 - `session_manager.py`: Save/load workflow state to `session_state.json` for pause/resume.
-- `project_settings.py`: `ProjectSettings` dataclass plus JSON load/save helpers (includes review-type selection, optional pre-review unit-test-update toggle persistence, and left logs-panel visibility), including per-working-directory settings at `.agentharness/project-settings.json`. The default for `show_logs_panel` is `False` (left logs hidden unless enabled in settings).
+- `project_settings.py`: `ProjectSettings` dataclass plus JSON load/save helpers (includes review-type selection, optional pre-review unit-test-update toggle persistence, and left panel tab visibility states for logs, description, and tasks), including per-working-directory settings at `.agentharness/project-settings.json`. The defaults for `show_logs_panel`, `show_description_tab`, and `show_tasks_tab` are all `False` (left tabs hidden unless enabled). Settings are automatically saved when the application closes.
 - `error_context.py`: `ErrorInfo` dataclass for capturing complete error state including phase, traceback, recent logs, and state snapshot for recovery operations. Also contains `ErrorRecoveryTracker` to prevent infinite retry loops.
+- `file_watcher.py`: `DescriptionFileWatcher` monitors `product-description.md` for external changes using `QFileSystemWatcher`. Emits signal when file is modified outside the app, allowing UI to reload and notify user. Tracks last known content to ignore app's own writes.
 - `exceptions.py`: Core exception types shared by workers and UI.
 - `__init__.py`: Module marker.
 

@@ -3,7 +3,7 @@
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QPushButton, QMessageBox, QApplication, QInputDialog,
-    QStyle, QGraphicsDropShadowEffect
+    QStyle, QGraphicsDropShadowEffect, QTabWidget
 )
 from PySide6.QtCore import Qt, Slot, QThreadPool, Signal, QSize
 from PySide6.QtGui import QAction, QActionGroup, QColor
@@ -26,6 +26,7 @@ from ..core.debug_settings import DEBUG_STAGE_LABELS, default_debug_breakpoints
 from ..core.file_manager import FileManager
 from ..core.session_manager import SessionManager
 from ..core.error_context import ErrorInfo, ErrorRecoveryTracker
+from ..core.file_watcher import DescriptionFileWatcher
 from ..llm.prompt_templates import PromptTemplates
 from ..utils.markdown_parser import has_incomplete_tasks, parse_tasks
 
@@ -72,6 +73,13 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self._debug_wait_event.set()
         self._debug_waiting = False
         self.error_recovery_tracker = ErrorRecoveryTracker()
+
+        # File watcher for external edits to product-description.md
+        self.description_watcher = DescriptionFileWatcher(self)
+        self.description_watcher.file_changed_externally.connect(self._on_description_changed_externally)
+
+        # Store description content separately since description_panel is now task-only
+        self._description_content = ""
 
         LLMWorker.set_debug_gate_callback(self._wait_for_debug_step)
         LLMWorker.set_show_live_terminal_windows(self.show_llm_terminals)
@@ -163,38 +171,25 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.show_status_panel_action.toggled.connect(self.on_toggle_status_panel)
         view_menu.addAction(self.show_status_panel_action)
 
-        self.show_logs_panel_action = QAction("Show Logs Panel", self, checkable=True)
-        self.show_logs_panel_action.setChecked(False)
-        self.show_logs_panel_action.toggled.connect(self.on_toggle_logs_panel)
-        view_menu.addAction(self.show_logs_panel_action)
+        view_menu.addSeparator()
 
-        self.show_control_buttons_action = QAction("Show Control Buttons", self, checkable=True)
-        self.show_control_buttons_action.setChecked(False)
-        self.show_control_buttons_action.toggled.connect(self.on_toggle_control_buttons)
-        view_menu.addAction(self.show_control_buttons_action)
+        # Left panel tab toggles
+        self.show_logs_action = QAction("Show Logs", self, checkable=True)
+        self.show_logs_action.setChecked(False)
+        self.show_logs_action.toggled.connect(self.on_toggle_logs)
+        view_menu.addAction(self.show_logs_action)
 
-        self.show_description_controls_action = QAction(
-            "Show Description Edit/Preview Controls", self, checkable=True
-        )
-        self.show_description_controls_action.setChecked(False)
-        self.show_description_controls_action.toggled.connect(
-            self.on_toggle_description_controls
-        )
-        view_menu.addAction(self.show_description_controls_action)
+        self.show_description_action = QAction("Show Description", self, checkable=True)
+        self.show_description_action.setChecked(False)
+        self.show_description_action.toggled.connect(self.on_toggle_description)
+        view_menu.addAction(self.show_description_action)
 
-        self.toggle_description_preview_action = QAction(
-            "Toggle Description Preview", self, checkable=True
-        )
-        self.toggle_description_preview_action.setChecked(False)
-        self.toggle_description_preview_action.toggled.connect(
-            self.on_toggle_description_preview
-        )
-        view_menu.addAction(self.toggle_description_preview_action)
+        self.show_tasks_action = QAction("Show Tasks", self, checkable=True)
+        self.show_tasks_action.setChecked(False)
+        self.show_tasks_action.toggled.connect(self.on_toggle_tasks)
+        view_menu.addAction(self.show_tasks_action)
 
-        self.show_chat_panel_action = QAction("Show Chat Panel", self, checkable=True)
-        self.show_chat_panel_action.setChecked(False)
-        self.show_chat_panel_action.toggled.connect(self.on_toggle_chat_panel)
-        view_menu.addAction(self.show_chat_panel_action)
+        # Chat panel is always visible (primary input method) - no toggle needed
 
     def _create_workflow_icon_buttons(self):
         """Create icon buttons for workflow control in the menu bar."""
@@ -295,6 +290,36 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         """)
         layout.addWidget(self.menu_stop_button)
 
+        # Next Step button
+        self.menu_next_step_button = QPushButton()
+        self.menu_next_step_button.setIcon(self.style().standardIcon(QStyle.SP_ArrowForward))
+        self.menu_next_step_button.setToolTip("Next Step (F10)")
+        self.menu_next_step_button.setFixedSize(32, 28)
+        self.menu_next_step_button.clicked.connect(self.on_next_step_clicked)
+        self.menu_next_step_button.setEnabled(False)
+        self.menu_next_step_button.setStyleSheet("""
+            QPushButton {
+                background: #1d2a36;
+                color: white;
+                border: 1px solid #3a4856;
+                border-radius: 4px;
+                padding: 4px;
+            }
+            QPushButton:hover {
+                background: #2a3e4f;
+                border-color: #4f6377;
+            }
+            QPushButton:pressed {
+                background: #16212b;
+            }
+            QPushButton:disabled {
+                background: #1d2a36;
+                border-color: #2a3e4f;
+                color: #7f9bb4;
+            }
+        """)
+        layout.addWidget(self.menu_next_step_button)
+
         return self.menu_button_container
 
     def setup_ui(self):
@@ -310,19 +335,43 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         main_layout.addWidget(self.status_panel)
         main_splitter = QSplitter(Qt.Horizontal)
         main_splitter.setHandleWidth(4)
+
+        # Left side: Tabbed view for logs, description preview, and task list
+        self.left_tab_widget = QTabWidget()
+
+        # Logs tab
         self.log_viewer = LogViewer()
-        main_splitter.addWidget(self.log_viewer)
+        self.left_tab_widget.addTab(self.log_viewer, "Logs")
+
+        # Description preview tab (read-only markdown preview)
+        from PySide6.QtWidgets import QTextBrowser
+        self.left_description_preview = QTextBrowser()
+        self.left_description_preview.setOpenExternalLinks(True)
+        self.left_description_preview.setMinimumHeight(300)
+        self.left_tab_widget.addTab(self.left_description_preview, "Description")
+
+        # Task list tab (uses DescriptionPanel in task list mode)
+        self.description_panel = DescriptionPanel()
+        self.description_panel.set_preview_controls_visible(False)  # Hide mode controls
+        self.description_panel._set_mode("task_list")  # Start in task list mode
+        self.left_tab_widget.addTab(self.description_panel, "Tasks")
+
+        # Track which tabs are enabled
+        self._logs_enabled = False
+        self._description_enabled = False
+        self._tasks_enabled = False
+
+        # Hide tabs by default - will be shown when at least one is enabled
+        self.left_tab_widget.hide()
+        main_splitter.addWidget(self.left_tab_widget)
+
+        # Right column: Only chat panel
         right_column = QWidget()
         right_column_layout = QVBoxLayout(right_column)
         right_column_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Top section of right column: Description (with integrated task list view)
-        self.description_panel = DescriptionPanel()
-        right_column_layout.addWidget(self.description_panel, stretch=1)
-
-        # Chat panel for client messages
+        # Chat panel for client messages (always visible - primary input method)
         self.chat_panel = ChatPanel()
-        self.chat_panel.setVisible(False)  # Hidden by default
         right_column_layout.addWidget(self.chat_panel, stretch=1)
 
         self.llm_selector_panel = LLMSelectorPanel()
@@ -336,48 +385,13 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.question_panel = QuestionPanel()
         self.question_panel.setMinimumHeight(300)
 
-        # Control buttons at bottom of right column
-        self.control_button_container = QWidget()
-        button_layout = QHBoxLayout(self.control_button_container)
-        button_layout.setContentsMargins(0, 0, 0, 0)
-
-        self.start_button = QPushButton("Start")
-        self.start_button.setMinimumWidth(100)
-        self.start_button.clicked.connect(self.on_start_clicked)
-        polish_button(self.start_button, "primary")
-        button_layout.addWidget(self.start_button)
-
-        self.pause_button = QPushButton("Pause")
-        self.pause_button.setMinimumWidth(100)
-        self.pause_button.clicked.connect(self.on_pause_clicked)
-        self.pause_button.setEnabled(False)
-        button_layout.addWidget(self.pause_button)
-
-        self.stop_button = QPushButton("Stop")
-        self.stop_button.setMinimumWidth(100)
-        self.stop_button.clicked.connect(self.on_stop_clicked)
-        self.stop_button.setEnabled(False)
-        polish_button(self.stop_button, "danger")
-        button_layout.addWidget(self.stop_button)
-
-        self.next_step_button = QPushButton("Next Step")
-        self.next_step_button.setMinimumWidth(120)
-        self.next_step_button.clicked.connect(self.on_next_step_clicked)
-        self.next_step_button.setEnabled(False)
-        button_layout.addWidget(self.next_step_button)
-
-        button_layout.addStretch()
-
-        self.control_button_container.hide()
-        right_column_layout.addWidget(self.control_button_container, stretch=0)
-
         main_splitter.addWidget(right_column)
 
         # Set main splitter sizes (40% logs, 60% rest)
         main_splitter.setSizes([480, 720])
 
         main_layout.addWidget(main_splitter, stretch=1)
-        animate_fade_in(self.log_viewer, duration_ms=420, delay_ms=100)
+        animate_fade_in(self.left_tab_widget, duration_ms=420, delay_ms=100)
         animate_fade_in(right_column, duration_ms=440, delay_ms=160)
 
         self.floating_start_button = QPushButton(self.centralWidget())
@@ -437,7 +451,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.question_panel.start_planning_requested.connect(self.on_start_planning_requested)
 
         # Description panel
-        self.description_panel.description_changed.connect(self.on_description_changed)
+        # Note: description_changed signal no longer connected - description updates come through chat
+        # self.description_panel.description_changed.connect(self.on_description_changed)
 
         # Config panel
         self.config_panel.working_directory_changed.connect(self.on_working_dir_changed)
@@ -459,6 +474,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         """Initialize artifacts for the startup/default working directory."""
         path = self.config_panel.get_working_directory()
         self._prepare_working_directory(path)
+
+        # Start file watcher for product-description.md
+        if path:
+            self.description_watcher.start_watching(path)
 
         # Check for incomplete tasks at startup
         if path and self._working_directory_has_incomplete_tasks(path):
@@ -590,22 +609,51 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         is_paused = phase == Phase.PAUSED
         is_awaiting = phase == Phase.AWAITING_ANSWERS
 
-        self.start_button.setEnabled(is_idle or is_paused)
-        self.start_button.setText("Resume" if is_paused else "Start")
-        self.start_workflow_action.setEnabled(is_idle or is_paused)
-        self.start_workflow_action.setText("&Resume" if is_paused else "&Start")
+        # Check if there are incomplete tasks
+        has_incomplete_tasks = False
+        if self.file_manager:
+            working_dir = self.config_panel.get_working_directory()
+            if working_dir:
+                has_incomplete_tasks = self._working_directory_has_incomplete_tasks(working_dir)
 
-        self.pause_button.setEnabled(is_running)
+        # Enable start button only when idle/paused AND there are incomplete tasks
+        can_start = (is_idle or is_paused) and has_incomplete_tasks
+
+        # Update menu bar icon buttons
+        try:
+            self.menu_start_button.setEnabled(can_start)
+            self.menu_start_button.setToolTip(
+                ("Resume workflow (Ctrl+Return)" if is_paused else "Start workflow (Ctrl+Return)")
+            )
+        except RuntimeError:
+            pass  # Button may have been deleted by Qt
+
+        try:
+            self.menu_pause_button.setEnabled(is_running)
+        except RuntimeError:
+            pass
+
+        try:
+            self.menu_stop_button.setEnabled(is_running or is_paused or is_awaiting)
+        except RuntimeError:
+            pass
+
+        try:
+            self.menu_next_step_button.setEnabled(self._debug_waiting)
+        except RuntimeError:
+            pass
+
+        # Update workflow menu actions
+        self.start_workflow_action.setEnabled(can_start)
+        self.start_workflow_action.setText("&Resume" if is_paused else "&Start")
         self.pause_workflow_action.setEnabled(is_running)
-        self.stop_button.setEnabled(is_running or is_paused or is_awaiting)
         self.stop_workflow_action.setEnabled(is_running or is_paused or is_awaiting)
-        self.next_step_button.setEnabled(self._debug_waiting)
         self.next_step_action.setEnabled(self._debug_waiting)
 
         # Update menu bar icon buttons (with safe Qt object check)
         try:
             if hasattr(self, 'menu_start_button') and self.menu_start_button is not None:
-                self.menu_start_button.setEnabled(is_idle or is_paused)
+                self.menu_start_button.setEnabled(can_start)
                 self.menu_start_button.setToolTip(
                     f"{'Resume' if is_paused else 'Start'} workflow (Ctrl+Return)"
                 )
@@ -637,13 +685,14 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         ctx = self.state_machine.context
         description_editable = is_idle or (is_awaiting and ctx.questions_answered and self.current_worker is None)
         self.description_panel.set_readonly(not description_editable)
-        self.toggle_description_preview_action.setChecked(self.description_panel.is_preview_mode())
+        # Description panel is now always in the left tab widget, so no visibility toggle needed
         self.llm_selector_panel.set_enabled(True)
         self.config_panel.set_enabled(is_idle)
         self._update_floating_start_button_visibility()
 
         # Enable chat panel when there's a working directory and file manager
-        # Chat works during execution (queues for next boundary) and when idle (processes immediately)
+        # Chat works during execution (queues for next boundary), when idle, and when completed
+        # This allows users to add more tasks or make changes after workflow completion
         chat_enabled = self.file_manager is not None and phase not in [Phase.ERROR, Phase.CANCELLED]
         self.chat_panel.set_input_enabled(chat_enabled)
 
@@ -699,6 +748,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             Phase.COMPLETED,
         )
 
+    def _refresh_task_display(self):
+        """Refresh task list display in the Tasks tab (wrapper for _refresh_task_loop_snapshot)."""
+        self._refresh_task_loop_snapshot()
+
     def _refresh_task_loop_snapshot(self, action: str = ""):
         """Refresh task list in description panel and task-based top-right progress."""
         if not self.file_manager:
@@ -726,9 +779,12 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     def _update_loop_priority_visibility(self, phase: Phase):
         """Switch to task list view during main loop phases."""
         if self._is_main_loop_phase(phase):
-            # Automatically switch to task list mode and show controls during main loop phases
-            if not self.show_description_controls_action.isChecked():
-                self.show_description_controls_action.setChecked(True)
+            # Automatically enable Tasks tab during main loop phases
+            if not self._tasks_enabled:
+                self._tasks_enabled = True
+                if hasattr(self, "show_tasks_action"):
+                    self.show_tasks_action.setChecked(True)
+                self._update_left_tabs()
             self.description_panel._set_mode("task_list")
             self._refresh_task_loop_snapshot()
             return
@@ -740,52 +796,70 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.status_panel.setVisible(bool(visible))
 
     @Slot(bool)
-    def on_toggle_logs_panel(self, visible: bool):
-        """Show/hide logs panel via existing splitter-aware helper."""
-        self._set_logs_panel_visible(bool(visible))
+    def on_toggle_logs(self, enabled: bool):
+        """Show/hide logs tab in left panel."""
+        self._logs_enabled = enabled
+        self._logs_panel_visible = enabled  # Keep in sync for settings persistence
+        self._update_left_tabs()
 
     @Slot(bool)
-    def on_toggle_control_buttons(self, visible: bool):
-        """Show/hide manual control buttons row."""
-        self.control_button_container.setVisible(bool(visible))
-        self._position_floating_start_button()
+    def on_toggle_description(self, enabled: bool):
+        """Show/hide description tab in left panel."""
+        self._description_enabled = enabled
+        self._sync_description_to_left_preview()
+        self._update_left_tabs()
 
     @Slot(bool)
-    def on_toggle_description_controls(self, visible: bool):
-        """Show/hide description Edit/Preview controls."""
-        self.description_panel.set_preview_controls_visible(bool(visible))
-
-    @Slot(bool)
-    def on_toggle_description_preview(self, enabled: bool):
-        """Switch description editor between edit and preview modes."""
-        self.description_panel.set_preview_mode(bool(enabled))
-
-    @Slot(bool)
-    def on_toggle_chat_panel(self, visible: bool):
-        """Show/hide chat panel."""
-        self.chat_panel.setVisible(bool(visible))
+    def on_toggle_tasks(self, enabled: bool):
+        """Show/hide tasks tab in left panel."""
+        self._tasks_enabled = enabled
+        self._update_left_tabs()
 
     @Slot(str)
-    def on_client_message_sent(self, message: str):
-        """Handle user sending a client message."""
+    def on_client_message_sent(self, message: str, update_description: bool = False,
+                                add_tasks: bool = False, provide_answer: bool = False):
+        """Handle user sending a client message with checkbox options."""
         import uuid
         from datetime import datetime
 
+        description = self._get_description()
+
+        # Case 1: Empty description - direct initialization
+        if not description or not description.strip():
+            self.log_viewer.append_log("Initializing product description from chat message...", "info")
+            self._initialize_description_from_chat(message)
+            return
+
+        # Case 2: Non-empty description - queue for LLM processing
         # Generate unique message ID
         message_id = str(uuid.uuid4())
 
-        # Add to state context queue
+        # Add to state context queue with checkbox states
         ctx = self.state_machine.context
         ctx.pending_client_messages.append({
             "id": message_id,
             "content": message,
             "timestamp": datetime.now().isoformat(),
-            "status": "queued"
+            "status": "queued",
+            "update_description": update_description,
+            "add_tasks": add_tasks,
+            "provide_answer": provide_answer
         })
 
         # Update UI
         self.chat_panel.add_message(message_id, message, "queued")
-        self.log_viewer.append_log(f"Client message queued: {message[:50]}...", "info")
+
+        # Log which actions are requested
+        actions = []
+        if update_description:
+            actions.append("update description")
+        if add_tasks:
+            actions.append("add tasks")
+        if provide_answer:
+            actions.append("provide answer")
+
+        actions_str = ", ".join(actions) if actions else "auto-detect"
+        self.log_viewer.append_log(f"Client message queued ({actions_str}): {message[:50]}...", "info")
 
         # If not in active workflow execution, process immediately
         phase = self.state_machine.phase
@@ -807,13 +881,86 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
     def _update_floating_start_button_visibility(self):
         """Show minimalist start button only when starting a new run is valid."""
+        # Check if there are incomplete tasks
+        has_tasks = False
+        if self.file_manager:
+            working_dir = self.config_panel.get_working_directory()
+            if working_dir:
+                has_tasks = self._working_directory_has_incomplete_tasks(working_dir)
+
         can_show = (
             self.state_machine.phase == Phase.IDLE
-            and not self.description_panel.is_empty()
+            and not not self._get_description().strip()
             and self.start_workflow_action.isEnabled()
+            and has_tasks
         )
         self.floating_start_button.setVisible(can_show)
         self._position_floating_start_button()
+
+    def _get_description(self) -> str:
+        """Get the current description content."""
+        return self._description_content
+
+    def _set_description(self, content: str):
+        """Set the description content and sync to preview."""
+        self._description_content = content
+        self._sync_description_to_left_preview()
+
+    def _sync_description_to_left_preview(self):
+        """Sync description content to left tab preview."""
+        if hasattr(self, "left_description_preview"):
+            self.left_description_preview.setMarkdown(self._description_content)
+
+    def _update_left_tabs(self):
+        """Update left tab widget visibility and tabs based on enabled flags."""
+        if not hasattr(self, "left_tab_widget"):
+            return
+
+        # Remove all tabs
+        while self.left_tab_widget.count() > 0:
+            self.left_tab_widget.removeTab(0)
+
+        # Add enabled tabs in order
+        if self._logs_enabled:
+            self.left_tab_widget.addTab(self.log_viewer, "Logs")
+
+        if self._description_enabled:
+            self.left_tab_widget.addTab(self.left_description_preview, "Description")
+
+        if self._tasks_enabled:
+            self.left_tab_widget.addTab(self.description_panel, "Tasks")
+            # Load existing tasks from tasks.md when tab is enabled
+            self._refresh_task_display()
+
+        # Show left panel if at least one tab is enabled
+        should_show = self._logs_enabled or self._description_enabled or self._tasks_enabled
+
+        splitter = self.left_tab_widget.parentWidget()
+        if not isinstance(splitter, QSplitter):
+            self.left_tab_widget.setVisible(should_show)
+            return
+
+        previous_sizes = splitter.sizes()
+        self.left_tab_widget.setVisible(should_show)
+
+        if should_show:
+            # Restore previous sizes or use default
+            if (
+                hasattr(self, "_last_main_splitter_sizes") and
+                self._last_main_splitter_sizes and
+                len(self._last_main_splitter_sizes) == len(previous_sizes)
+            ):
+                splitter.setSizes(self._last_main_splitter_sizes)
+            elif len(previous_sizes) >= 2 and previous_sizes[0] == 0:
+                splitter.setSizes([480, 720])
+        else:
+            # Hide left panel
+            if len(previous_sizes) >= 2 and previous_sizes[0] > 0:
+                self._last_main_splitter_sizes = previous_sizes
+                right_width = previous_sizes[1] if previous_sizes[1] > 0 else sum(previous_sizes)
+            else:
+                right_width = sum(previous_sizes) if previous_sizes else 1
+            splitter.setSizes([0, max(1, right_width)])
 
     @Slot()
     def on_next_step_clicked(self):
@@ -837,7 +984,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     def _set_debug_waiting(self, waiting: bool):
         """Toggle waiting state for debug step mode controls."""
         self._debug_waiting = waiting
-        self.next_step_button.setEnabled(waiting)
+        try:
+            self.menu_next_step_button.setEnabled(waiting)
+        except RuntimeError:
+            pass  # Button may have been deleted by Qt
         self.next_step_action.setEnabled(waiting)
 
     def _release_debug_wait(self):
@@ -890,9 +1040,13 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         )
 
         # Validate inputs (skip description check if resuming incomplete tasks)
-        if not resume_incomplete_tasks and self.description_panel.is_empty():
-            QMessageBox.warning(self, "Missing Description",
-                                "Please enter a project description.")
+        if not resume_incomplete_tasks and not self._get_description().strip():
+            QMessageBox.warning(
+                self,
+                "Missing Description",
+                "Please enter a project description in the chat panel.\n\n"
+                "The chat panel is where you describe what you want to build."
+            )
             return
 
         if not self.config_panel.has_valid_working_directory():
@@ -911,7 +1065,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         llm_config = self.llm_selector_panel.get_config_dict()
 
         self.state_machine.update_context(
-            description=self.description_panel.get_description(),
+            description=self._get_description(),
             working_directory=working_dir,
             max_iterations=config.max_main_iterations,
             debug_iterations=config.debug_loop_iterations,
@@ -941,7 +1095,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         # Initialize file manager
         self.file_manager = FileManager(working_dir)
         self.session_manager.set_working_directory(working_dir)
-        self._sync_description_to_file(self.description_panel.get_description())
+        self._sync_description_to_file(self._get_description())
 
         # Clear log
         self.log_viewer.clear()
@@ -1302,10 +1456,21 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.status_panel.set_task_progress(0, 0)
         existing = self._load_description_from_file()
         if existing:
-            self.description_panel.set_description(existing)
+            self._set_description(existing)
             self.state_machine.update_context(description=existing)
         else:
-            self._sync_description_to_file(self.description_panel.get_description())
+            self._sync_description_to_file(self._get_description())
+
+        # Update chat panel placeholder text based on whether description exists
+        has_description = bool(existing and existing.strip())
+        self.chat_panel.update_placeholder_text(has_description=has_description)
+
+        # Load existing tasks if Tasks tab is enabled
+        if self._tasks_enabled:
+            self._refresh_task_display()
+
+        # Start watching for external changes to product-description.md
+        self.description_watcher.start_watching(path)
 
         if self._working_directory_has_incomplete_tasks(path):
             reply = QMessageBox.question(
@@ -1353,6 +1518,9 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
                 if reply == QMessageBox.Yes:
                     self.load_saved_session()
 
+        # Update button and chat states after directory change
+        self.update_button_states()
+
     def load_saved_session(self):
         """Load and restore a saved session."""
         try:
@@ -1360,7 +1528,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             ctx = self.state_machine.context
 
             # Restore UI state
-            self.description_panel.set_description(ctx.description)
+            self._set_description(ctx.description)
             self.llm_selector_panel.set_config(ctx.llm_config)
             self.config_panel.set_config(ExecutionConfig(
                 max_main_iterations=ctx.max_iterations,
@@ -1407,7 +1575,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             for i, qa in enumerate(updated_pairs)
         }
 
-        description = self.description_panel.get_description()
+        description = self._get_description()
         self.state_machine.update_context(
             qa_pairs=updated_pairs,
             answers=answers,
@@ -1437,7 +1605,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
                     qa_pairs=updated_pairs,
                     answers=answers,
                     questions_answered=True,
-                    description=self.description_panel.get_description()
+                    description=self._get_description()
                 )
         self.log_viewer.append_log(
             f"Generating another batch of {ctx.max_questions} questions...",
@@ -1475,7 +1643,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     def run_question_generation(self):
         """Run Phase 1: Question Generation (batch)."""
         ctx = self.state_machine.context
-        description = self.description_panel.get_description()
+        description = self._get_description()
         self._sync_description_to_file(description)
         if description != ctx.description:
             self.state_machine.update_context(description=description)
@@ -1517,7 +1685,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             return
 
         worker = DefinitionRewriteWorker(
-            description=self.description_panel.get_description(),
+            description=self._get_description(),
             qa_pairs=ctx.qa_pairs,
             provider_name=ctx.llm_config.get("description_molding", "gemini"),
             working_directory=ctx.working_directory,
@@ -1537,7 +1705,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         if updated:
             self._suppress_description_sync = True
             try:
-                self.description_panel.set_description(updated)
+                self._set_description(updated)
             finally:
                 self._suppress_description_sync = False
             self.state_machine.update_context(
@@ -1554,14 +1722,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             )
         self.question_panel.show_answers_saved()
 
-    @Slot(str)
-    def on_description_changed(self, text: str):
-        """Keep product-description.md synced with UI edits."""
-        if self._suppress_description_sync:
-            return
-        self.state_machine.update_context(description=text)
-        self._sync_description_to_file(text)
-        self._update_floating_start_button_visibility()
+    # on_description_changed removed - description updates now come through chat workflow
+    # Description panel is always read-only; updates handled by chat_to_description flow
 
     def resizeEvent(self, event):
         """Keep floating start control anchored after window resizes."""
@@ -1600,7 +1762,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             return
         try:
             self.file_manager.ensure_files_exist()
-            self.file_manager.write_file("product-description.md", text.strip() + "\n" if text else "")
+            content = text.strip() + "\n" if text else ""
+            self.file_manager.write_file("product-description.md", content)
+            # Update file watcher to avoid treating our own write as external change
+            self.description_watcher.update_known_content(content)
         except Exception as exc:
             self.log_viewer.append_log(f"Failed to write product-description.md: {exc}", "warning")
 
@@ -1614,6 +1779,110 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             self.log_viewer.append_log(f"Failed to read product-description.md: {exc}", "warning")
             return ""
         return (content or "").strip()
+
+    def _initialize_description_from_chat(self, message: str):
+        """Initialize product description from first chat message."""
+        from ..workers.chat_to_description_worker import ChatToDescriptionWorker
+
+        ctx = self.state_machine.context
+        if not ctx.working_directory:
+            self.log_viewer.append_log("No working directory set - cannot initialize description", "error")
+            return
+
+        self.log_viewer.append_log("Processing first message to initialize product description...", "info")
+
+        # Create worker to initialize description
+        worker = ChatToDescriptionWorker(
+            message=message,
+            provider_name=ctx.llm_config.get("client_message_handler", "gemini"),
+            working_directory=ctx.working_directory,
+            is_initialization=True,
+            model=ctx.llm_config.get("client_message_handler_model"),
+            debug_mode=ctx.debug_mode_enabled,
+            debug_breakpoints=ctx.debug_breakpoints,
+            show_terminal=ctx.show_llm_terminals
+        )
+
+        # Connect signals
+        worker.signals.log.connect(self.log_viewer.append_log)
+        worker.signals.llm_output.connect(lambda msg: self.log_viewer.append_log(msg, "llm"))
+        worker.signals.status.connect(lambda msg: self.log_viewer.append_log(msg, "info"))
+        worker.signals.result.connect(self._on_description_initialization_complete)
+
+        self.current_worker = worker
+        self.thread_pool.start(worker)
+
+    @Slot(object)
+    def _on_description_initialization_complete(self, result: dict):
+        """Handle completion of description initialization from chat."""
+        if result.get("description_changed"):
+            new_description = result.get("new_description", "")
+            self.log_viewer.append_log("Product description initialized successfully", "success")
+
+            # Update UI
+            self._suppress_description_sync = True
+            try:
+                self._set_description(new_description)
+            finally:
+                self._suppress_description_sync = False
+
+            # Update state machine
+            self.state_machine.update_context(description=new_description)
+            self._update_floating_start_button_visibility()
+
+            # Update file watcher's known content
+            self.description_watcher.update_known_content(new_description)
+
+            # Update chat panel placeholder text
+            self.chat_panel.update_placeholder_text(has_description=True)
+
+            # Auto-trigger question generation if max_questions > 0
+            config = self.config_panel.get_config()
+            if config.max_questions > 0:
+                self.log_viewer.append_log(
+                    f"Auto-generating {config.max_questions} clarifying questions...",
+                    "info"
+                )
+                self.run_question_generation()
+        else:
+            self.log_viewer.append_log("Product description initialization failed or unchanged", "warning")
+
+    @Slot(str)
+    def _on_description_changed_externally(self, new_content: str):
+        """Handle external changes to product-description.md."""
+        self.log_viewer.append_log("Product description updated externally", "info")
+
+        # Update UI
+        self._suppress_description_sync = True
+        try:
+            self._set_description(new_content)
+        finally:
+            self._suppress_description_sync = False
+
+        # Update state machine
+        self.state_machine.update_context(description=new_content)
+        self._update_floating_start_button_visibility()
+
+        # Update chat panel placeholder text
+        has_description = bool(new_content and new_content.strip())
+        self.chat_panel.update_placeholder_text(has_description=has_description)
+
+        # Show notification
+        from PySide6.QtWidgets import QMessageBox
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Information)
+        msg.setWindowTitle("Description Updated Externally")
+        msg.setText("The product description has been updated by an external editor.")
+        msg.setInformativeText("The changes have been loaded into the application.")
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec()
+
+        # Warn if workflow is running
+        if self.state_machine.phase in [Phase.MAIN_EXECUTION, Phase.DEBUG_REVIEW, Phase.GIT_OPERATIONS]:
+            self.log_viewer.append_log(
+                "Warning: Description edited externally during workflow execution",
+                "warning"
+            )
 
     def _load_rewritten_description_from_file(self) -> str:
         """Load product-description.md after Q&A rewrite."""
@@ -1681,7 +1950,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
                 "Please install/fix Git and try again."
             )
             return
-        description = self.description_panel.get_description()
+        description = self._get_description()
         self._sync_description_to_file(description)
         answers = {
             f"q{i + 1}": qa.get("answer", "")
@@ -1722,5 +1991,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             # Cancel current worker
             if self.current_worker:
                 self.current_worker.cancel()
+
+        # Save settings before closing
+        self.save_current_working_directory_settings()
 
         event.accept()

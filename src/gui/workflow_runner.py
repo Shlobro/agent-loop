@@ -635,7 +635,10 @@ class WorkflowRunnerMixin:
             model=ctx.llm_config.get("client_message_handler_model"),
             debug_mode=ctx.debug_mode_enabled,
             debug_breakpoints=ctx.debug_breakpoints,
-            show_terminal=ctx.show_llm_terminals
+            show_terminal=ctx.show_llm_terminals,
+            update_description=message_data.get("update_description"),
+            add_tasks=message_data.get("add_tasks"),
+            provide_answer=message_data.get("provide_answer")
         )
 
         # Connect signals
@@ -660,6 +663,39 @@ class WorkflowRunnerMixin:
         # Update status in UI
         self.chat_panel.update_message_status(self._current_message_id, "completed")
 
+        # Track what was updated
+        description_updated = False
+        tasks_updated = False
+
+        # Check if description was updated (reload from file)
+        if self.file_manager:
+            new_description = self._load_description_from_file()
+            if new_description != ctx.description:
+                description_updated = True
+                self.log_viewer.append_log("Product description updated from chat message", "info")
+
+                # Update description in UI
+                self._suppress_description_sync = True
+                try:
+                    self.description_panel.set_description(new_description)
+                finally:
+                    self._suppress_description_sync = False
+
+                # Update state machine
+                self.state_machine.update_context(description=new_description)
+                self._update_floating_start_button_visibility()
+
+            # Check if tasks were updated
+            old_tasks = ctx.tasks_content
+            new_tasks = self.file_manager.read_tasks()
+            if new_tasks != old_tasks:
+                tasks_updated = True
+                self.log_viewer.append_log("Tasks updated from chat message", "info")
+                # Update context and UI
+                self.state_machine.update_context(tasks_content=new_tasks)
+                # Update button states to reflect new task status
+                self.update_button_states()
+
         # If answer was provided, show it to user
         if result.get("has_answer"):
             answer_content = result.get("answer_content", "")
@@ -673,7 +709,21 @@ class WorkflowRunnerMixin:
             dialog = AnswerDisplayDialog(answer_content, parent=self)
             dialog.exec()
         else:
-            self.log_viewer.append_log("Client message processed - files updated", "info")
+            # No direct answer - LLM chose to update files instead
+            # Build status message
+            status_parts = []
+            if description_updated:
+                status_parts.append("Updated product description")
+            if tasks_updated:
+                status_parts.append("Updated tasks")
+
+            if status_parts:
+                status_message = " and ".join(status_parts)
+                self.log_viewer.append_log(f"Client message processed - {status_message}", "info")
+                # Add the status as an "answer" in the chat panel
+                self.chat_panel.add_answer(self._current_message_id, status_message)
+            else:
+                self.log_viewer.append_log("Client message processed - no changes detected", "info")
 
         # Process next message or continue workflow
         if ctx.pending_client_messages:

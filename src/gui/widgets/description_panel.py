@@ -2,7 +2,7 @@
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTextEdit, QTextBrowser,
-    QHBoxLayout, QPushButton, QStackedWidget
+    QHBoxLayout, QPushButton, QStackedWidget, QTabWidget
 )
 from PySide6.QtCore import Signal
 from typing import List
@@ -34,13 +34,14 @@ class DescriptionPanel(QWidget):
         self.text_edit = QTextEdit()
         self.text_edit.setStyleSheet("font-size: 17px;")
         self.text_edit.setMinimumHeight(300)
-        self.text_edit.textChanged.connect(self._on_text_changed)
+        self.text_edit.setReadOnly(True)  # Always read-only - edits come through chat
+        # Note: textChanged signal still connected for programmatic updates tracking
 
         self.preview = QTextBrowser()
         self.preview.setOpenExternalLinks(True)
         self.preview.setMinimumHeight(300)
 
-        # Task List view
+        # Task List view with tabs for filtering
         self.task_list_widget = QWidget()
         task_list_layout = QVBoxLayout(self.task_list_widget)
         task_list_layout.setContentsMargins(8, 8, 8, 8)
@@ -54,23 +55,28 @@ class DescriptionPanel(QWidget):
         self.task_summary_label.setStyleSheet("font-size: 15px;")
         task_list_layout.addWidget(self.task_summary_label)
 
-        completed_title = QLabel("Completed Tasks")
-        completed_title.setStyleSheet("font-size: 15px; font-weight: 600; margin-top: 12px;")
-        task_list_layout.addWidget(completed_title)
+        # Create tab widget for task filtering
+        self.task_tabs = QTabWidget()
 
+        # All tasks tab
+        self.all_tasks_view = QTextBrowser()
+        self.all_tasks_view.setOpenExternalLinks(True)
+        self.all_tasks_view.setMinimumHeight(200)
+        self.task_tabs.addTab(self.all_tasks_view, "All")
+
+        # Completed tasks tab
         self.completed_tasks_view = QTextBrowser()
         self.completed_tasks_view.setOpenExternalLinks(True)
-        self.completed_tasks_view.setMinimumHeight(120)
-        task_list_layout.addWidget(self.completed_tasks_view)
+        self.completed_tasks_view.setMinimumHeight(200)
+        self.task_tabs.addTab(self.completed_tasks_view, "Completed")
 
-        incomplete_title = QLabel("Incomplete Tasks")
-        incomplete_title.setStyleSheet("font-size: 15px; font-weight: 600; margin-top: 12px;")
-        task_list_layout.addWidget(incomplete_title)
-
+        # Incomplete tasks tab
         self.incomplete_tasks_view = QTextBrowser()
         self.incomplete_tasks_view.setOpenExternalLinks(True)
-        self.incomplete_tasks_view.setMinimumHeight(120)
-        task_list_layout.addWidget(self.incomplete_tasks_view)
+        self.incomplete_tasks_view.setMinimumHeight(200)
+        self.task_tabs.addTab(self.incomplete_tasks_view, "Incomplete")
+
+        task_list_layout.addWidget(self.task_tabs)
 
         self.mode_row_widget = QWidget()
         mode_row = QHBoxLayout(self.mode_row_widget)
@@ -79,10 +85,8 @@ class DescriptionPanel(QWidget):
         mode_label.setProperty("role", "muted")
         mode_row.addWidget(mode_label)
 
-        self.edit_mode_button = QPushButton("Edit")
-        self.edit_mode_button.setCheckable(True)
-        self.edit_mode_button.clicked.connect(self._enter_edit_mode)
-        mode_row.addWidget(self.edit_mode_button)
+        # Edit mode removed - description only editable through chat
+        # self.edit_mode_button removed
 
         self.preview_mode_button = QPushButton("Preview")
         self.preview_mode_button.setCheckable(True)
@@ -103,13 +107,14 @@ class DescriptionPanel(QWidget):
         self.content_stack.addWidget(self.task_list_widget)
         layout.addWidget(self.content_stack)
         self._refresh_preview()
-        self._set_mode("edit")
+        self._set_mode("preview")  # Default to preview mode (no edit mode available)
         self.set_preview_controls_visible(False)
 
     def _on_text_changed(self):
-        """Emit signal when text changes."""
+        """Refresh preview when text changes programmatically."""
         self._refresh_preview()
-        self.description_changed.emit(self.get_description())
+        # Note: description_changed signal no longer emitted on user edits
+        # since the text_edit is always read-only. Signal kept for backward compatibility.
 
     def get_description(self) -> str:
         """Get the current description text."""
@@ -121,24 +126,20 @@ class DescriptionPanel(QWidget):
         self._refresh_preview()
 
     def set_readonly(self, readonly: bool):
-        """Enable or disable editing."""
-        self.text_edit.setReadOnly(readonly)
-        self.edit_mode_button.setEnabled(not readonly)
-        if readonly and self.content_stack.currentWidget() is self.text_edit:
-            self._set_mode("preview")
-        elif not readonly and self.content_stack.currentWidget() is self.text_edit:
-            self._set_mode("edit")
+        """Enable or disable editing (deprecated - always read-only now)."""
+        # Description is always read-only now - edits come through chat
+        # Keep this method for backward compatibility but it does nothing
+        pass
 
     def set_preview_controls_visible(self, visible: bool):
         """Show or hide explicit Edit/Preview/Task List controls."""
         self.mode_row_widget.setVisible(bool(visible))
 
     def set_preview_mode(self, enabled: bool):
-        """Switch between edit and markdown preview mode."""
+        """Switch to markdown preview mode (or stay in current mode if disabled)."""
         if enabled:
             self._set_mode("preview")
-        else:
-            self._set_mode("edit")
+        # Note: No edit mode available - if disabled, keeps current mode (preview or task_list)
 
     def is_preview_mode(self) -> bool:
         """Return True when markdown preview mode is active."""
@@ -190,12 +191,26 @@ class DescriptionPanel(QWidget):
         self.task_summary_label.setText(
             f"Completed: {len(completed_tasks)} | Incomplete: {len(incomplete_tasks)} | Total: {total}"
         )
+
+        # Update individual tabs
         self.completed_tasks_view.setMarkdown(
             self._tasks_to_markdown(completed_tasks, "No completed tasks yet.")
         )
         self.incomplete_tasks_view.setMarkdown(
             self._tasks_to_markdown(incomplete_tasks, "No incomplete tasks remaining.")
         )
+
+        # Update "All" tab with both completed and incomplete tasks
+        all_tasks_md = ""
+        if completed_tasks:
+            all_tasks_md += "**Completed:**\n" + "\n".join(f"- ✓ {task}" for task in completed_tasks)
+        if incomplete_tasks:
+            if all_tasks_md:
+                all_tasks_md += "\n\n"
+            all_tasks_md += "**Incomplete:**\n" + "\n".join(f"- ☐ {task}" for task in incomplete_tasks)
+        if not all_tasks_md:
+            all_tasks_md = "_No tasks yet._"
+        self.all_tasks_view.setMarkdown(all_tasks_md)
 
     def set_current_action(self, action: str):
         """Set the current action label in task list view."""
@@ -210,25 +225,15 @@ class DescriptionPanel(QWidget):
         return "\n".join(f"- {task}" for task in tasks)
 
     def _set_mode(self, mode: str):
-        """Set the current view mode: 'edit', 'preview', or 'task_list'."""
-        if mode == "edit":
-            self.content_stack.setCurrentWidget(self.text_edit)
-            self.edit_mode_button.setChecked(True)
-            self.preview_mode_button.setChecked(False)
-            self.task_list_mode_button.setChecked(False)
-        elif mode == "preview":
+        """Set the current view mode: 'preview' or 'task_list' (edit mode removed)."""
+        if mode == "preview":
             self.content_stack.setCurrentWidget(self.preview)
-            self.edit_mode_button.setChecked(False)
             self.preview_mode_button.setChecked(True)
             self.task_list_mode_button.setChecked(False)
         elif mode == "task_list":
             self.content_stack.setCurrentWidget(self.task_list_widget)
-            self.edit_mode_button.setChecked(False)
             self.preview_mode_button.setChecked(False)
             self.task_list_mode_button.setChecked(True)
-
-    def _enter_edit_mode(self):
-        self._set_mode("edit")
 
     def _enter_preview_mode(self):
         self._set_mode("preview")

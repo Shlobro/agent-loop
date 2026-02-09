@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 from .base_worker import BaseWorker
 from .llm_worker import LLMWorker
+from ..llm.base_provider import LLMProviderRegistry
 from ..llm.prompt_templates import PromptTemplates
 from ..core.file_manager import FileManager
 
@@ -24,7 +25,10 @@ class ClientMessageWorker(BaseWorker):
         model: Optional[str] = None,
         debug_mode: bool = False,
         debug_breakpoints: dict = None,
-        show_terminal: bool = True
+        show_terminal: bool = True,
+        update_description: bool = None,
+        add_tasks: bool = None,
+        provide_answer: bool = None
     ):
         super().__init__()
         self.message = message
@@ -34,31 +38,40 @@ class ClientMessageWorker(BaseWorker):
         self.debug_mode = debug_mode
         self.debug_breakpoints = debug_breakpoints or {}
         self.show_terminal = show_terminal
+        self.update_description = update_description
+        self.add_tasks = add_tasks
+        self.provide_answer = provide_answer
         self.file_manager = FileManager(working_directory)
 
     def execute(self):
         """Process client message with LLM."""
         self.update_status("Processing client message...")
 
+        # Get provider instance
+        provider = LLMProviderRegistry.get(self.provider_name)
+        self.log(f"Using LLM provider: {provider.display_name}", "info")
+
         # Truncate answer.md before LLM call
         self.log("Truncating answer.md", "debug")
         self.file_manager.truncate_answer()
 
-        # Build prompt
-        prompt = PromptTemplates.format_client_message_prompt(self.message)
+        # Build prompt with checkbox states
+        prompt = PromptTemplates.format_client_message_prompt(
+            self.message,
+            update_description=self.update_description,
+            add_tasks=self.add_tasks,
+            provide_answer=self.provide_answer
+        )
 
         # Call LLM using LLMWorker
-        self.log(f"Calling {self.provider_name} for client message handling", "info")
+        self.log(f"Calling {provider.display_name} for client message handling", "info")
 
         llm_worker = LLMWorker(
+            provider=provider,
             prompt=prompt,
-            provider_name=self.provider_name,
             working_directory=self.working_directory,
-            stage="client_message_handler",
             model=self.model,
-            debug_mode=self.debug_mode,
-            debug_breakpoints=self.debug_breakpoints,
-            show_terminal=self.show_terminal
+            debug_stage="client_message_handler"
         )
 
         # Connect LLM worker signals to bubble up

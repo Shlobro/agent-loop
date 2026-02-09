@@ -300,23 +300,164 @@ RECENT LOG CONTEXT:
 WORKING DIRECTORY: {working_directory}'''
 
     # =========================================================================
-    # Client Message Handler
+    # Client Message Handler (Legacy - kept for backward compatibility)
     # =========================================================================
     CLIENT_MESSAGE_HANDLER_PROMPT = """You are a dev working on the current project. The client has sent in a message.
 
 I want you to look at product-description.md and at tasks.md.
 
-Decide if the product description needs to be updated and the tasks need to be updated.
-If so, update them.
+Your job is to:
+1. Determine if the product-description.md needs to be updated based on the client's message
+2. If yes, update product-description.md with the new information
+3. After updating product description (if you did), check if tasks.md needs updating
+4. If tasks.md needs updating, update it accordingly
 
-If it does not require updates to the product description and tasks and it just requires an answer:
+If the message requires a direct answer (not just updating files):
 - Put your response in answer.md
 
-If all that is needed is updating product-description and tasks:
+If all that is needed is updating product-description.md and/or tasks.md:
 - Leave answer.md empty
 
 Client message:
 {message}
+"""
+
+    # =========================================================================
+    # Client Message Handler - Checkbox-based Prompts
+    # =========================================================================
+
+    # Case 1: Update description only
+    CLIENT_MESSAGE_UPDATE_DESCRIPTION_ONLY = """You are a dev working on the current project. The client has sent in a message.
+
+Read product-description.md.
+
+Your job is to:
+1. Update product-description.md based on the client's message
+2. Incorporate the new information clearly and maintain good formatting
+3. Do NOT update tasks.md
+4. Do NOT provide an answer in answer.md
+
+Client message:
+{message}
+"""
+
+    # Case 2: Add tasks only
+    CLIENT_MESSAGE_ADD_TASKS_ONLY = """You are a dev working on the current project. The client has sent in a message.
+
+Read tasks.md and product-description.md.
+
+Your job is to:
+1. Add new tasks to tasks.md based on the client's message
+2. Use the format `- [ ]` for new unchecked tasks
+3. Add tasks in the appropriate position based on dependencies
+4. Do NOT update product-description.md
+5. Do NOT provide an answer in answer.md
+
+Client message:
+{message}
+"""
+
+    # Case 3: Provide answer only
+    CLIENT_MESSAGE_PROVIDE_ANSWER_ONLY = """You are a dev working on the current project. The client has sent in a message.
+
+Read product-description.md and tasks.md to understand the current project state.
+
+Your job is to:
+1. Provide a clear, helpful answer to the client's message
+2. Write your answer in answer.md
+3. Do NOT update product-description.md
+4. Do NOT update tasks.md
+
+Client message:
+{message}
+"""
+
+    # Case 4: Update description + Add tasks
+    CLIENT_MESSAGE_UPDATE_DESC_ADD_TASKS = """You are a dev working on the current project. The client has sent in a message.
+
+Read product-description.md and tasks.md.
+
+Your job is to:
+1. Update product-description.md based on the client's message
+2. Add new tasks to tasks.md that reflect the updated description
+3. Use the format `- [ ]` for new unchecked tasks
+4. Ensure tasks align with the updated product description
+5. Do NOT provide an answer in answer.md
+
+Client message:
+{message}
+"""
+
+    # Case 5: Update description + Provide answer
+    CLIENT_MESSAGE_UPDATE_DESC_PROVIDE_ANSWER = """You are a dev working on the current project. The client has sent in a message.
+
+Read product-description.md.
+
+Your job is to:
+1. Update product-description.md based on the client's message
+2. Provide a clear, helpful answer to the client in answer.md
+3. The answer should acknowledge the changes made to the description
+4. Do NOT update tasks.md
+
+Client message:
+{message}
+"""
+
+    # Case 6: Add tasks + Provide answer
+    CLIENT_MESSAGE_ADD_TASKS_PROVIDE_ANSWER = """You are a dev working on the current project. The client has sent in a message.
+
+Read tasks.md and product-description.md to understand the current project state.
+
+Your job is to:
+1. Add new tasks to tasks.md based on the client's message
+2. Use the format `- [ ]` for new unchecked tasks
+3. Provide a clear, helpful answer to the client in answer.md
+4. The answer should acknowledge the tasks that were added
+5. Do NOT update product-description.md
+
+Client message:
+{message}
+"""
+
+    # =========================================================================
+    # Chat-to-Description Initialization
+    # =========================================================================
+    DESCRIPTION_INITIALIZE_PROMPT = """You are initializing a new product description from the client's first message.
+
+The client has provided their initial project description or request.
+Your job is to write a clear, well-formatted product description into product-description.md.
+
+Guidelines:
+- Write the description in a clear, structured format
+- Include all key details from the client's message
+- Format it as a proper product description (not just copying verbatim)
+- Be concise but comprehensive
+- Use markdown formatting where appropriate
+
+Client message:
+{message}
+
+Write the formatted product description directly into product-description.md.
+"""
+
+    # =========================================================================
+    # Chat-to-Description Update
+    # =========================================================================
+    DESCRIPTION_UPDATE_PROMPT = """You are updating the product description based on a client message.
+
+Read the current product-description.md file.
+The client has sent a message that may require updating the product description.
+
+Your job is to:
+1. Analyze the client's message
+2. Determine if it requires updating product-description.md
+3. If yes, update product-description.md to incorporate the new information
+4. If no update is needed, do nothing to product-description.md
+
+Client message:
+{message}
+
+If an update is needed, modify product-description.md accordingly.
 """
 
     # =========================================================================
@@ -487,6 +628,78 @@ GIT DIFF:
         )
 
     @staticmethod
-    def format_client_message_prompt(message: str) -> str:
-        """Format the client message handler prompt."""
+    def format_client_message_prompt(message: str, update_description: bool = None,
+                                     add_tasks: bool = None, provide_answer: bool = None) -> str:
+        """
+        Format the client message handler prompt based on checkbox selections.
+
+        Args:
+            message: The client's message
+            update_description: If True, update product-description.md
+            add_tasks: If True, add tasks to tasks.md
+            provide_answer: If True, provide answer in answer.md
+
+        If no checkboxes are specified (all None), uses legacy auto-detect behavior.
+        """
+        # Legacy behavior - auto-detect what to do
+        if update_description is None and add_tasks is None and provide_answer is None:
+            return PromptTemplates.CLIENT_MESSAGE_HANDLER_PROMPT.format(message=message)
+
+        # Convert None to False for easier logic
+        update_description = update_description or False
+        add_tasks = add_tasks or False
+        provide_answer = provide_answer or False
+
+        # Case 1: Update description only
+        if update_description and not add_tasks and not provide_answer:
+            return PromptTemplates.CLIENT_MESSAGE_UPDATE_DESCRIPTION_ONLY.format(message=message)
+
+        # Case 2: Add tasks only
+        if add_tasks and not update_description and not provide_answer:
+            return PromptTemplates.CLIENT_MESSAGE_ADD_TASKS_ONLY.format(message=message)
+
+        # Case 3: Provide answer only
+        if provide_answer and not update_description and not add_tasks:
+            return PromptTemplates.CLIENT_MESSAGE_PROVIDE_ANSWER_ONLY.format(message=message)
+
+        # Case 4: Update description + Add tasks
+        if update_description and add_tasks and not provide_answer:
+            return PromptTemplates.CLIENT_MESSAGE_UPDATE_DESC_ADD_TASKS.format(message=message)
+
+        # Case 5: Update description + Provide answer
+        if update_description and provide_answer and not add_tasks:
+            return PromptTemplates.CLIENT_MESSAGE_UPDATE_DESC_PROVIDE_ANSWER.format(message=message)
+
+        # Case 6: Add tasks + Provide answer
+        if add_tasks and provide_answer and not update_description:
+            return PromptTemplates.CLIENT_MESSAGE_ADD_TASKS_PROVIDE_ANSWER.format(message=message)
+
+        # All three checkboxes - combine all behaviors
+        if update_description and add_tasks and provide_answer:
+            return """You are a dev working on the current project. The client has sent in a message.
+
+Read product-description.md and tasks.md.
+
+Your job is to:
+1. Update product-description.md based on the client's message
+2. Add new tasks to tasks.md that reflect the updated description
+3. Use the format `- [ ]` for new unchecked tasks
+4. Provide a clear, helpful answer to the client in answer.md
+5. The answer should acknowledge both the description update and tasks added
+
+Client message:
+{message}
+""".format(message=message)
+
+        # No checkboxes selected - default to legacy behavior
         return PromptTemplates.CLIENT_MESSAGE_HANDLER_PROMPT.format(message=message)
+
+    @staticmethod
+    def format_description_initialize_prompt(message: str) -> str:
+        """Format the description initialization prompt."""
+        return PromptTemplates.DESCRIPTION_INITIALIZE_PROMPT.format(message=message)
+
+    @staticmethod
+    def format_description_update_prompt(message: str) -> str:
+        """Format the description update prompt."""
+        return PromptTemplates.DESCRIPTION_UPDATE_PROMPT.format(message=message)
