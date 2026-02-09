@@ -20,6 +20,7 @@ class FileManager:
     CLAUDE_FILE = "CLAUDE.md"
     GEMINI_FILE = "GEMINI.md"
     COMMIT_MESSAGE_FILE = ".agentharness/git-commit-message.txt"
+    ERROR_CONCLUSION_FILE = "error-conclusion.md"
 
     def __init__(self, working_directory: str):
         self.working_dir = Path(working_directory)
@@ -239,3 +240,15 @@ class FileManager:
     def is_valid_directory(self) -> bool:
         """Check if working directory exists and is accessible."""
         return self.working_dir.exists() and self.working_dir.is_dir()
+
+    def read_error_conclusion(self) -> Optional[str]:
+        """Read error-conclusion.md content."""
+        return self.read_file(self.ERROR_CONCLUSION_FILE)
+
+    def write_error_conclusion(self, content: str):
+        """Write error-conclusion.md content."""
+        self.write_file(self.ERROR_CONCLUSION_FILE, content)
+
+    def clear_error_conclusion(self):
+        """Clear/truncate error-conclusion.md file."""
+        self.write_error_conclusion("")

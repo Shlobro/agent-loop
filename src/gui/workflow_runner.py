@@ -307,17 +307,22 @@ class WorkflowRunnerMixin:
         worker.signals.finished.connect(self.on_worker_finished)
 
     @Slot(tuple)
-    def on_worker_error(self, error_info):
-        """Handle worker error."""
-        exc_type, exc_value, tb_str = error_info
+    def on_worker_error(self, error_info_tuple):
+        """Handle worker error by showing recovery dialog."""
+        exc_type, exc_value, tb_str = error_info_tuple
+
+        # Log the error first
         self.log_viewer.append_error(f"Error: {exc_value}")
         self.log_viewer.append_log(f"Exception type: {exc_type.__name__ if exc_type else 'Unknown'}", "debug")
-        if tb_str:
-            # Log first few lines of traceback
-            tb_lines = tb_str.strip().split('\n')
-            for line in tb_lines[-5:]:  # Last 5 lines
-                self.log_viewer.append_log(f"  {line}", "debug")
+
+        # Capture full error context
+        error_info = self._capture_error_context(exc_type, exc_value, tb_str)
+
+        # Transition to error state
         self.state_machine.set_error(str(exc_value))
+
+        # Show error recovery dialog
+        self._show_error_recovery_dialog(error_info)
 
     @Slot()
     def on_worker_finished(self):
@@ -325,3 +330,272 @@ class WorkflowRunnerMixin:
         self.current_worker = None
         self._set_debug_waiting(False)
         self.update_button_states()
+
+    # =========================================================================
+    # Error Recovery Methods
+    # =========================================================================
+
+    def retry_current_phase(self):
+        """Retry the current phase from the beginning."""
+        phase = self.state_machine.phase
+
+        retry_methods = {
+            Phase.QUESTION_GENERATION: self._retry_question_generation,
+            Phase.TASK_PLANNING: self._retry_task_planning,
+            Phase.MAIN_EXECUTION: self._retry_main_execution,
+            Phase.DEBUG_REVIEW: self._retry_review,
+            Phase.GIT_OPERATIONS: self._retry_git_operations,
+        }
+
+        retry_method = retry_methods.get(phase)
+        if retry_method:
+            self.log_viewer.append_log(f"Retrying {phase.name} phase...", "warning")
+            self.state_machine.update_context(error_message=None)
+            self.state_machine.transition_to(phase)
+            retry_method()
+        else:
+            self.log_viewer.append_warning(f"Cannot retry phase: {phase.name}")
+
+    def _retry_git_operations(self):
+        """Retry git operations from step 1 (commit message generation)."""
+        from pathlib import Path
+
+        # Clear commit message file
+        ctx = self.state_machine.context
+        commit_msg_path = Path(ctx.working_directory) / ".agentharness/git-commit-message.txt"
+        if commit_msg_path.exists():
+            try:
+                commit_msg_path.write_text("", encoding="utf-8")
+            except Exception as e:
+                self.log_viewer.append_log(f"Failed to clear commit message: {e}", "debug")
+
+        self.run_git_operations()  # Existing method
+
+    def _retry_main_execution(self):
+        """Retry current task execution without incrementing iteration."""
+        self.run_main_execution()
+
+    def _retry_review(self):
+        """Retry review loop for current task."""
+        self.state_machine.update_context(current_debug_iteration=0)
+        self.run_review_loop()
+
+    def _retry_task_planning(self):
+        """Retry task planning from scratch."""
+        self.run_task_planning()
+
+    def _retry_question_generation(self):
+        """Retry question generation from scratch."""
+        if self.file_manager:
+            try:
+                self.file_manager.write_questions({})
+            except Exception as e:
+                self.log_viewer.append_log(f"Failed to clear questions: {e}", "debug")
+
+        from ..workers.question_worker import QuestionWorker
+        ctx = self.state_machine.context
+
+        worker = QuestionWorker(
+            description=ctx.description,
+            provider_name=ctx.llm_config.get("question_gen", "gemini"),
+            working_directory=ctx.working_directory,
+            model=ctx.llm_config.get("question_gen_model"),
+            question_count=ctx.max_questions
+        )
+
+        self._connect_worker_signals(worker)
+        worker.signals.questions_ready.connect(self.on_questions_ready)
+
+        self.current_worker = worker
+        self.thread_pool.start(worker)
+
+    def skip_to_next_iteration(self):
+        """Skip current failed operation and move to next iteration."""
+        from PySide6.QtWidgets import QMessageBox
+
+        phase = self.state_machine.phase
+        ctx = self.state_machine.context
+
+        self.log_viewer.append_log(f"Skipping {phase.name} phase...", "warning")
+
+        if phase in (Phase.MAIN_EXECUTION, Phase.DEBUG_REVIEW, Phase.GIT_OPERATIONS):
+            # These are part of main loop
+            self._skip_current_task()
+        elif phase == Phase.TASK_PLANNING:
+            self.log_viewer.append_warning("Cannot skip planning. Returning to idle.")
+            self.state_machine.transition_to(Phase.COMPLETED)
+        elif phase == Phase.QUESTION_GENERATION:
+            self.log_viewer.append_warning("Skipping questions. Moving to planning.")
+            self.state_machine.transition_to(Phase.TASK_PLANNING)
+            self.run_task_planning()
+        else:
+            self.log_viewer.append_warning(f"Cannot skip phase: {phase.name}")
+            self.state_machine.transition_to(Phase.COMPLETED)
+
+    def _skip_current_task(self):
+        """Skip current task and move to next incomplete task or complete."""
+        from PySide6.QtWidgets import QMessageBox
+        from ..utils.markdown_parser import has_incomplete_tasks
+
+        ctx = self.state_machine.context
+
+        # Check if this is the last iteration
+        if ctx.current_iteration >= ctx.max_iterations:
+            reply = QMessageBox.question(
+                self, "Last Iteration",
+                "This is the last iteration. Skipping will complete the workflow. Continue?",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                # Show error recovery dialog again
+                return
+
+        # Check for more incomplete tasks
+        if self.file_manager:
+            tasks_content = self.file_manager.read_tasks()
+            if has_incomplete_tasks(tasks_content):
+                self.log_viewer.append_log("Moving to next task...", "info")
+                self.state_machine.transition_to(Phase.MAIN_EXECUTION)
+                self.run_main_execution()
+                return
+
+        self.log_viewer.append_log("No more tasks. Completing workflow.", "info")
+        self.state_machine.transition_to(Phase.COMPLETED)
+
+    def _capture_error_context(self, exc_type, exc_value, tb_str):
+        """Capture complete error context for recovery dialog."""
+        import copy
+        from ..core.error_context import ErrorInfo
+
+        ctx = self.state_machine.context
+
+        # Extract error summary (first 3 lines or 300 chars)
+        error_lines = str(exc_value).split('\n')
+        error_summary = '\n'.join(error_lines[:3])
+        if len(error_summary) > 300:
+            error_summary = error_summary[:297] + "..."
+
+        # Add helpful hints for known errors
+        error_str = str(exc_value).lower()
+        if "invalid path 'nul'" in error_str:
+            error_summary += "\n\nHint: Git on Windows cannot add files named 'nul' (reserved name)."
+        elif "timeout" in error_str or "timed out" in error_str:
+            error_summary += "\n\nHint: The operation timed out. This may be due to network issues or LLM quota limits."
+        elif "quota" in error_str or "rate limit" in error_str:
+            error_summary += "\n\nHint: You may have exceeded API rate limits or quota. Consider switching LLM providers."
+
+        # Get recent logs
+        recent_logs = self.log_viewer.get_recent_logs(limit=50)
+
+        return ErrorInfo(
+            phase=self.state_machine.phase,
+            sub_phase=self.state_machine.sub_phase,
+            error_summary=error_summary,
+            full_traceback=tb_str,
+            exception_type=exc_type.__name__ if exc_type else "Unknown",
+            exception_value=str(exc_value),
+            recent_logs=recent_logs,
+            working_directory=ctx.working_directory,
+            current_iteration=ctx.current_iteration,
+            max_iterations=ctx.max_iterations,
+            context_snapshot=copy.deepcopy(ctx)
+        )
+
+    def _show_error_recovery_dialog(self, error_info):
+        """Show error recovery dialog and handle user choice."""
+        from PySide6.QtWidgets import QMessageBox
+        from .dialogs.error_recovery_dialog import ErrorRecoveryDialog
+
+        dialog = ErrorRecoveryDialog(self, error_info)
+        dialog.retry_requested.connect(lambda: self._handle_error_retry(error_info))
+        dialog.skip_requested.connect(lambda: self._handle_error_skip(error_info))
+        dialog.send_to_llm_requested.connect(
+            lambda provider: self._handle_error_send_to_llm(error_info, provider)
+        )
+        dialog.exec()
+
+    def _handle_error_retry(self, error_info):
+        """Handle retry phase action."""
+        from PySide6.QtWidgets import QMessageBox
+
+        phase = error_info.phase
+        iteration = error_info.current_iteration
+
+        # Check retry limits
+        if not self.error_recovery_tracker.can_retry(phase, iteration):
+            retry_count = self.error_recovery_tracker.get_retry_count(phase, iteration)
+            QMessageBox.critical(
+                self, "Too Many Retries",
+                f"Maximum retry attempts ({retry_count}) reached for this phase. "
+                "Please choose Skip or Send to LLM instead."
+            )
+            self._show_error_recovery_dialog(error_info)
+            return
+
+        self.error_recovery_tracker.record_retry(phase, iteration)
+        retry_count = self.error_recovery_tracker.get_retry_count(phase, iteration)
+        self.log_viewer.append_log(
+            f"Retry attempt {retry_count} of 3 for {phase.name}",
+            "warning"
+        )
+        self.retry_current_phase()
+
+    def _handle_error_skip(self, error_info):
+        """Handle skip to next iteration action."""
+        self.skip_to_next_iteration()
+
+    def _handle_error_send_to_llm(self, error_info, provider_name: str):
+        """Handle send to LLM for fixing action."""
+        from ..workers.error_fix_worker import ErrorFixWorker
+
+        self.log_viewer.append_log(
+            f"Sending error to {provider_name} for analysis...",
+            "info"
+        )
+
+        model = self.state_machine.context.llm_config.get(f"{provider_name}_model")
+
+        worker = ErrorFixWorker(error_info, provider_name, model)
+        self._connect_worker_signals(worker)
+        worker.signals.result.connect(
+            lambda result: self._on_error_fix_complete(result, error_info)
+        )
+
+        self.current_worker = worker
+        self.thread_pool.start(worker)
+
+    def _on_error_fix_complete(self, result: dict, error_info):
+        """Handle completion of LLM error fix attempt."""
+        from .dialogs.error_conclusion_dialog import ErrorConclusionDialog
+
+        conclusion = result.get("conclusion", "")
+        provider_name = result.get("provider_name", "LLM")
+
+        # Show conclusion dialog
+        dialog = ErrorConclusionDialog(self, conclusion, provider_name)
+
+        dialog.retry_requested.connect(lambda: self._handle_conclusion_retry(error_info))
+        dialog.try_different_llm_requested.connect(lambda: self._handle_conclusion_try_different_llm(error_info))
+        dialog.skip_requested.connect(lambda: self._handle_conclusion_skip(error_info))
+
+        dialog.exec()
+
+    def _handle_conclusion_retry(self, error_info):
+        """Handle retry after LLM fix conclusion."""
+        # Reset retry count since LLM made changes
+        self.error_recovery_tracker.reset_phase(
+            error_info.phase,
+            error_info.current_iteration
+        )
+        self.log_viewer.append_log("Retrying phase after LLM fix...", "info")
+        self.retry_current_phase()
+
+    def _handle_conclusion_try_different_llm(self, error_info):
+        """Handle trying a different LLM after conclusion."""
+        self.log_viewer.append_log("Returning to error recovery to try different LLM...", "info")
+        self._show_error_recovery_dialog(error_info)
+
+    def _handle_conclusion_skip(self, error_info):
+        """Handle skip after LLM fix conclusion."""
+        self.log_viewer.append_log("Skipping to next iteration...", "info")
+        self.skip_to_next_iteration()

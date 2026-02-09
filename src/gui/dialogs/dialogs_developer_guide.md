@@ -12,6 +12,8 @@ Contains dialogs used by the GUI for user approvals, confirmations, and post-que
 - `review_settings_dialog.py`: Modal dialog split into two sections for UX clarity: `Pre-Review Preparation` (optional unit-test prep that runs once before the loop) and `Review Loop Types` (reviewers that run each iteration).
 - `debug_settings_dialog.py`: Modal dialog for enabling/disabling debug step mode, choosing per-stage before/after pause points, toggling LLM terminal window popups, and showing/hiding the left logs panel.
 - `startup_directory_dialog.py`: Startup-only modal dialog that requires selecting a valid working directory before the main window is shown, with recent-directory shortcuts.
+- `error_recovery_dialog.py`: Modal dialog shown when workflow errors occur. Provides three recovery options: Retry Phase (re-run from start), Skip to Next (move to next iteration), and Send to LLM (automated error fixing with provider selection). Returns via signals (`retry_requested`, `skip_requested`, `send_to_llm_requested`). Blocks manual close to force user choice.
+- `error_conclusion_dialog.py`: Modal dialog shown after LLM error fix attempt to display contents of `error-conclusion.md`. If empty (LLM failed), prompts user to try different LLM, retry manually, or skip. If has content (LLM succeeded), shows conclusion and allows retry with fixes, try different LLM, or skip. Returns via signals (`retry_requested`, `try_different_llm_requested`, `skip_requested`).
 - `__init__.py`: Module marker.
 
 ## Key Interactions

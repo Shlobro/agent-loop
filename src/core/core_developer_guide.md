@@ -9,6 +9,7 @@ Implements the workflow state machine, persistence, file/session I/O, and shared
 - `file_manager.py`: Atomic read/write for `tasks.md`, `recent-changes.md`, `review/` artifacts (one file per review type), `product-description.md`, git commit-message artifact (`.agentharness/git-commit-message.txt`), and governance prompt files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`).
 - `session_manager.py`: Save/load workflow state to `session_state.json` for pause/resume.
 - `project_settings.py`: `ProjectSettings` dataclass plus JSON load/save helpers (includes review-type selection, optional pre-review unit-test-update toggle persistence, and left logs-panel visibility), including per-working-directory settings at `.agentharness/project-settings.json`. The default for `show_logs_panel` is `False` (left logs hidden unless enabled in settings).
+- `error_context.py`: `ErrorInfo` dataclass for capturing complete error state including phase, traceback, recent logs, and state snapshot for recovery operations. Also contains `ErrorRecoveryTracker` to prevent infinite retry loops.
 - `exceptions.py`: Core exception types shared by workers and UI.
 - `__init__.py`: Module marker.
 

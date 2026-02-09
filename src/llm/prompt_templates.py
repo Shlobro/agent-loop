@@ -275,6 +275,31 @@ REVIEW FINDINGS:
 '''
 
     # =========================================================================
+    # Error Recovery: LLM Error Fixing
+    # =========================================================================
+    ERROR_FIX_PROMPT = '''I was doing {phase} and got an error. Can you fix it?
+
+Please write your analysis and solution to a file called `error-conclusion.md`.
+
+In the error-conclusion.md file, include:
+1. What went wrong and why
+2. What you did to fix it
+3. Whether the fix should resolve the issue
+
+If you made code changes to fix the error, also update recent-changes.md.
+
+The error message:
+{error_summary}
+
+FULL ERROR DETAILS:
+{full_error}
+
+RECENT LOG CONTEXT:
+{recent_logs}
+
+WORKING DIRECTORY: {working_directory}'''
+
+    # =========================================================================
     # Phase 5: Git Operations
     # =========================================================================
     GIT_COMMIT_MESSAGE = '''Create a git commit message and write it to `{message_file}`.
@@ -426,4 +451,17 @@ GIT DIFF:
             message_file=message_file,
             git_status=git_status,
             git_diff=git_diff
+        )
+
+    @classmethod
+    def format_error_fix_prompt(cls, phase: str, error_summary: str,
+                                full_error: str, recent_logs: str,
+                                working_directory: str) -> str:
+        """Format prompt for LLM to analyze and fix a workflow error."""
+        return cls.ERROR_FIX_PROMPT.format(
+            phase=phase,
+            error_summary=error_summary,
+            full_error=full_error,
+            recent_logs=recent_logs,
+            working_directory=working_directory
         )

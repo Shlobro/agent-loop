@@ -14,7 +14,9 @@
       "Bash(tree:*)",
       "Bash(python -m py_compile:*)",
       "Bash(python -c:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(python:*)"
     ]
   }
 }

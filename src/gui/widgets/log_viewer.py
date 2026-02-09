@@ -29,6 +29,8 @@ class LogViewer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.auto_scroll = True
+        self._log_history = []  # Circular buffer for error context
+        self._max_history = 100
         self.setup_ui()
 
     def setup_ui(self):
@@ -100,6 +102,15 @@ class LogViewer(QWidget):
         timestamp = datetime.now().strftime("%H:%M:%S")
         color = self.COLORS.get(level, self.COLORS["info"])
 
+        # Store in history with timestamp and level
+        self._log_history.append({
+            'timestamp': timestamp,
+            'level': level,
+            'message': message
+        })
+        if len(self._log_history) > self._max_history:
+            self._log_history.pop(0)
+
         # Format the message with HTML
         level_indicator = level.upper()[:3] if level != "llm_output" else "LLM"
         formatted = f'<span style="color:{color}">[{timestamp}] [{level_indicator}] {self._escape_html(message)}</span>'
@@ -157,3 +168,17 @@ class LogViewer(QWidget):
         """Save log content to a file."""
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(self.get_content())
+
+    def get_recent_logs(self, limit: int = 50) -> list[str]:
+        """
+        Get recent log entries for error context.
+
+        Args:
+            limit: Number of recent logs to retrieve
+
+        Returns:
+            List of formatted log strings
+        """
+        recent = self._log_history[-limit:]
+        return [f"[{log['timestamp']}] [{log['level'][:3].upper()}] {log['message']}"
+                for log in recent]

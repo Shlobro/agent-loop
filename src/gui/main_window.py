@@ -24,6 +24,7 @@ from ..core.state_machine import StateMachine, Phase, SubPhase
 from ..core.debug_settings import DEBUG_STAGE_LABELS, default_debug_breakpoints
 from ..core.file_manager import FileManager
 from ..core.session_manager import SessionManager
+from ..core.error_context import ErrorInfo, ErrorRecoveryTracker
 from ..llm.prompt_templates import PromptTemplates
 from ..utils.markdown_parser import has_incomplete_tasks, parse_tasks
 
@@ -69,6 +70,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self._debug_wait_event = threading.Event()
         self._debug_wait_event.set()
         self._debug_waiting = False
+        self.error_recovery_tracker = ErrorRecoveryTracker()
 
         LLMWorker.set_debug_gate_callback(self._wait_for_debug_step)
         LLMWorker.set_show_live_terminal_windows(self.show_llm_terminals)
@@ -195,8 +197,9 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
     def _create_workflow_icon_buttons(self):
         """Create icon buttons for workflow control in the menu bar."""
-        container = QWidget()
-        layout = QHBoxLayout(container)
+        # Store as member to prevent premature deletion by Qt
+        self.menu_button_container = QWidget()
+        layout = QHBoxLayout(self.menu_button_container)
         layout.setContentsMargins(0, 0, 8, 0)
         layout.setSpacing(4)
 
@@ -291,7 +294,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         """)
         layout.addWidget(self.menu_stop_button)
 
-        return container
+        return self.menu_button_container
 
     def setup_ui(self):
         """Initialize and layout all UI components."""
@@ -594,23 +597,33 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.next_step_button.setEnabled(self._debug_waiting)
         self.next_step_action.setEnabled(self._debug_waiting)
 
-        # Update menu bar icon buttons
-        if hasattr(self, 'menu_start_button'):
-            self.menu_start_button.setEnabled(is_idle or is_paused)
-            self.menu_start_button.setToolTip(
-                f"{'Resume' if is_paused else 'Start'} workflow (Ctrl+Return)"
-            )
-            # Update icon
-            if is_paused:
-                self.menu_start_button.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
-            else:
-                self.menu_start_button.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
+        # Update menu bar icon buttons (with safe Qt object check)
+        try:
+            if hasattr(self, 'menu_start_button') and self.menu_start_button is not None:
+                self.menu_start_button.setEnabled(is_idle or is_paused)
+                self.menu_start_button.setToolTip(
+                    f"{'Resume' if is_paused else 'Start'} workflow (Ctrl+Return)"
+                )
+                # Update icon
+                if is_paused:
+                    self.menu_start_button.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
+                else:
+                    self.menu_start_button.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
+        except RuntimeError:
+            # Qt object has been deleted
+            pass
 
-        if hasattr(self, 'menu_pause_button'):
-            self.menu_pause_button.setEnabled(is_running)
+        try:
+            if hasattr(self, 'menu_pause_button') and self.menu_pause_button is not None:
+                self.menu_pause_button.setEnabled(is_running)
+        except RuntimeError:
+            pass
 
-        if hasattr(self, 'menu_stop_button'):
-            self.menu_stop_button.setEnabled(is_running or is_paused or is_awaiting)
+        try:
+            if hasattr(self, 'menu_stop_button') and self.menu_stop_button is not None:
+                self.menu_stop_button.setEnabled(is_running or is_paused or is_awaiting)
+        except RuntimeError:
+            pass
 
         # Update resume button visibility
         self._update_resume_button_visibility()

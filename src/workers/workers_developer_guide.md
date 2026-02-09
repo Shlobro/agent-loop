@@ -12,6 +12,7 @@ Implements QRunnable workers that execute each workflow phase asynchronously and
 - `execution_worker.py`: Executes a configurable number of tasks per iteration (controlled by `tasks_per_iteration`) and updates task state in `tasks.md`.
 - `review_worker.py`: Orchestrates the review phase in this order: (1) optional unit test prep pass (runs FIRST, uses `git diff` and may add/edit tests), (2) review/fix cycles per selected review type (including UI/UX). Initializes `review/` with empty files for every review type, reads findings from the current review file, skips fixer when that file is empty, truncates the same file after each completed fix cycle, and supports live updates of review iteration limits plus reviewer/fixer/unit-test-prep model selections between cycles.
 - `git_worker.py`: Hybrid git phase where code captures `git status --porcelain` and `git diff` and injects them into the LLM commit-message prompt, the LLM writes only a commit message file (`.agentharness/git-commit-message.txt`), then code performs `git add`, `git commit`, and optional `git push`, and truncates the commit-message file after a successful commit.
+- `error_fix_worker.py`: Worker that sends error context to an LLM for automated analysis and fixing. Uses specialized error fix prompt template and runs after user selects "Send to LLM" option in error recovery dialog.
 - `__init__.py`: Module marker.
 
 ## Key Interactions
