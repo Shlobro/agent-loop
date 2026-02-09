@@ -17,7 +17,6 @@ from .widgets.config_panel import ConfigPanel, ExecutionConfig
 from .widgets.log_viewer import LogViewer
 from .widgets.status_panel import StatusPanel
 from .widgets.chat_panel import ChatPanel
-from .dialogs.answer_display_dialog import AnswerDisplayDialog
 from .settings_mixin import SettingsMixin
 from .workflow_runner import WorkflowRunnerMixin
 from .theme import apply_app_theme, polish_button, animate_fade_in
@@ -25,7 +24,7 @@ from ..core.state_machine import StateMachine, Phase, SubPhase
 from ..core.debug_settings import DEBUG_STAGE_LABELS, default_debug_breakpoints
 from ..core.file_manager import FileManager
 from ..core.session_manager import SessionManager
-from ..core.error_context import ErrorInfo, ErrorRecoveryTracker
+from ..core.error_context import ErrorRecoveryTracker
 from ..core.file_watcher import DescriptionFileWatcher
 from ..llm.prompt_templates import PromptTemplates
 from ..utils.markdown_parser import has_incomplete_tasks, parse_tasks
@@ -33,7 +32,7 @@ from ..utils.markdown_parser import has_incomplete_tasks, parse_tasks
 from ..workers.question_worker import QuestionWorker, DefinitionRewriteWorker
 from ..workers.llm_worker import LLMWorker
 # Import llm module to register providers
-from .. import llm
+from .. import llm as llm  # noqa: F401
 
 
 class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
@@ -74,6 +73,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self._debug_waiting = False
         self.error_recovery_tracker = ErrorRecoveryTracker()
         self._initial_description_message_id = None
+        self._last_worker_status = ""
 
         # File watcher for external edits to product-description.md
         self.description_watcher = DescriptionFileWatcher(self)
@@ -701,10 +701,140 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             "findings": "",
         }
         self._last_phase = None
+        self._last_worker_status = ""
 
     def _should_show_activity(self, phase: Phase) -> bool:
         """Return True if the activity panel should be visible for this phase."""
         return phase not in (Phase.IDLE, Phase.QUESTION_GENERATION, Phase.AWAITING_ANSWERS)
+
+    def _update_chat_bot_activity(self, phase: Phase, status: str = ""):
+        """Update friendly animated activity text in the chat panel based on phase/status."""
+        options = self._get_chat_activity_options(phase, status)
+        if options:
+            self.chat_panel.set_bot_activity_options(options)
+            return
+        if phase in (
+            Phase.IDLE,
+            Phase.AWAITING_ANSWERS,
+            Phase.COMPLETED,
+            Phase.PAUSED,
+            Phase.ERROR,
+            Phase.CANCELLED,
+        ):
+            self.chat_panel.clear_bot_activity()
+
+    def _get_chat_activity_options(self, phase: Phase, status: str) -> list[str]:
+        """Return rotating friendly activity messages for the current workflow context."""
+        status_text = (status or "").strip()
+        status_lower = status_text.lower()
+        last_status_lower = self._last_worker_status.lower()
+
+        if "processing client message" in status_lower:
+            return [
+                "Working through your latest message now.",
+                "Looking at your request and applying updates.",
+                "Processing your message and syncing files.",
+            ]
+
+        if phase == Phase.QUESTION_GENERATION:
+            return [
+                "Generating clarifying questions for you.",
+                "Thinking through what to ask next.",
+                "Building a focused question batch.",
+            ]
+
+        if phase == Phase.TASK_PLANNING:
+            return [
+                "Planning the task list from your description.",
+                "Breaking the work into actionable steps.",
+                "Structuring the next set of tasks.",
+            ]
+
+        if phase == Phase.MAIN_EXECUTION:
+            if status_lower.startswith("executing:"):
+                task_text = status_text.split(":", 1)[1].strip()
+                if task_text:
+                    return [
+                        f"Currently I'm executing some tasks... ({task_text})",
+                        f"Implementing: {task_text}",
+                        f"Working through this task now: {task_text}",
+                    ]
+            return [
+                "Currently I'm executing some tasks....",
+                "Implementing the next task in the queue.",
+                "Working through code updates for this iteration.",
+            ]
+
+        if phase == Phase.DEBUG_REVIEW:
+            if "unit test prep" in status_lower:
+                return [
+                    "Working on some unit tests at the moment.",
+                    "Preparing unit tests before the review pass.",
+                    "Updating tests so review has a clean baseline.",
+                ]
+            if status_lower.startswith("review:"):
+                review_name = status_text.split(":", 1)[1].strip()
+                transition_line = (
+                    "Unit tests done... now moving on to reviewing."
+                    if last_status_lower.startswith("unit test prep")
+                    else "Reviewing the latest changes now."
+                )
+                if review_name:
+                    return [
+                        transition_line,
+                        f"Running {review_name} review checks.",
+                        f"Inspecting code quality in {review_name}.",
+                    ]
+                return [
+                    transition_line,
+                    "Reviewing the latest changes now.",
+                    "Running review checks.",
+                ]
+            if status_lower.startswith("fixing:"):
+                review_name = status_text.split(":", 1)[1].strip()
+                if review_name:
+                    return [
+                        f"Applying fixes from {review_name} review.",
+                        f"Resolving issues flagged in {review_name}.",
+                        "Patching findings from the review pass.",
+                    ]
+                return [
+                    "Applying fixes from review feedback.",
+                    "Resolving issues from the latest review pass.",
+                    "Patching findings from the review pass.",
+                ]
+            return [
+                "Running review checks.",
+                "Analyzing changes for quality and risks.",
+                "Review cycle in progress.",
+            ]
+
+        if phase in (Phase.GIT_OPERATIONS, Phase.AWAITING_GIT_APPROVAL):
+            if "generating commit message" in status_lower:
+                return [
+                    "Writing a clear commit message.",
+                    "Preparing commit summary for these changes.",
+                    "Drafting commit text from the latest diff.",
+                ]
+            if "committing changes" in status_lower:
+                return [
+                    "Committing the latest updates.",
+                    "Saving this iteration to git history.",
+                    "Finalizing local commit now.",
+                ]
+            if "pushing changes" in status_lower:
+                return [
+                    "Pushing updates to the remote repository.",
+                    "Syncing this commit upstream.",
+                    "Publishing latest changes to origin.",
+                ]
+            return [
+                "Wrapping up git operations.",
+                "Preparing repository state for the next step.",
+                "Finishing repository housekeeping.",
+            ]
+
+        return []
 
     def _get_agent_label(self, phase: Phase) -> str:
         """Build a compact agent label for the current phase."""
@@ -1360,6 +1490,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.log_viewer.append_phase(phase_name)
         self.update_button_states()
         self._update_loop_priority_visibility(phase)
+        self._update_chat_bot_activity(phase, sub_name)
 
         if self._should_show_activity(phase):
             if phase_changed:
@@ -1379,6 +1510,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     def on_worker_status(self, status: str):
         """Handle worker status updates for UI panels."""
         self.status_panel.set_sub_status(status)
+        self._update_chat_bot_activity(self.state_machine.phase, status)
 
         if not self._should_show_activity(self.state_machine.phase):
             return
@@ -1398,6 +1530,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
         self._refresh_activity_panel()
         self._refresh_task_loop_snapshot(action=status)
+        self._last_worker_status = status
 
     @Slot(str, int)
     def on_review_summary(self, review_type: str, issue_count: int):
@@ -1417,6 +1550,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     def on_workflow_completed(self, success: bool):
         """Handle workflow completion."""
         self._release_debug_wait()
+        self.chat_panel.clear_bot_activity()
         if success:
             self.log_viewer.append_success("Workflow completed successfully!")
             QMessageBox.information(self, "Complete", "Workflow completed successfully!")

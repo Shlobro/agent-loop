@@ -17,12 +17,16 @@ class ChatPanel(QWidget):
     def __init__(self):
         super().__init__()
         self.message_history = []  # List of message dicts
-        self._bot_activity_text = ""
+        self._bot_activity_options = []
+        self._activity_option_index = 0
         self._activity_frame_index = 0
-        self._activity_frames = ["[=     ]", "[==    ]", "[===   ]", "[ ===  ]", "[  === ]", "[   ===]", "[    ==]", "[     =]"]
+        self._activity_frames = ["|", "/", "-", "\\"]
         self._activity_timer = QTimer(self)
         self._activity_timer.setInterval(180)
         self._activity_timer.timeout.connect(self._advance_activity_frame)
+        self._activity_message_timer = QTimer(self)
+        self._activity_message_timer.setInterval(2400)
+        self._activity_message_timer.timeout.connect(self._advance_activity_message)
         self.setup_ui()
 
     def setup_ui(self):
@@ -142,31 +146,60 @@ class ChatPanel(QWidget):
 
     def set_bot_activity(self, activity_text: str = ""):
         """Show or hide animated bot activity status."""
-        self._bot_activity_text = activity_text.strip()
-        if self._bot_activity_text:
+        self.set_bot_activity_options([activity_text] if activity_text.strip() else [])
+
+    def set_bot_activity_options(self, activity_options):
+        """Show animated bot activity with one or more rotating message options."""
+        options = [str(option).strip() for option in (activity_options or []) if str(option).strip()]
+        self._bot_activity_options = options
+        self._activity_option_index = 0
+        self._activity_frame_index = 0
+
+        if self._bot_activity_options:
             if not self._activity_timer.isActive():
                 self._activity_timer.start()
+            if len(self._bot_activity_options) > 1:
+                if not self._activity_message_timer.isActive():
+                    self._activity_message_timer.start()
+            else:
+                self._activity_message_timer.stop()
         else:
             self._activity_timer.stop()
-            self._activity_frame_index = 0
+            self._activity_message_timer.stop()
+
         self._update_display()
 
     def clear_bot_activity(self):
         """Clear animated bot activity indicator."""
-        self.set_bot_activity("")
+        self.set_bot_activity_options([])
 
     def _advance_activity_frame(self):
         """Advance the activity animation frame."""
-        if not self._bot_activity_text:
+        if not self._bot_activity_options:
             return
         self._activity_frame_index = (self._activity_frame_index + 1) % len(self._activity_frames)
         self._update_display()
+
+    def _advance_activity_message(self):
+        """Rotate to the next activity message option."""
+        if len(self._bot_activity_options) <= 1:
+            return
+        self._activity_option_index = (self._activity_option_index + 1) % len(self._bot_activity_options)
+        self._update_display()
+
+    def _get_current_activity_text(self) -> str:
+        """Return the currently active activity message text."""
+        if not self._bot_activity_options:
+            return ""
+        index = max(0, min(self._activity_option_index, len(self._bot_activity_options) - 1))
+        return self._bot_activity_options[index]
 
     def _update_display(self):
         """Refresh the HTML display of all messages."""
         html = "<div style='font-family: \"Segoe UI Variable Text\", sans-serif; color: #ece6de;'>"
 
-        if not self.message_history and not self._bot_activity_text:
+        current_activity = self._get_current_activity_text()
+        if not self.message_history and not current_activity:
             html += "<p style='color: #9aa4b1; font-style: italic;'>No messages yet.</p>"
         else:
             for msg in self.message_history:
@@ -213,11 +246,11 @@ class ChatPanel(QWidget):
                         align="left"
                     )
 
-            if self._bot_activity_text:
+            if current_activity:
                 frame = self._activity_frames[self._activity_frame_index]
                 html += self._render_bubble(
                     label="Agent",
-                    content=f"{self._bot_activity_text} {frame}",
+                    content=f"{frame} {current_activity}",
                     bubble_color="#17212a",
                     border_color="#284055",
                     label_color="#8ec5f0",

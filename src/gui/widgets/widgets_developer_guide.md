@@ -54,6 +54,7 @@ Features:
 - One-line message statuses (queued/processing/completed/failed) instead of log-style headers
 - Displays LLM answers inline as bot bubbles, or shows file-update status messages when LLM updates files instead (e.g., "Updated product description", "Updated tasks")
 - Animated bot activity indicator for in-progress background actions (for example question generation)
+- Animated bot activity supports rotating friendly message options per workflow phase via `set_bot_activity_options(...)`, with a spinner rendered inline before the active message to signal progress.
 - Enabled whenever a working directory is active (except during ERROR/CANCELLED phases)
 - Messages queue during execution and process at iteration boundaries
 - Messages process immediately when workflow is idle
@@ -68,6 +69,7 @@ Key methods:
 - `update_message_status(id, status)` - update message status
 - `add_answer(id, answer)` - add LLM answer to message (also used for status messages like "Updated product description")
 - `set_bot_activity(text)` / `clear_bot_activity()` - show/hide animated bot progress line
+- `set_bot_activity_options(list[str])` - show one or more rotating activity messages with spinner animation
 - `set_input_enabled(bool)` - enable/disable input and checkboxes
 
 ## Change Map
