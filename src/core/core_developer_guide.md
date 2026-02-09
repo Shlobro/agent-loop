@@ -4,7 +4,7 @@
 Implements the workflow state machine, persistence, file/session I/O, and shared exceptions.
 
 ## Contents
-- `state_machine.py`: `Phase`, `SubPhase`, `StateContext`, and transitions (includes UI/UX review sub-phases). `StateContext.tasks_content` tracks the current state of tasks.md for change detection when client messages update tasks. Emits signals used by `MainWindow`.
+- `state_machine.py`: `Phase`, `SubPhase`, `StateContext`, and transitions (includes UI/UX review sub-phases). `StateContext.tasks_content` tracks the current state of tasks.md for change detection when client messages update tasks. `StateContext.working_directory` defaults to an empty string and must be set from active UI directory selection/session restore. Emits signals used by `MainWindow`.
 - `debug_settings.py`: Shared debug-stage identifiers, labels, and breakpoint normalization/default helpers. Defaults pause **before** every stage LLM call when debug mode is on (after-call pauses default off).
 - `file_manager.py`: Atomic read/write for `tasks.md`, `recent-changes.md`, `review/` artifacts (one file per review type), `product-description.md`, git commit-message artifact (`.agentharness/git-commit-message.txt`), and governance prompt files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`).
 - `session_manager.py`: Save/load workflow state to `session_state.json` for pause/resume.

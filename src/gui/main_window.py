@@ -1450,6 +1450,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             return
 
         self._resume_incomplete_tasks_directory = ""
+        self.state_machine.update_context(working_directory=path)
         self._prepare_working_directory(path)
         self.description_panel.set_tasks([], [])
         self.description_panel.set_current_action("Waiting")

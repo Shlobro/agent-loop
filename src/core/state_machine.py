@@ -74,7 +74,7 @@ class StateContext:
     error_message: Optional[str] = None
     stop_requested: bool = False
     pause_requested: bool = False
-    working_directory: str = r"C:\Users\shlob\Pycharm Projects\harness-test\harness-test-3"
+    working_directory: str = ""
     git_mode: str = "local"
     git_remote: str = ""
     # Iterative question generation

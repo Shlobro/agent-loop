@@ -99,7 +99,8 @@ class LLMWorker(BaseWorker):
             # On Windows, if command doesn't already use cmd, we need shell=True
             # for npm-installed commands. But if provider uses cmd /c, no shell needed.
             use_shell = sys.platform == "win32" and command[0].lower() != "cmd"
-            self.log(f"Process config: shell={use_shell}, cwd={self.working_directory}", "debug")
+            resolved_cwd = self._resolve_process_cwd()
+            self.log(f"Process config: shell={use_shell}, cwd={resolved_cwd}", "debug")
 
             self.process = subprocess.Popen(
                 command,
@@ -109,7 +110,7 @@ class LLMWorker(BaseWorker):
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                cwd=self.working_directory,
+                cwd=resolved_cwd,
                 bufsize=1,
                 universal_newlines=True,
                 shell=use_shell
@@ -194,6 +195,21 @@ class LLMWorker(BaseWorker):
             )
         finally:
             self._stop_live_terminal()
+
+    def _resolve_process_cwd(self) -> Optional[str]:
+        """Return a valid cwd for subprocess calls, falling back when configured path is invalid."""
+        raw = (self.working_directory or "").strip()
+        if not raw:
+            return None
+        path = Path(raw)
+        if path.exists() and path.is_dir():
+            return str(path)
+        fallback = str(Path.cwd())
+        self.log(
+            f"Working directory is invalid ({raw}); falling back to current process directory ({fallback})",
+            "warning"
+        )
+        return fallback
 
     def _read_output(self):
         """Read output from process in a separate thread."""
