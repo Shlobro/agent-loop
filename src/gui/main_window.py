@@ -16,7 +16,8 @@ from .widgets.llm_selector_panel import LLMSelectorPanel
 from .widgets.config_panel import ConfigPanel, ExecutionConfig
 from .widgets.log_viewer import LogViewer
 from .widgets.status_panel import StatusPanel
-from .widgets.task_loop_panel import TaskLoopPanel
+from .widgets.chat_panel import ChatPanel
+from .dialogs.answer_display_dialog import AnswerDisplayDialog
 from .settings_mixin import SettingsMixin
 from .workflow_runner import WorkflowRunnerMixin
 from .theme import apply_app_theme, polish_button, animate_fade_in
@@ -167,11 +168,6 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.show_logs_panel_action.toggled.connect(self.on_toggle_logs_panel)
         view_menu.addAction(self.show_logs_panel_action)
 
-        self.show_task_loop_panel_action = QAction("Show Task Loop Panel", self, checkable=True)
-        self.show_task_loop_panel_action.setChecked(False)
-        self.show_task_loop_panel_action.toggled.connect(self.on_toggle_task_loop_panel)
-        view_menu.addAction(self.show_task_loop_panel_action)
-
         self.show_control_buttons_action = QAction("Show Control Buttons", self, checkable=True)
         self.show_control_buttons_action.setChecked(False)
         self.show_control_buttons_action.toggled.connect(self.on_toggle_control_buttons)
@@ -194,6 +190,11 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             self.on_toggle_description_preview
         )
         view_menu.addAction(self.toggle_description_preview_action)
+
+        self.show_chat_panel_action = QAction("Show Chat Panel", self, checkable=True)
+        self.show_chat_panel_action.setChecked(False)
+        self.show_chat_panel_action.toggled.connect(self.on_toggle_chat_panel)
+        view_menu.addAction(self.show_chat_panel_action)
 
     def _create_workflow_icon_buttons(self):
         """Create icon buttons for workflow control in the menu bar."""
@@ -315,13 +316,14 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         right_column_layout = QVBoxLayout(right_column)
         right_column_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Top section of right column: Description
+        # Top section of right column: Description (with integrated task list view)
         self.description_panel = DescriptionPanel()
         right_column_layout.addWidget(self.description_panel, stretch=1)
 
-        self.task_loop_panel = TaskLoopPanel()
-        self.task_loop_panel.hide()
-        right_column_layout.addWidget(self.task_loop_panel, stretch=2)
+        # Chat panel for client messages
+        self.chat_panel = ChatPanel()
+        self.chat_panel.setVisible(False)  # Hidden by default
+        right_column_layout.addWidget(self.chat_panel, stretch=1)
 
         self.llm_selector_panel = LLMSelectorPanel()
         self.llm_selector_panel.hide()
@@ -449,6 +451,9 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
         # Status panel
         self.status_panel.resume_incomplete_tasks.connect(self.on_resume_incomplete_tasks_clicked)
+
+        # Chat panel
+        self.chat_panel.message_sent.connect(self.on_client_message_sent)
 
     def _initialize_startup_working_directory(self):
         """Initialize artifacts for the startup/default working directory."""
@@ -637,6 +642,11 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.config_panel.set_enabled(is_idle)
         self._update_floating_start_button_visibility()
 
+        # Enable chat panel when there's a working directory and file manager
+        # Chat works during execution (queues for next boundary) and when idle (processes immediately)
+        chat_enabled = self.file_manager is not None and phase not in [Phase.ERROR, Phase.CANCELLED]
+        self.chat_panel.set_input_enabled(chat_enabled)
+
     def _reset_activity_state(self):
         """Clear activity panel state for a fresh run."""
         self.activity_state = {
@@ -690,9 +700,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         )
 
     def _refresh_task_loop_snapshot(self, action: str = ""):
-        """Refresh task-loop panel and task-based top-right progress."""
+        """Refresh task list in description panel and task-based top-right progress."""
         if not self.file_manager:
-            self.task_loop_panel.clear()
+            self.description_panel.set_tasks([], [])
+            self.description_panel.set_current_action("Waiting")
             self.status_panel.set_task_progress(0, 0)
             return
 
@@ -706,26 +717,21 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         completed_tasks = [task.text for task in tasks if task.completed]
         incomplete_tasks = [task.text for task in tasks if not task.completed]
 
-        self.task_loop_panel.set_tasks(completed_tasks, incomplete_tasks)
+        self.description_panel.set_tasks(completed_tasks, incomplete_tasks)
         self.status_panel.set_task_progress(len(completed_tasks), len(tasks))
 
         current_action = action or self.activity_state.get("action") or self.status_panel.sub_status_label.text()
-        self.task_loop_panel.set_current_action(current_action)
-
-        # Update product description tab
-        try:
-            description_content = self.file_manager.read_description()
-            self.task_loop_panel.set_description(description_content)
-        except Exception as exc:
-            self.log_viewer.append_log(f"Failed to read product-description.md for UI update: {exc}", "warning")
+        self.description_panel.set_current_action(current_action)
 
     def _update_loop_priority_visibility(self, phase: Phase):
-        """Toggle loop-priority panel visibility based on workflow phase."""
-        if self.show_task_loop_panel_action.isChecked() and self._is_main_loop_phase(phase):
-            self.task_loop_panel.show()
+        """Switch to task list view during main loop phases."""
+        if self._is_main_loop_phase(phase):
+            # Automatically switch to task list mode and show controls during main loop phases
+            if not self.show_description_controls_action.isChecked():
+                self.show_description_controls_action.setChecked(True)
+            self.description_panel._set_mode("task_list")
             self._refresh_task_loop_snapshot()
             return
-        self.task_loop_panel.hide()
         self.status_panel.set_task_progress(0, 0)
 
     @Slot(bool)
@@ -737,14 +743,6 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     def on_toggle_logs_panel(self, visible: bool):
         """Show/hide logs panel via existing splitter-aware helper."""
         self._set_logs_panel_visible(bool(visible))
-
-    @Slot(bool)
-    def on_toggle_task_loop_panel(self, visible: bool):
-        """Enable/disable task loop panel visibility."""
-        if not visible:
-            self.task_loop_panel.hide()
-            return
-        self._update_loop_priority_visibility(self.state_machine.phase)
 
     @Slot(bool)
     def on_toggle_control_buttons(self, visible: bool):
@@ -761,6 +759,39 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     def on_toggle_description_preview(self, enabled: bool):
         """Switch description editor between edit and preview modes."""
         self.description_panel.set_preview_mode(bool(enabled))
+
+    @Slot(bool)
+    def on_toggle_chat_panel(self, visible: bool):
+        """Show/hide chat panel."""
+        self.chat_panel.setVisible(bool(visible))
+
+    @Slot(str)
+    def on_client_message_sent(self, message: str):
+        """Handle user sending a client message."""
+        import uuid
+        from datetime import datetime
+
+        # Generate unique message ID
+        message_id = str(uuid.uuid4())
+
+        # Add to state context queue
+        ctx = self.state_machine.context
+        ctx.pending_client_messages.append({
+            "id": message_id,
+            "content": message,
+            "timestamp": datetime.now().isoformat(),
+            "status": "queued"
+        })
+
+        # Update UI
+        self.chat_panel.add_message(message_id, message, "queued")
+        self.log_viewer.append_log(f"Client message queued: {message[:50]}...", "info")
+
+        # If not in active workflow execution, process immediately
+        phase = self.state_machine.phase
+        if phase not in [Phase.MAIN_EXECUTION, Phase.DEBUG_REVIEW, Phase.GIT_OPERATIONS]:
+            self.log_viewer.append_log("Processing message immediately (workflow not running)...", "info")
+            self._process_client_messages()
 
     def _position_floating_start_button(self):
         """Anchor the floating start button to the lower-right of the content area."""
@@ -903,8 +934,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             llm_config=llm_config
         )
         self._reset_activity_state()
-        self.task_loop_panel.clear()
-        self.task_loop_panel.hide()
+        self.description_panel.set_tasks([], [])
+        self.description_panel.set_current_action("Waiting")
         self.status_panel.set_task_progress(0, 0)
 
         # Initialize file manager
@@ -1266,8 +1297,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
         self._resume_incomplete_tasks_directory = ""
         self._prepare_working_directory(path)
-        self.task_loop_panel.clear()
-        self.task_loop_panel.hide()
+        self.description_panel.set_tasks([], [])
+        self.description_panel.set_current_action("Waiting")
         self.status_panel.set_task_progress(0, 0)
         existing = self._load_description_from_file()
         if existing:

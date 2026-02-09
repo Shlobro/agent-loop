@@ -212,7 +212,7 @@ class WorkflowRunnerMixin:
 
     @Slot(object)
     def on_git_complete(self, result: dict):
-        """Handle git operations completion - then check for more tasks."""
+        """Handle git operations completion - process client messages then check for more tasks."""
         self.log_viewer.append_log(f"Git operations result: {result}", "debug")
         self._refresh_task_loop_snapshot(action="Git operations finished")
 
@@ -231,9 +231,14 @@ class WorkflowRunnerMixin:
         # Clear recent-changes.md for the next task (so reviews are scoped to that task's changes)
         self._clear_recent_changes()
 
+        # Process pending client messages before continuing
+        ctx = self.state_machine.context
+        if ctx.pending_client_messages:
+            self._process_client_messages()
+            return  # Will continue after messages processed
+
         # Check if there are more incomplete tasks
         from ..utils.markdown_parser import has_incomplete_tasks
-        ctx = self.state_machine.context
 
         if self.file_manager:
             tasks_content = self.file_manager.read_tasks()
@@ -599,3 +604,116 @@ class WorkflowRunnerMixin:
         """Handle skip after LLM fix conclusion."""
         self.log_viewer.append_log("Skipping to next iteration...", "info")
         self.skip_to_next_iteration()
+
+    # =========================================================================
+    # Client Message Processing Methods
+    # =========================================================================
+
+    def _process_client_messages(self):
+        """Process all pending client messages sequentially."""
+        ctx = self.state_machine.context
+
+        if not ctx.pending_client_messages:
+            # No messages - continue to task checking
+            self._continue_after_messages()
+            return
+
+        # Pop first message from queue
+        message_data = ctx.pending_client_messages[0]
+
+        # Update status in UI
+        self.chat_panel.update_message_status(message_data["id"], "processing")
+        self.log_viewer.append_log(f"Processing client message: {message_data['content'][:50]}...", "info")
+
+        # Create worker
+        from ..workers.client_message_worker import ClientMessageWorker
+
+        worker = ClientMessageWorker(
+            message=message_data["content"],
+            provider_name=ctx.llm_config.get("client_message_handler", "gemini"),
+            working_directory=ctx.working_directory,
+            model=ctx.llm_config.get("client_message_handler_model"),
+            debug_mode=ctx.debug_mode_enabled,
+            debug_breakpoints=ctx.debug_breakpoints,
+            show_terminal=ctx.show_llm_terminals
+        )
+
+        # Connect signals
+        self._connect_worker_signals(worker)
+        worker.signals.result.connect(self.on_client_message_complete)
+
+        # Store message ID for result handling
+        self._current_message_id = message_data["id"]
+
+        self.current_worker = worker
+        self.thread_pool.start(worker)
+
+    @Slot(object)
+    def on_client_message_complete(self, result: dict):
+        """Handle client message processing completion."""
+        ctx = self.state_machine.context
+
+        # Remove processed message from queue
+        if ctx.pending_client_messages:
+            ctx.pending_client_messages.pop(0)
+
+        # Update status in UI
+        self.chat_panel.update_message_status(self._current_message_id, "completed")
+
+        # If answer was provided, show it to user
+        if result.get("has_answer"):
+            answer_content = result.get("answer_content", "")
+            self.log_viewer.append_log("LLM provided an answer to client message", "info")
+
+            # Update chat panel with answer
+            self.chat_panel.add_answer(self._current_message_id, answer_content)
+
+            # Show modal dialog with answer
+            from ..dialogs.answer_display_dialog import AnswerDisplayDialog
+            dialog = AnswerDisplayDialog(answer_content, parent=self)
+            dialog.exec()
+        else:
+            self.log_viewer.append_log("Client message processed - files updated", "info")
+
+        # Process next message or continue workflow
+        if ctx.pending_client_messages:
+            # More messages - process next
+            self._process_client_messages()
+        else:
+            # All messages processed - continue to task checking
+            self._continue_after_messages()
+
+    def _continue_after_messages(self):
+        """Continue workflow after all client messages processed."""
+        from ..utils.markdown_parser import has_incomplete_tasks
+        ctx = self.state_machine.context
+        phase = self.state_machine.phase
+
+        # If we're in an active workflow iteration, continue the loop
+        if phase in [Phase.MAIN_EXECUTION, Phase.DEBUG_REVIEW, Phase.GIT_OPERATIONS]:
+            if self.file_manager:
+                tasks_content = self.file_manager.read_tasks()
+                if has_incomplete_tasks(tasks_content):
+                    # More tasks remain - cycle back to main execution
+                    self.log_viewer.append_log("=" * 50, "info")
+                    self.log_viewer.append_log("More tasks remaining - starting next task...", "info")
+                    self.log_viewer.append_log("=" * 50, "info")
+                    self.state_machine.transition_to(Phase.MAIN_EXECUTION)
+                    self.run_main_execution()
+                    return
+
+            # All tasks done - workflow complete
+            self.log_viewer.append_log("All tasks have been completed!", "success")
+
+            # Clean up session file
+            try:
+                self.session_manager.delete_session()
+                self.log_viewer.append_log("Session file cleaned up", "debug")
+            except Exception as e:
+                self.log_viewer.append_log(f"Failed to delete session: {e}", "debug")
+
+            self.log_viewer.append_log("Transitioning to Completed phase...", "info")
+            self.state_machine.transition_to(Phase.COMPLETED)
+        else:
+            # Not in an active iteration - messages were processed outside workflow
+            self.log_viewer.append_log("Client messages processed.", "info")

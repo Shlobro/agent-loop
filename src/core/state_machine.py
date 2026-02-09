@@ -98,6 +98,7 @@ class StateContext:
         "fixer": "codex",
         "unit_test_prep": "gemini",
         "git_ops": "gemini",
+        "client_message_handler": "gemini",
         "question_gen_model": "gemini-3-pro-preview",
         "description_molding_model": "gemini-3-pro-preview",
         "task_planning_model": "claude-opus-4-6",
@@ -106,10 +107,14 @@ class StateContext:
         "fixer_model": "gpt-5.3-codex",
         "unit_test_prep_model": "gemini-3-pro-preview",
         "git_ops_model": "gemini-3-pro-preview",
+        "client_message_handler_model": "gemini-3-pro-preview",
     })
     # For pause/resume - track where we were
     paused_from_phase: Optional[Phase] = None
     paused_from_sub_phase: Optional[SubPhase] = None
+    # Client messaging
+    pending_client_messages: List[Dict[str, str]] = field(default_factory=list)
+    # Each message: {"id": str, "content": str, "timestamp": str, "status": str}
 
 
 class StateMachine(QObject):
@@ -323,6 +328,7 @@ class StateMachine(QObject):
                 "debug_breakpoints": self._context.debug_breakpoints,
                 "show_llm_terminals": self._context.show_llm_terminals,
                 "llm_config": self._context.llm_config,
+                "pending_client_messages": self._context.pending_client_messages,
             }
         }
 
@@ -365,6 +371,7 @@ class StateMachine(QObject):
         if isinstance(loaded_llm_config, dict):
             merged_llm_config.update(loaded_llm_config)
         self._context.llm_config = merged_llm_config
+        self._context.pending_client_messages = ctx.get("pending_client_messages", [])
 
         self.phase_changed.emit(self._phase, self._sub_phase)
         self.context_updated.emit(self._context)

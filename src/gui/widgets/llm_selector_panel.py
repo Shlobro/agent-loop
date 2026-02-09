@@ -28,6 +28,7 @@ class LLMConfig:
     fixer: str
     unit_test_prep: str
     git_ops: str
+    client_message_handler: str
     # Model selections for each stage
     question_gen_model: str = ""
     description_molding_model: str = ""
@@ -37,6 +38,7 @@ class LLMConfig:
     fixer_model: str = ""
     unit_test_prep_model: str = ""
     git_ops_model: str = ""
+    client_message_handler_model: str = ""
 
 
 class LLMSelectorPanel(QWidget):
@@ -56,6 +58,7 @@ class LLMSelectorPanel(QWidget):
         ("reviewer", "Reviewer"),
         ("fixer", "Fixer"),
         ("git_ops", "Git Operations"),
+        ("client_message_handler", "Client Message Handler"),
     ]
     DEFAULT_STAGE_CONFIG = {
         "question_gen": ("gemini", "gemini-3-pro-preview"),
@@ -66,6 +69,7 @@ class LLMSelectorPanel(QWidget):
         "fixer": ("codex", "gpt-5.3-codex"),
         "unit_test_prep": ("gemini", "gemini-3-pro-preview"),
         "git_ops": ("gemini", "gemini-3-pro-preview"),
+        "client_message_handler": ("gemini", "gemini-3-pro-preview"),
     }
 
     def __init__(self, parent=None):
@@ -187,6 +191,7 @@ class LLMSelectorPanel(QWidget):
             fixer=self.provider_combos["fixer"].currentData(),
             unit_test_prep=self.provider_combos["unit_test_prep"].currentData(),
             git_ops=self.provider_combos["git_ops"].currentData(),
+            client_message_handler=self.provider_combos["client_message_handler"].currentData(),
             question_gen_model=self.model_combos["question_gen"].currentData() or "",
             description_molding_model=self.model_combos["description_molding"].currentData() or "",
             task_planning_model=self.model_combos["task_planning"].currentData() or "",
@@ -195,6 +200,7 @@ class LLMSelectorPanel(QWidget):
             fixer_model=self.model_combos["fixer"].currentData() or "",
             unit_test_prep_model=self.model_combos["unit_test_prep"].currentData() or "",
             git_ops_model=self.model_combos["git_ops"].currentData() or "",
+            client_message_handler_model=self.model_combos["client_message_handler"].currentData() or "",
         )
 
     def get_config_dict(self) -> Dict[str, str]:
@@ -209,6 +215,7 @@ class LLMSelectorPanel(QWidget):
             "fixer": config.fixer,
             "unit_test_prep": config.unit_test_prep,
             "git_ops": config.git_ops,
+            "client_message_handler": config.client_message_handler,
             "question_gen_model": config.question_gen_model,
             "description_molding_model": config.description_molding_model,
             "task_planning_model": config.task_planning_model,
@@ -217,6 +224,7 @@ class LLMSelectorPanel(QWidget):
             "fixer_model": config.fixer_model,
             "unit_test_prep_model": config.unit_test_prep_model,
             "git_ops_model": config.git_ops_model,
+            "client_message_handler_model": config.client_message_handler_model,
         }
 
     def get_stage_config(self, stage_key: str) -> StageConfig:
@@ -229,7 +237,7 @@ class LLMSelectorPanel(QWidget):
     def set_config(self, config: Dict[str, str]):
         """Set LLM configuration from dictionary."""
         # First set providers
-        for key in ["question_gen", "description_molding", "task_planning", "coder", "reviewer", "fixer", "unit_test_prep", "git_ops"]:
+        for key in ["question_gen", "description_molding", "task_planning", "coder", "reviewer", "fixer", "unit_test_prep", "git_ops", "client_message_handler"]:
             if key in config and key in self.provider_combos:
                 combo = self.provider_combos[key]
                 for i in range(combo.count()):
@@ -238,7 +246,7 @@ class LLMSelectorPanel(QWidget):
                         break
 
         # Then set models (after providers are set to ensure model lists are populated)
-        for key in ["question_gen", "description_molding", "task_planning", "coder", "reviewer", "fixer", "unit_test_prep", "git_ops"]:
+        for key in ["question_gen", "description_molding", "task_planning", "coder", "reviewer", "fixer", "unit_test_prep", "git_ops", "client_message_handler"]:
             model_key = f"{key}_model"
             if model_key in config and key in self.model_combos:
                 combo = self.model_combos[key]

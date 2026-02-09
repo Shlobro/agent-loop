@@ -300,6 +300,26 @@ RECENT LOG CONTEXT:
 WORKING DIRECTORY: {working_directory}'''
 
     # =========================================================================
+    # Client Message Handler
+    # =========================================================================
+    CLIENT_MESSAGE_HANDLER_PROMPT = """You are a dev working on the current project. The client has sent in a message.
+
+I want you to look at product-description.md and at tasks.md.
+
+Decide if the product description needs to be updated and the tasks need to be updated.
+If so, update them.
+
+If it does not require updates to the product description and tasks and it just requires an answer:
+- Put your response in answer.md
+
+If all that is needed is updating product-description and tasks:
+- Leave answer.md empty
+
+Client message:
+{message}
+"""
+
+    # =========================================================================
     # Phase 5: Git Operations
     # =========================================================================
     GIT_COMMIT_MESSAGE = '''Create a git commit message and write it to `{message_file}`.
@@ -465,3 +485,8 @@ GIT DIFF:
             recent_logs=recent_logs,
             working_directory=working_directory
         )
+
+    @staticmethod
+    def format_client_message_prompt(message: str) -> str:
+        """Format the client message handler prompt."""
+        return PromptTemplates.CLIENT_MESSAGE_HANDLER_PROMPT.format(message=message)

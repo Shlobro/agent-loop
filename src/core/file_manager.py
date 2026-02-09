@@ -21,6 +21,7 @@ class FileManager:
     GEMINI_FILE = "GEMINI.md"
     COMMIT_MESSAGE_FILE = ".agentharness/git-commit-message.txt"
     ERROR_CONCLUSION_FILE = "error-conclusion.md"
+    ANSWER_FILE = "answer.md"
 
     def __init__(self, working_directory: str):
         self.working_dir = Path(working_directory)
@@ -50,6 +51,7 @@ class FileManager:
 
         try:
             self._ensure_governance_files()
+            self._ensure_gitignore()
             if not self.tasks_file.exists():
                 self.tasks_file.write_text("# Tasks\n\n", encoding="utf-8")
 
@@ -64,6 +66,9 @@ class FileManager:
             if not commit_message_path.exists():
                 commit_message_path.parent.mkdir(parents=True, exist_ok=True)
                 commit_message_path.write_text("", encoding="utf-8")
+            answer_path = self.working_dir / self.ANSWER_FILE
+            if not answer_path.exists():
+                answer_path.write_text("", encoding="utf-8")
         except OSError as e:
             raise FileOperationError(f"Failed to create files: {e}")
 
@@ -80,6 +85,28 @@ class FileManager:
             path = self.working_dir / name
             if not path.exists():
                 path.write_text(file_content, encoding="utf-8")
+
+    def _ensure_gitignore(self):
+        """Ensure .gitignore exists and contains answer.md."""
+        gitignore_path = self.working_dir / ".gitignore"
+
+        # Read existing content if file exists
+        existing_lines = []
+        if gitignore_path.exists():
+            try:
+                existing_lines = gitignore_path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                pass
+
+        # Check if answer.md is already ignored
+        if "answer.md" not in existing_lines:
+            # Add answer.md to .gitignore
+            new_content = "\n".join(existing_lines + ["answer.md"]) + "\n"
+            try:
+                gitignore_path.write_text(new_content, encoding="utf-8")
+            except OSError:
+                # Not critical if this fails
+                pass
 
     @staticmethod
     def _default_governance_content() -> str:
@@ -252,3 +279,18 @@ class FileManager:
     def clear_error_conclusion(self):
         """Clear/truncate error-conclusion.md file."""
         self.write_error_conclusion("")
+
+    def read_answer(self) -> str:
+        """Read answer.md content."""
+        answer_path = self.working_dir / self.ANSWER_FILE
+        if not answer_path.exists():
+            return ""
+        try:
+            return answer_path.read_text(encoding="utf-8")
+        except OSError as e:
+            raise FileOperationError(f"Failed to read answer.md: {e}")
+
+    def truncate_answer(self):
+        """Clear answer.md for new message processing."""
+        answer_path = self.working_dir / self.ANSWER_FILE
+        self._atomic_write(answer_path, "")
