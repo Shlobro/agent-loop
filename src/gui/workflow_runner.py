@@ -213,56 +213,92 @@ class WorkflowRunnerMixin:
     @Slot(object)
     def on_git_complete(self, result: dict):
         """Handle git operations completion - process client messages then check for more tasks."""
-        self.log_viewer.append_log(f"Git operations result: {result}", "debug")
-        self._refresh_task_loop_snapshot(action="Git operations finished")
-
-        if result.get("skipped"):
-            self.log_viewer.append_log("Git operations skipped (no changes detected)", "info")
-        elif result.get("committed"):
-            self.log_viewer.append_success("Changes committed to local repository")
-        else:
-            self.log_viewer.append_warning("No commit was made")
-
-        if result.get("pushed"):
-            self.log_viewer.append_success("Changes pushed to remote repository")
-        elif not result.get("skipped"):
-            self.log_viewer.append_log("Changes were NOT pushed to remote", "info")
-
-        # Clear recent-changes.md for the next task (so reviews are scoped to that task's changes)
-        self._clear_recent_changes()
-
-        # Process pending client messages before continuing
-        ctx = self.state_machine.context
-        if ctx.pending_client_messages:
-            self._process_client_messages()
-            return  # Will continue after messages processed
-
-        # Check if there are more incomplete tasks
         from ..utils.markdown_parser import has_incomplete_tasks
 
-        if self.file_manager:
-            tasks_content = self.file_manager.read_tasks()
-            if has_incomplete_tasks(tasks_content):
-                # More tasks remain - cycle back to main execution
-                self.log_viewer.append_log("=" * 50, "info")
-                self.log_viewer.append_log("More tasks remaining - starting next task...", "info")
-                self.log_viewer.append_log("=" * 50, "info")
-                self.state_machine.transition_to(Phase.MAIN_EXECUTION)
-                self.run_main_execution()
-                return
-
-        # All tasks done - workflow complete
-        self.log_viewer.append_log("All tasks have been completed!", "success")
-
-        # Clean up session file
         try:
-            self.session_manager.delete_session()
-            self.log_viewer.append_log("Session file cleaned up", "debug")
-        except Exception as e:
-            self.log_viewer.append_log(f"Failed to delete session: {e}", "debug")
+            if not isinstance(result, dict):
+                self.log_viewer.append_log(
+                    f"Git worker returned unexpected result type: {type(result).__name__}",
+                    "warning"
+                )
+                result = {}
 
-        self.log_viewer.append_log("Transitioning to Completed phase...", "info")
-        self.state_machine.transition_to(Phase.COMPLETED)
+            self.log_viewer.append_log(f"Git operations result: {result}", "debug")
+            self._refresh_task_loop_snapshot(action="Git operations finished")
+
+            if result.get("skipped"):
+                self.log_viewer.append_log("Git operations skipped (no changes detected)", "info")
+            elif result.get("committed"):
+                self.log_viewer.append_success("Changes committed to local repository")
+            else:
+                self.log_viewer.append_warning("No commit was made")
+
+            if result.get("pushed"):
+                self.log_viewer.append_success("Changes pushed to remote repository")
+            elif not result.get("skipped"):
+                self.log_viewer.append_log("Changes were NOT pushed to remote", "info")
+
+            # Clear recent-changes.md for the next task (so reviews are scoped to that task's changes)
+            self._clear_recent_changes()
+
+            # Process pending client messages before continuing
+            ctx = self.state_machine.context
+            if ctx.pending_client_messages:
+                self._process_client_messages()
+                return  # Will continue after messages processed
+
+            # Check if there are more incomplete tasks
+            tasks_content = ""
+            if self.file_manager:
+                try:
+                    tasks_content = self.file_manager.read_tasks()
+                except Exception as exc:
+                    self.log_viewer.append_log(
+                        f"Failed to read tasks.md after git operations: {exc}",
+                        "warning"
+                    )
+                    # Best effort recovery in case tasks.md was removed/modified unexpectedly.
+                    try:
+                        self.file_manager.ensure_files_exist()
+                        tasks_content = self.file_manager.read_tasks()
+                        self.log_viewer.append_log(
+                            "Recreated missing workflow files and retried reading tasks.md",
+                            "info"
+                        )
+                    except Exception as ensure_exc:
+                        self.log_viewer.append_log(
+                            f"Unable to recover tasks.md after git operations: {ensure_exc}",
+                            "error"
+                        )
+                        tasks_content = ""
+
+                if has_incomplete_tasks(tasks_content):
+                    # More tasks remain - cycle back to main execution
+                    self.log_viewer.append_log("=" * 50, "info")
+                    self.log_viewer.append_log("More tasks remaining - starting next task...", "info")
+                    self.log_viewer.append_log("=" * 50, "info")
+                    self.state_machine.transition_to(Phase.MAIN_EXECUTION)
+                    self.run_main_execution()
+                    return
+
+            # All tasks done - workflow complete
+            self.log_viewer.append_log("All tasks have been completed!", "success")
+
+            # Clean up session file
+            try:
+                self.session_manager.delete_session()
+                self.log_viewer.append_log("Session file cleaned up", "debug")
+            except Exception as e:
+                self.log_viewer.append_log(f"Failed to delete session: {e}", "debug")
+
+            self.log_viewer.append_log("Transitioning to Completed phase...", "info")
+            self.state_machine.transition_to(Phase.COMPLETED)
+        except Exception as exc:
+            self.log_viewer.append_log(
+                f"Unexpected error while finalizing git operations: {exc}",
+                "error"
+            )
+            self.state_machine.set_error(str(exc))
 
     def _clear_recent_changes(self):
         """Clear recent-changes.md after git push so next task starts fresh."""
