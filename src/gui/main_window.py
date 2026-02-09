@@ -73,6 +73,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self._debug_wait_event.set()
         self._debug_waiting = False
         self.error_recovery_tracker = ErrorRecoveryTracker()
+        self._initial_description_message_id = None
 
         # File watcher for external edits to product-description.md
         self.description_watcher = DescriptionFileWatcher(self)
@@ -166,12 +167,6 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         workflow_menu.addAction(self.next_step_action)
 
         view_menu = menu_bar.addMenu("&View")
-        self.show_status_panel_action = QAction("Show Status Panel", self, checkable=True)
-        self.show_status_panel_action.setChecked(False)
-        self.show_status_panel_action.toggled.connect(self.on_toggle_status_panel)
-        view_menu.addAction(self.show_status_panel_action)
-
-        view_menu.addSeparator()
 
         # Left panel tab toggles
         self.show_logs_action = QAction("Show Logs", self, checkable=True)
@@ -331,7 +326,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         main_layout.setSpacing(10)
 
         self.status_panel = StatusPanel()
-        self.status_panel.hide()
+        # Status panel is always visible
         main_layout.addWidget(self.status_panel)
         main_splitter = QSplitter(Qt.Horizontal)
         main_splitter.setHandleWidth(4)
@@ -790,10 +785,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             return
         self.status_panel.set_task_progress(0, 0)
 
-    @Slot(bool)
-    def on_toggle_status_panel(self, visible: bool):
-        """Show/hide the status summary row."""
-        self.status_panel.setVisible(bool(visible))
+    # Status panel is always visible - no toggle needed
 
     @Slot(bool)
     def on_toggle_logs(self, enabled: bool):
@@ -823,17 +815,17 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         from datetime import datetime
 
         description = self._get_description()
+        message_id = str(uuid.uuid4())
 
         # Case 1: Empty description - direct initialization
         if not description or not description.strip():
+            self.chat_panel.add_message(message_id, message, "processing")
+            self._initial_description_message_id = message_id
             self.log_viewer.append_log("Initializing product description from chat message...", "info")
             self._initialize_description_from_chat(message)
             return
 
         # Case 2: Non-empty description - queue for LLM processing
-        # Generate unique message ID
-        message_id = str(uuid.uuid4())
-
         # Add to state context queue with checkbox states
         ctx = self.state_machine.context
         ctx.pending_client_messages.append({
@@ -1674,6 +1666,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.current_worker = worker
         self.thread_pool.start(worker)
 
+        self.chat_panel.set_bot_activity("Generating questions...")
         self.log_viewer.append_log("Generating question batch...", "info")
         self.question_panel.show_generating_message()
         self.state_machine.transition_to(Phase.QUESTION_GENERATION, SubPhase.GENERATING_QUESTIONS)
@@ -1817,6 +1810,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     def _on_description_initialization_complete(self, result: dict):
         """Handle completion of description initialization from chat."""
         if result.get("description_changed"):
+            if self._initial_description_message_id:
+                self.chat_panel.update_message_status(self._initial_description_message_id, "completed")
+                self.chat_panel.add_answer(self._initial_description_message_id, "Initialized product description.")
+                self._initial_description_message_id = None
             new_description = result.get("new_description", "")
             self.log_viewer.append_log("Product description initialized successfully", "success")
 
@@ -1846,6 +1843,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
                 )
                 self.run_question_generation()
         else:
+            if self._initial_description_message_id:
+                self.chat_panel.update_message_status(self._initial_description_message_id, "failed")
+                self.chat_panel.add_answer(self._initial_description_message_id, "Could not initialize product description.")
+                self._initial_description_message_id = None
             self.log_viewer.append_log("Product description initialization failed or unchanged", "warning")
 
     @Slot(str)
@@ -1903,8 +1904,9 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     @Slot(dict)
     def on_questions_ready(self, questions: dict):
         """Handle batch question generation."""
-        ctx = self.state_machine.context
         question_list = questions.get("questions", [])
+        self.chat_panel.clear_bot_activity()
+        self.chat_panel.add_bot_message(f"Generated {len(question_list)} questions.")
 
         self.state_machine.update_context(
             questions_json=questions,

@@ -10,7 +10,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - `config_panel.py`: Execution settings (iterations, tasks per iteration, questions, working directory, git settings), stored review-type selections, and the optional pre-review unit-test-update toggle used by the review settings dialog; hosted by `Settings -> Configuration Settings`, while values stay live-editable during execution.
 - `log_viewer.py`: Color-coded log viewer with filtering and auto-scroll; uses an enlarged monospace font for clearer streaming output.
 - `status_panel.py`: Top-line workflow status, iteration label, top-right progress bar, and a "Resume Tasks" button that appears when incomplete tasks exist and the workflow is idle or completed; progress is task-list based (`completed tasks / total tasks`) during loop execution.
-- `chat_panel.py`: Chat interface for initializing and updating product description, plus sending messages to LLM during workflow execution. Includes 3 checkboxes to control LLM behavior: "Update description" (updates product-description.md), "Add tasks" (adds tasks to tasks.md), and "Provide answer in text" (writes response to answer.md). When description is empty, first message initializes `product-description.md` and auto-triggers question generation if max_questions > 0. When description exists, messages are processed based on checkbox selections (see CHECKBOX_PROMPTS.md for details). Placeholder text changes based on description state. Messages queue during workflow and process at iteration boundaries. Shows message history with status indicators and LLM answers. Always visible as the primary input method.
+- `chat_panel.py`: Chat interface for initializing and updating product description, plus sending messages to LLM during workflow execution. Includes 3 checkboxes to control LLM behavior: "Update description" (updates product-description.md), "Add tasks" (adds tasks to tasks.md), and "Provide answer in text" (writes response to answer.md). When description is empty, first message initializes `product-description.md` and auto-triggers question generation if max_questions > 0. When description exists, messages are processed based on checkbox selections (see CHECKBOX_PROMPTS.md for details). Placeholder text changes based on description state. Messages queue during workflow and process at iteration boundaries. Uses chatbot-style user/bot bubbles with distinct colors, one-line status text, and an animated bot activity row (for example `Generating questions...`) during long-running bot actions.
 - `__init__.py`: Module marker.
 
 ## Key Interactions
@@ -50,8 +50,10 @@ Features:
   - "Update description" - updates product-description.md
   - "Add tasks" - adds tasks to tasks.md
   - "Provide answer in text" - writes response to answer.md
-- Message history showing status (queued/processing/completed)
-- Displays LLM answers inline with blue background, or shows status messages when LLM updates files instead (e.g., "Updated product description", "Updated tasks")
+- Message history rendered as chatbot bubbles with distinct user and bot colors
+- One-line message statuses (queued/processing/completed/failed) instead of log-style headers
+- Displays LLM answers inline as bot bubbles, or shows file-update status messages when LLM updates files instead (e.g., "Updated product description", "Updated tasks")
+- Animated bot activity indicator for in-progress background actions (for example question generation)
 - Enabled whenever a working directory is active (except during ERROR/CANCELLED phases)
 - Messages queue during execution and process at iteration boundaries
 - Messages process immediately when workflow is idle
@@ -65,6 +67,7 @@ Key methods:
 - `add_message(id, content, status)` - add message to history
 - `update_message_status(id, status)` - update message status
 - `add_answer(id, answer)` - add LLM answer to message (also used for status messages like "Updated product description")
+- `set_bot_activity(text)` / `clear_bot_activity()` - show/hide animated bot progress line
 - `set_input_enabled(bool)` - enable/disable input and checkboxes
 
 ## Change Map

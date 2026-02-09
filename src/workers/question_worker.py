@@ -36,7 +36,7 @@ class QuestionWorker(BaseWorker):
 
     def execute(self):
         """Generate questions and return parsed JSON from questions.json file."""
-        self.update_status("Generating clarifying questions...")
+        self.update_status("Generating Questions")
         self.log(f"=== QUESTION GENERATION PHASE START ===", "phase")
         self.log(f"Working directory: {self.working_directory}", "info")
         self.log(f"Project description: {self.description[:200]}{'...' if len(self.description) > 200 else ''}", "info")
@@ -157,7 +157,7 @@ class DefinitionRewriteWorker(BaseWorker):
 
         The LLM must write the final content directly to product-description.md.
         """
-        self.update_status("Refining product definition...")
+        self.update_status("Updating Product Description")
         self.log("=== DEFINITION REWRITE START ===", "phase")
         self.log(f"Working directory: {self.working_directory}", "info")
         self.log(f"Q&A pairs: {len(self.qa_pairs)}", "info")

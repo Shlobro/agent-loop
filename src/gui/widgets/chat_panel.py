@@ -1,8 +1,7 @@
 """Chat panel for sending messages to LLM during workflow execution."""
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTextEdit, QTextBrowser, QLabel, QCheckBox
-from PySide6.QtCore import Signal
-from datetime import datetime
+from PySide6.QtCore import Signal, QTimer
 
 
 class ChatPanel(QWidget):
@@ -18,6 +17,12 @@ class ChatPanel(QWidget):
     def __init__(self):
         super().__init__()
         self.message_history = []  # List of message dicts
+        self._bot_activity_text = ""
+        self._activity_frame_index = 0
+        self._activity_frames = ["[=     ]", "[==    ]", "[===   ]", "[ ===  ]", "[  === ]", "[   ===]", "[    ==]", "[     =]"]
+        self._activity_timer = QTimer(self)
+        self._activity_timer.setInterval(180)
+        self._activity_timer.timeout.connect(self._advance_activity_frame)
         self.setup_ui()
 
     def setup_ui(self):
@@ -100,12 +105,10 @@ class ChatPanel(QWidget):
 
     def add_message(self, message_id: str, content: str, status: str = "queued"):
         """Add a message to the history display."""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-
         message_data = {
             "id": message_id,
+            "role": "user",
             "content": content,
-            "timestamp": timestamp,
             "status": status
         }
         self.message_history.append(message_data)
@@ -127,45 +130,100 @@ class ChatPanel(QWidget):
                 break
         self._update_display()
 
+    def add_bot_message(self, content: str):
+        """Add a standalone bot message to the history."""
+        self.message_history.append({
+            "id": f"bot_{len(self.message_history)}",
+            "role": "bot",
+            "content": content,
+            "status": "completed"
+        })
+        self._update_display()
+
+    def set_bot_activity(self, activity_text: str = ""):
+        """Show or hide animated bot activity status."""
+        self._bot_activity_text = activity_text.strip()
+        if self._bot_activity_text:
+            if not self._activity_timer.isActive():
+                self._activity_timer.start()
+        else:
+            self._activity_timer.stop()
+            self._activity_frame_index = 0
+        self._update_display()
+
+    def clear_bot_activity(self):
+        """Clear animated bot activity indicator."""
+        self.set_bot_activity("")
+
+    def _advance_activity_frame(self):
+        """Advance the activity animation frame."""
+        if not self._bot_activity_text:
+            return
+        self._activity_frame_index = (self._activity_frame_index + 1) % len(self._activity_frames)
+        self._update_display()
+
     def _update_display(self):
         """Refresh the HTML display of all messages."""
         html = "<div style='font-family: \"Segoe UI Variable Text\", sans-serif; color: #ece6de;'>"
 
-        if not self.message_history:
-            html += "<p style='color: #9aa4b1; font-style: italic;'>No messages yet. Send a message to interact with the LLM during execution.</p>"
+        if not self.message_history and not self._bot_activity_text:
+            html += "<p style='color: #9aa4b1; font-style: italic;'>No messages yet.</p>"
         else:
             for msg in self.message_history:
-                status_icon = {
-                    "queued": "⏳",
-                    "processing": "⚙️",
-                    "completed": "✓"
-                }.get(msg["status"], "•")
-
                 status_color = {
                     "queued": "#9aa4b1",
-                    "processing": "#4f95c7",
-                    "completed": "#53b8b2"
+                    "processing": "#58a6d8",
+                    "completed": "#63b56e",
+                    "failed": "#d07d7d"
                 }.get(msg["status"], "#9aa4b1")
 
+                if msg.get("role") == "bot":
+                    html += self._render_bubble(
+                        label="Agent",
+                        content=msg.get("content", ""),
+                        bubble_color="#1a232d",
+                        border_color="#2e4b63",
+                        label_color="#8ec5f0",
+                        align="left"
+                    )
+                    continue
+
+                html += self._render_bubble(
+                    label="You",
+                    content=msg.get("content", ""),
+                    bubble_color="#1f3448",
+                    border_color="#335a79",
+                    label_color="#b8daff",
+                    align="right"
+                )
+
                 html += f"""
-                <div style='margin-bottom: 20px; padding: 12px; background: #151a1f; border-radius: 10px; border: 1px solid #232a31;'>
-                    <div style='color: {status_color}; font-size: 12px; margin-bottom: 6px; font-weight: 600;'>
-                        {status_icon} {msg['timestamp']} - {msg['status'].upper()}
-                    </div>
-                    <div style='color: #ece6de; font-size: 14px; margin-bottom: 6px;'>
-                        <strong style='color: #c9d3dd;'>You:</strong> {self._escape_html(msg['content'])}
-                    </div>
+                <div style='margin-top: 2px; margin-bottom: 8px; text-align: right; color: {status_color}; font-size: 11px;'>
+                    {self._escape_html(msg['status'])}
+                </div>
                 """
 
                 if "answer" in msg:
-                    html += f"""
-                    <div style='margin-top: 10px; padding: 10px; background: #0f1419; border-left: 3px solid #2b77ae; border-radius: 6px;'>
-                        <div style='color: #4f95c7; font-size: 12px; margin-bottom: 6px; font-weight: 600;'>LLM Response:</div>
-                        <div style='color: #ece6de; font-size: 14px; line-height: 1.5;'>{self._escape_html(msg['answer'])}</div>
-                    </div>
-                    """
+                    html += self._render_bubble(
+                        label="Agent",
+                        content=msg["answer"],
+                        bubble_color="#1a232d",
+                        border_color="#2e4b63",
+                        label_color="#8ec5f0",
+                        align="left"
+                    )
 
-                html += "</div>"
+            if self._bot_activity_text:
+                frame = self._activity_frames[self._activity_frame_index]
+                html += self._render_bubble(
+                    label="Agent",
+                    content=f"{self._bot_activity_text} {frame}",
+                    bubble_color="#17212a",
+                    border_color="#284055",
+                    label_color="#8ec5f0",
+                    align="left",
+                    is_italic=True
+                )
 
         html += "</div>"
         self.history_browser.setHtml(html)
@@ -198,3 +256,18 @@ class ChatPanel(QWidget):
             self.input_area.setPlaceholderText("Ask a question or request changes...")
         else:
             self.input_area.setPlaceholderText("Enter your project description here...")
+
+    def _render_bubble(self, label: str, content: str, bubble_color: str, border_color: str,
+                       label_color: str, align: str = "left", is_italic: bool = False) -> str:
+        """Render a single chat bubble row."""
+        margin_side = "margin-right: 20%;" if align == "left" else "margin-left: 20%;"
+        text_align = "left" if align == "left" else "right"
+        font_style = "font-style: italic;" if is_italic else ""
+        return f"""
+        <div style='margin-bottom: 8px; {margin_side} text-align: {text_align};'>
+            <div style='display: inline-block; max-width: 100%; background: {bubble_color}; border: 1px solid {border_color}; border-radius: 12px; padding: 8px 10px;'>
+                <div style='color: {label_color}; font-size: 11px; font-weight: 600; margin-bottom: 2px;'>{self._escape_html(label)}</div>
+                <div style='color: #e8edf2; font-size: 13px; line-height: 1.4; {font_style}'>{self._escape_html(content)}</div>
+            </div>
+        </div>
+        """

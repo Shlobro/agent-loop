@@ -315,6 +315,8 @@ class WorkflowRunnerMixin:
     def on_worker_error(self, error_info_tuple):
         """Handle worker error by showing recovery dialog."""
         exc_type, exc_value, tb_str = error_info_tuple
+        if hasattr(self, "chat_panel"):
+            self.chat_panel.clear_bot_activity()
 
         # Log the error first
         self.log_viewer.append_error(f"Error: {exc_value}")

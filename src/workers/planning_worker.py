@@ -30,7 +30,7 @@ class PlanningWorker(BaseWorker):
 
     def execute(self):
         """Generate task list from the project description."""
-        self.update_status("Creating task list...")
+        self.update_status("Planning Tasks")
         self.log(f"=== TASK PLANNING PHASE START ===", "phase")
         self.log(f"Working directory: {self.working_directory}", "info")
         self.description = self._resolve_planning_description()
@@ -70,7 +70,7 @@ class PlanningWorker(BaseWorker):
 
     def _generate_tasks(self, provider):
         """Generate tasks.md by having the LLM write directly to it."""
-        self.update_status("Drafting task list...")
+        self.update_status("Planning Tasks")
         self.log("Generating task list...", "info")
         file_manager = None
         if self.working_directory:
