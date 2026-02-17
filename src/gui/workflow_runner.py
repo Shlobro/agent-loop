@@ -22,8 +22,10 @@ class WorkflowRunnerMixin:
             answers=ctx.answers,
             qa_pairs=ctx.qa_pairs,
             provider_name=ctx.llm_config.get("task_planning", "claude"),
+            research_provider_name=ctx.llm_config.get("research", "gemini"),
             working_directory=ctx.working_directory,
-            model=ctx.llm_config.get("task_planning_model")
+            model=ctx.llm_config.get("task_planning_model"),
+            research_model=ctx.llm_config.get("research_model")
         )
 
         self._connect_worker_signals(worker)

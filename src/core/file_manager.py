@@ -16,6 +16,7 @@ class FileManager:
     REVIEW_FILE = "review.md"
     REVIEW_DIR = "review"
     DESCRIPTION_FILE = "product-description.md"
+    RESEARCH_FILE = "research.md"
     AGENTS_FILE = "AGENTS.md"
     CLAUDE_FILE = "CLAUDE.md"
     GEMINI_FILE = "GEMINI.md"
@@ -62,6 +63,9 @@ class FileManager:
             description_path = self.working_dir / self.DESCRIPTION_FILE
             if not description_path.exists():
                 description_path.write_text("", encoding="utf-8")
+            research_path = self.working_dir / self.RESEARCH_FILE
+            if not research_path.exists():
+                research_path.write_text("", encoding="utf-8")
             commit_message_path = self.working_dir / self.COMMIT_MESSAGE_FILE
             if not commit_message_path.exists():
                 commit_message_path.parent.mkdir(parents=True, exist_ok=True)

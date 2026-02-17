@@ -15,6 +15,7 @@ class ProjectSettings:
     # LLM Configuration
     question_gen: str
     description_molding: str
+    research: str
     task_planning: str
     coder: str
     reviewer: str
@@ -23,6 +24,7 @@ class ProjectSettings:
     git_ops: str = "gemini"
     question_gen_model: str = ""
     description_molding_model: str = "gemini-3-pro-preview"
+    research_model: str = "gemini-3-pro-preview"
     task_planning_model: str = ""
     coder_model: str = ""
     reviewer_model: str = ""
@@ -158,10 +160,14 @@ class ProjectSettingsManager:
             normalized["git_mode"] = "push" if auto_push else "local"
         if "description_molding" not in normalized:
             normalized["description_molding"] = "gemini"
+        if "research" not in normalized:
+            normalized["research"] = "gemini"
         if "unit_test_prep" not in normalized:
             normalized["unit_test_prep"] = "gemini"
         if "description_molding_model" not in normalized:
             normalized["description_molding_model"] = "gemini-3-pro-preview"
+        if "research_model" not in normalized:
+            normalized["research_model"] = "gemini-3-pro-preview"
         if "unit_test_prep_model" not in normalized:
             normalized["unit_test_prep_model"] = "gemini-3-pro-preview"
         if "debug_mode_enabled" not in normalized:

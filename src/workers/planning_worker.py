@@ -18,15 +18,19 @@ class PlanningWorker(BaseWorker):
     def __init__(self, description: str, answers: Dict[str, str],
                  qa_pairs: list = None,
                  provider_name: str = "claude",
+                 research_provider_name: str = "gemini",
                  working_directory: str = None,
-                 model: str = None):
+                 model: str = None,
+                 research_model: str = None):
         super().__init__()
         self.description = description
         self.answers = answers
         self.qa_pairs = qa_pairs or []
         self.provider_name = provider_name
+        self.research_provider_name = research_provider_name
         self.working_directory = working_directory
         self.model = model
+        self.research_model = research_model
 
     def execute(self):
         """Generate task list from the project description."""
@@ -45,6 +49,12 @@ class PlanningWorker(BaseWorker):
 
         # Generate tasks.md
         self._generate_tasks(provider)
+
+        # Generate research.md after tasks so it can use the planned tasks
+        self._generate_research()
+
+        # Emit tasks only after research phase completes
+        self.signals.tasks_ready.emit(self.tasks_content)
 
         self.log(f"=== TASK PLANNING PHASE END ===", "phase")
         return {
@@ -158,5 +168,51 @@ class PlanningWorker(BaseWorker):
         self.tasks_content = tasks_content
         self.task_count = len(tasks)
 
-        # Emit signal
-        self.signals.tasks_ready.emit(tasks_content)
+    def _generate_research(self):
+        """Generate research.md after task planning."""
+        self.update_status("Researching Product")
+        self.log("Generating research.md from product-description.md and tasks.md...", "info")
+
+        if not self.working_directory:
+            self.log("No working directory set; skipping research phase", "warning")
+            return
+
+        file_manager = FileManager(self.working_directory)
+        file_manager.ensure_files_exist()
+        file_manager.write_file("research.md", "")
+
+        provider = LLMProviderRegistry.get(self.research_provider_name)
+        self.log(f"Using research LLM provider: {provider.display_name}", "info")
+
+        base_prompt = PromptTemplates.format_research_prompt(
+            working_directory=self.working_directory or "."
+        )
+        prompt = provider.format_prompt(base_prompt, "freeform")
+        self.log(f"Built research prompt ({len(prompt)} chars)", "debug")
+
+        llm_worker = LLMWorker(
+            provider=provider,
+            prompt=prompt,
+            working_directory=self.working_directory,
+            model=self.research_model,
+            debug_stage="research"
+        )
+
+        llm_worker.signals.llm_output.connect(
+            lambda line: self.signals.llm_output.emit(line)
+        )
+        llm_worker.signals.log.connect(
+            lambda msg, level: self.signals.log.emit(msg, level)
+        )
+
+        llm_worker.run()
+
+        if llm_worker._is_cancelled:
+            self.log("Research LLM worker was cancelled", "warning")
+            self.check_cancelled()
+
+        research_content = file_manager.read_file("research.md") or ""
+        if research_content.strip():
+            self.log(f"Loaded research.md ({len(research_content)} chars)", "success")
+        else:
+            self.log("research.md is empty after research phase", "warning")

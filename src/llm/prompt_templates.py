@@ -65,10 +65,24 @@ CLARIFYING QUESTIONS AND ANSWERS:
     # =========================================================================
     # Phase 2: Task Planning
     # =========================================================================
+    RESEARCH_PROMPT = '''
+I want you to search online and fill in the research.md file.
+We already have product-description.md and tasks.md.
+Use both files while conducting research.
+Fill in research.md with any information a developer should have while working on this product and planned tasks.
+
+Requirements for research.md:
+- Keep it practical and implementation-focused for engineers.
+- Include relevant standards, APIs, libraries, constraints, edge cases, and security/privacy considerations.
+- Include assumptions and open questions that should be validated with the client.
+- Do not write tasks in this file.
+- Do not modify any files other than research.md.
+'''
+
     TASK_PLANNING = '''
 I want you to make a task list in the tasks.md file.
 Do not implement any code; only write the task list.
-The tasks should be created according to the gap of what currently exists and what is in the product-description.md
+The tasks should be created according to the gap of what currently exists and what is in product-description.md.
 
 OUTPUT FORMAT (write directly into tasks.md):
 - Use a markdown checklist with `- [ ]` for each task (unchecked checkbox).
@@ -85,11 +99,12 @@ OUTPUT FORMAT (write directly into tasks.md):
     MAIN_EXECUTION_SINGLE = '''
 INSTRUCTIONS:
 1. Read the recent-changes.md
-2. Choose exactly ONE incomplete task from tasks.md list (marked with `- [ ]`)
-3. Implement that task completely and thoroughly
-4. After implementing, update the recent-changes.md file with what you changed
-5. Mark the task as complete in tasks.md by changing `- [ ]` to `- [x]`
-6. If you discover additional tasks that need to be done, add them to tasks.md but do not execute them
+2. Read research.md if it exists and use it as context
+3. Choose exactly ONE incomplete task from tasks.md list (marked with `- [ ]`)
+4. Implement that task completely and thoroughly
+5. After implementing, update the recent-changes.md file with what you changed
+6. Mark the task as complete in tasks.md by changing `- [ ]` to `- [x]`
+7. If you discover additional tasks that need to be done, add them to tasks.md but do not execute them
 
 CRITICAL RULES:
 - Only work on ONE task and complete it do not complete more than 1 task
@@ -101,11 +116,12 @@ CRITICAL RULES:
     MAIN_EXECUTION_MULTI = '''
 INSTRUCTIONS:
 1. Read the recent-changes.md
-2. Choose up to {tasks_per_iteration} incomplete tasks from tasks.md list (marked with `- [ ]`)
-3. Implement each chosen task completely and thoroughly
-4. After implementing, update the recent-changes.md file with what you changed
-5. Mark each completed task in tasks.md by changing `- [ ]` to `- [x]`
-6. If you discover additional tasks that need to be done, add them to tasks.md but do not execute them
+2. Read research.md if it exists and use it as context
+3. Choose up to {tasks_per_iteration} incomplete tasks from tasks.md list (marked with `- [ ]`)
+4. Implement each chosen task completely and thoroughly
+5. After implementing, update the recent-changes.md file with what you changed
+6. Mark each completed task in tasks.md by changing `- [ ]` to `- [x]`
+7. If you discover additional tasks that need to be done, add them to tasks.md but do not execute them
 
 CRITICAL RULES:
 - Work on up to {tasks_per_iteration} tasks and complete them
@@ -572,6 +588,11 @@ GIT DIFF:
             description=description,
             working_directory=working_directory
         )
+
+    @classmethod
+    def format_research_prompt(cls, working_directory: str = ".") -> str:
+        """Format the prompt for the post-planning research phase."""
+        return cls.RESEARCH_PROMPT.format(working_directory=working_directory)
 
     @classmethod
     def format_execution_prompt(cls, working_directory: str,

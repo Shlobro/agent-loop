@@ -40,6 +40,7 @@ class SettingsMixin:
         return ProjectSettings(
             question_gen=llm_config.question_gen,
             description_molding=llm_config.description_molding,
+            research=llm_config.research,
             task_planning=llm_config.task_planning,
             coder=llm_config.coder,
             reviewer=llm_config.reviewer,
@@ -48,6 +49,7 @@ class SettingsMixin:
             git_ops=llm_config.git_ops,
             question_gen_model=llm_config.question_gen_model,
             description_molding_model=llm_config.description_molding_model,
+            research_model=llm_config.research_model,
             task_planning_model=llm_config.task_planning_model,
             coder_model=llm_config.coder_model,
             reviewer_model=llm_config.reviewer_model,
@@ -76,6 +78,7 @@ class SettingsMixin:
         llm_config_dict = {
             "question_gen": settings.question_gen,
             "description_molding": settings.description_molding,
+            "research": settings.research,
             "task_planning": settings.task_planning,
             "coder": settings.coder,
             "reviewer": settings.reviewer,
@@ -84,6 +87,7 @@ class SettingsMixin:
             "git_ops": settings.git_ops,
             "question_gen_model": settings.question_gen_model,
             "description_molding_model": settings.description_molding_model,
+            "research_model": settings.research_model,
             "task_planning_model": settings.task_planning_model,
             "coder_model": settings.coder_model,
             "reviewer_model": settings.reviewer_model,

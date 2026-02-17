@@ -6,6 +6,7 @@ from typing import Any, Dict
 DEBUG_STAGE_LABELS: Dict[str, str] = {
     "question_generation": "Question Generation",
     "description_molding": "Description Molding",
+    "research": "Research",
     "task_planning": "Task Planning",
     "execution": "Task Execution",
     "reviewer": "Reviewer",

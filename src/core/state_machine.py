@@ -92,6 +92,7 @@ class StateContext:
     llm_config: Dict[str, str] = field(default_factory=lambda: {
         "question_gen": "gemini",
         "description_molding": "gemini",
+        "research": "gemini",
         "task_planning": "claude",
         "coder": "claude",
         "reviewer": "codex",
@@ -101,6 +102,7 @@ class StateContext:
         "client_message_handler": "gemini",
         "question_gen_model": "gemini-3-pro-preview",
         "description_molding_model": "gemini-3-pro-preview",
+        "research_model": "gemini-3-pro-preview",
         "task_planning_model": "claude-opus-4-6",
         "coder_model": "claude-opus-4-6",
         "reviewer_model": "gpt-5.3-codex",

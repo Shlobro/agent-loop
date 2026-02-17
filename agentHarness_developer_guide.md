@@ -10,6 +10,7 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 - `TODO's`: Product backlog and feature notes that map into code.
 - `Product Description`: Product vision and UX goals.
 - `requirements.txt`: Runtime dependencies (PySide6).
+- `update_markdown_files_with_llm.bat`: Interactive batch runner that scans all `.md` files recursively and sends an update prompt per file to a selected CLI (`claude`, `codex`, or `gemini`), while streaming live CLI output in the same terminal.
 - `AGENTS.md`: Repo-specific assistant rules.
 - `CLAUDE.md`: Workflow notes and architecture overview.
 - `GEMINI.md`: Workflow notes and architecture overview for Gemini.
@@ -22,7 +23,7 @@ AgentHarness is a PySide6 desktop app that runs a multi-phase, LLM-driven develo
 3. `StateMachine` tracks phase/context with no machine-specific default working directory; `MainWindow` dispatches workers and updates context working directory immediately when the selected directory changes.
 4. Question generation initializes an empty `questions.json` and expects the LLM to write a batch into it in a single attempt (no stdout parsing or fallback prompts). When questions are ready, the app opens a modal question window that supports Up/Down answer selection, Left/Right question navigation, and Enter submit/advance; Enter on the last question submits and closes the window. The question window does not allow manual close (`Esc`/window close) before final submission.
 5. Description molding runs after answers are submitted: it rewrites Q&A plus the current description into `product-description.md` using the dedicated `description_molding` stage/model; this step is file-first (`product-description.md` updates the UI, not the other way around).
-6. Task planning reads `product-description.md` when available and has the LLM write directly to `tasks.md`.
+6. Task planning now includes a post-planning research pass: planning writes `tasks.md` first, then the selected `research` stage/model fills `research.md` using both `product-description.md` and `tasks.md`.
 7. Main execution completes a configurable number of tasks per iteration (controlled by `tasks_per_iteration`, default 1) and updates `recent-changes.md`.
 8. When a valid working directory is active (including the startup default path), initialization ensures `review/` exists with one file per active review type; the review phase executes in this order: (1) optional unit test prep (runs FIRST if enabled, uses `git diff` to decide whether tests should be added/edited), (2) review/fix cycles per review type (General, Functionality, Architecture, Efficiency, Error Handling, Safety, Testing, Documentation, UI/UX). The review settings dialog separates this one-time pre-review prep control from per-iteration review-loop type selection for clarity. The review loop writes findings to the active file only, skips fixer when that file is empty, and truncates the active file after each completed fix cycle. Review iteration limits and reviewer/fixer/unit-test-prep selections are read between cycles, so reducing loop count or switching agents takes effect without restarting.
 9. Git operations run as a hybrid flow: code captures `git status --porcelain` plus a `git diff` snapshot and injects them into the git prompt, the LLM writes only a commit message into `.agentharness/git-commit-message.txt`, and the app performs `git add`, `git commit`, and optional `git push` in code; after a successful commit the message file is truncated.
@@ -37,6 +38,7 @@ Created in the selected working directory (not the repo root):
 - `review/`: Per-review-type findings files (for example `review/general.md`, `review/architecture.md`, `review/ui_ux.md`).
 - `product-description.md`: Synced project description from the UI.
 - `product-description.md`: Q&A-rewritten product definition used for task planning.
+- `research.md`: Post-planning product/domain research generated from `product-description.md` and `tasks.md` for developer context.
 - `session_state.json`: Pause/resume snapshot of workflow state.
 - `questions.json`: Batch questions file.
 - `answer.md`: LLM responses to client messages (gitignored).
@@ -80,7 +82,7 @@ Use this when picking up items from `TODO's`.
 - Workflow state and persistence: `src/core/state_machine.py`, `src/core/session_manager.py`.
 - LLM prompts and providers: `src/llm/`.
 - LLM provider CLI flags, commands, and curated model IDs used by the UI: `src/llm/*_provider.py`. Codex supports reasoning effort levels (low, medium, high, xhigh) via model ID suffixes (e.g., `:high`).
-- Default per-stage LLM provider/model assignments (including `description_molding` and `unit_test_prep`): `src/gui/widgets/llm_selector_panel.py` (UI defaults) and `src/core/state_machine.py` (`StateContext` fallback).
+- Default per-stage LLM provider/model assignments (including `description_molding`, `research`, and `unit_test_prep`): `src/gui/widgets/llm_selector_panel.py` (UI defaults) and `src/core/state_machine.py` (`StateContext` fallback).
 - LLM output capture and prompt transport behavior (argv vs stdin/output-file), including subprocess cwd validation/fallback when configured paths are invalid: `src/workers/llm_worker.py`, `src/llm/*_provider.py` (Claude, Gemini, and Codex use stdin prompts).
 - Debug stepping/breakpoints and terminal popup visibility: `src/core/debug_settings.py`, `src/gui/dialogs/debug_settings_dialog.py`, `src/gui/main_window.py`, `src/workers/llm_worker.py`.
 - Review label formatting in UI/logs: `src/gui/main_window.py` (uses `PromptTemplates.get_review_display_name`).

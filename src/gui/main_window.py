@@ -845,7 +845,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         ctx = self.state_machine.context
         config = ctx.llm_config
         if phase == Phase.TASK_PLANNING:
-            return f"Planner: {config.get('task_planning', 'N/A')}"
+            return (
+                f"Planner: {config.get('task_planning', 'N/A')} | "
+                f"Research: {config.get('research', 'N/A')}"
+            )
         if (phase == Phase.
                 MAIN_EXECUTION):
             return f"Coder: {config.get('coder', 'N/A')}"
@@ -1318,6 +1321,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.log_viewer.append_log(f"  Question Gen: {llm_config.get('question_gen', 'N/A')}", "info")
         self.log_viewer.append_log(f"  Description Molding: {llm_config.get('description_molding', 'N/A')}", "info")
         self.log_viewer.append_log(f"  Task Planning: {llm_config.get('task_planning', 'N/A')}", "info")
+        self.log_viewer.append_log(f"  Research: {llm_config.get('research', 'N/A')}", "info")
         self.log_viewer.append_log(f"  Coder: {llm_config.get('coder', 'N/A')}", "info")
         self.log_viewer.append_log(f"  Reviewer: {llm_config.get('reviewer', 'N/A')}", "info")
         self.log_viewer.append_log(f"  Fixer: {llm_config.get('fixer', 'N/A')}", "info")

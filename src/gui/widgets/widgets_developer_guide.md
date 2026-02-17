@@ -6,7 +6,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 ## Contents
 - `description_panel.py`: Task list panel located ONLY in the left tab widget (Tasks tab). Shows task progress with current action, completed/incomplete task counts, and tabbed task filtering (All/Completed/Incomplete). The panel no longer handles description preview - that's now in a separate QTextBrowser in the Description tab of the left panel. Description content is stored in MainWindow's `_description_content` variable. View mode controls are hidden since the panel is always in Task List mode when used in the left tab. The Tasks tab can be toggled via `View -> Show Tasks` in `MainWindow`.
 - `question_panel.py`: Hidden signal bridge for question flow. It opens `dialogs/question_answer_dialog.py` as a modal window when questions are ready, emits submitted Q&A pairs, and then opens `dialogs/question_flow_decision_dialog.py` after rewrite so the user explicitly chooses `Ask More Questions` or `Start Main Loop`.
-- `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry, including built-in default stage assignments; hosted by `Settings -> LLM Settings` and used as the canonical in-memory stage config for the run. Stages are displayed in execution order, with Unit Test Prep shown before Reviewer and Fixer to reflect that it runs first in the review phase. Includes Client Message Handler stage for processing user messages during workflow execution.
+- `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry, including built-in default stage assignments; hosted by `Settings -> LLM Settings` and used as the canonical in-memory stage config for the run. Stages are displayed in execution order, including a dedicated `Research (after task planning)` stage, with Unit Test Prep shown before Reviewer and Fixer to reflect that it runs first in the review phase. Includes Client Message Handler stage for processing user messages during workflow execution.
 - `config_panel.py`: Execution settings (iterations, tasks per iteration, questions, working directory, git settings), stored review-type selections, and the optional pre-review unit-test-update toggle used by the review settings dialog; hosted by `Settings -> Configuration Settings`, while values stay live-editable during execution.
 - `log_viewer.py`: Color-coded log viewer with filtering and auto-scroll; uses an enlarged monospace font for clearer streaming output.
 - `status_panel.py`: Top-line workflow status, iteration label, top-right progress bar, and a "Resume Tasks" button that appears when incomplete tasks exist and the workflow is idle or completed; progress is task-list based but phase-weighted during active loop execution so newly completed tasks earn partial progress in execution/review and reach full credit after git completes.
@@ -19,6 +19,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 - Question generation: Gemini + `gemini-3-pro-preview`
 - Description molding: Gemini + `gemini-3-pro-preview`
 - Task planning: Claude + `claude-opus-4-6`
+- Research (after task planning): Gemini + `gemini-3-pro-preview`
 - Coder: Claude + `claude-opus-4-6`
 - Unit Test Prep (runs first in review): Gemini + `gemini-3-pro-preview`
 - Reviewer: Codex + `gpt-5.3-codex`

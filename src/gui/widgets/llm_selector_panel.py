@@ -22,6 +22,7 @@ class LLMConfig:
     """Configuration for LLM providers per stage."""
     question_gen: str
     description_molding: str
+    research: str
     task_planning: str
     coder: str
     reviewer: str
@@ -32,6 +33,7 @@ class LLMConfig:
     # Model selections for each stage
     question_gen_model: str = ""
     description_molding_model: str = ""
+    research_model: str = ""
     task_planning_model: str = ""
     coder_model: str = ""
     reviewer_model: str = ""
@@ -53,6 +55,7 @@ class LLMSelectorPanel(QWidget):
         ("question_gen", "Question Generation"),
         ("description_molding", "Description Molding"),
         ("task_planning", "Task Planning"),
+        ("research", "Research (after task planning)"),
         ("coder", "Coder (Main Loop)"),
         ("unit_test_prep", "Unit Test Prep (runs before review)"),
         ("reviewer", "Reviewer"),
@@ -63,6 +66,7 @@ class LLMSelectorPanel(QWidget):
     DEFAULT_STAGE_CONFIG = {
         "question_gen": ("gemini", "gemini-3-pro-preview"),
         "description_molding": ("gemini", "gemini-3-pro-preview"),
+        "research": ("gemini", "gemini-3-pro-preview"),
         "task_planning": ("claude", "claude-opus-4-6"),
         "coder": ("claude", "claude-opus-4-6"),
         "reviewer": ("codex", "gpt-5.3-codex"),
@@ -185,6 +189,7 @@ class LLMSelectorPanel(QWidget):
         return LLMConfig(
             question_gen=self.provider_combos["question_gen"].currentData(),
             description_molding=self.provider_combos["description_molding"].currentData(),
+            research=self.provider_combos["research"].currentData(),
             task_planning=self.provider_combos["task_planning"].currentData(),
             coder=self.provider_combos["coder"].currentData(),
             reviewer=self.provider_combos["reviewer"].currentData(),
@@ -194,6 +199,7 @@ class LLMSelectorPanel(QWidget):
             client_message_handler=self.provider_combos["client_message_handler"].currentData(),
             question_gen_model=self.model_combos["question_gen"].currentData() or "",
             description_molding_model=self.model_combos["description_molding"].currentData() or "",
+            research_model=self.model_combos["research"].currentData() or "",
             task_planning_model=self.model_combos["task_planning"].currentData() or "",
             coder_model=self.model_combos["coder"].currentData() or "",
             reviewer_model=self.model_combos["reviewer"].currentData() or "",
@@ -209,6 +215,7 @@ class LLMSelectorPanel(QWidget):
         return {
             "question_gen": config.question_gen,
             "description_molding": config.description_molding,
+            "research": config.research,
             "task_planning": config.task_planning,
             "coder": config.coder,
             "reviewer": config.reviewer,
@@ -218,6 +225,7 @@ class LLMSelectorPanel(QWidget):
             "client_message_handler": config.client_message_handler,
             "question_gen_model": config.question_gen_model,
             "description_molding_model": config.description_molding_model,
+            "research_model": config.research_model,
             "task_planning_model": config.task_planning_model,
             "coder_model": config.coder_model,
             "reviewer_model": config.reviewer_model,
@@ -237,7 +245,7 @@ class LLMSelectorPanel(QWidget):
     def set_config(self, config: Dict[str, str]):
         """Set LLM configuration from dictionary."""
         # First set providers
-        for key in ["question_gen", "description_molding", "task_planning", "coder", "reviewer", "fixer", "unit_test_prep", "git_ops", "client_message_handler"]:
+        for key in ["question_gen", "description_molding", "research", "task_planning", "coder", "reviewer", "fixer", "unit_test_prep", "git_ops", "client_message_handler"]:
             if key in config and key in self.provider_combos:
                 combo = self.provider_combos[key]
                 for i in range(combo.count()):
@@ -246,7 +254,7 @@ class LLMSelectorPanel(QWidget):
                         break
 
         # Then set models (after providers are set to ensure model lists are populated)
-        for key in ["question_gen", "description_molding", "task_planning", "coder", "reviewer", "fixer", "unit_test_prep", "git_ops", "client_message_handler"]:
+        for key in ["question_gen", "description_molding", "research", "task_planning", "coder", "reviewer", "fixer", "unit_test_prep", "git_ops", "client_message_handler"]:
             model_key = f"{key}_model"
             if model_key in config and key in self.model_combos:
                 combo = self.model_combos[key]

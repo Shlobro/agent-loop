@@ -1,40 +1,74 @@
-# core Developer Guide
+# Core Directory Developer Guide
 
 ## Purpose
-Implements the workflow state machine, persistence, file/session I/O, and shared exceptions.
+This directory contains the foundational logic for the AgentHarness application. It manages the application's state, workflow phases, file I/O, project configuration, error handling, and session persistence. It serves as the backend brain that drives the UI and worker processes.
 
-## Contents
-- `state_machine.py`: `Phase`, `SubPhase`, `StateContext`, and transitions (includes UI/UX review sub-phases). `StateContext.tasks_content` tracks the current state of tasks.md for change detection when client messages update tasks. `StateContext.working_directory` defaults to an empty string and must be set from active UI directory selection/session restore. Emits signals used by `MainWindow`.
-- `debug_settings.py`: Shared debug-stage identifiers, labels, and breakpoint normalization/default helpers. Defaults pause **before** every stage LLM call when debug mode is on (after-call pauses default off).
-- `file_manager.py`: Atomic read/write for `tasks.md`, `recent-changes.md`, `review/` artifacts (one file per review type), `product-description.md`, git commit-message artifact (`.agentharness/git-commit-message.txt`), and governance prompt files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`).
-- `session_manager.py`: Save/load workflow state to `session_state.json` for pause/resume.
-- `project_settings.py`: `ProjectSettings` dataclass plus JSON load/save helpers (includes review-type selection, optional pre-review unit-test-update toggle persistence, and left panel tab visibility states for logs, description, and tasks), including per-working-directory settings at `.agentharness/project-settings.json`. The defaults for `show_logs_panel`, `show_description_tab`, and `show_tasks_tab` are all `False` (left tabs hidden unless enabled). Settings are automatically saved when the application closes.
-- `error_context.py`: `ErrorInfo` dataclass for capturing complete error state including phase, traceback, recent logs, and state snapshot for recovery operations. Also contains `ErrorRecoveryTracker` to prevent infinite retry loops.
-- `file_watcher.py`: `DescriptionFileWatcher` monitors `product-description.md` for external changes using `QFileSystemWatcher`. Emits signal when file is modified outside the app, allowing UI to reload and notify user. Tracks last known content to ignore app's own writes.
-- `exceptions.py`: Core exception types shared by workers and UI.
-- `__init__.py`: Module marker.
+## File Descriptions
 
-## Working-Directory Artifacts
-`FileManager` owns the core artifacts:
-- `tasks.md`, `recent-changes.md`, `review/` (per-review-type files such as `review/general.md`), and `product-description.md` (synced from UI and rewritten for planning after Q&A).
-- `.agentharness/git-commit-message.txt` (created at startup by `ensure_files_exist()` as the git-ops LLM output target).
-- `session_state.json` (managed by `SessionManager`).
+### `state_machine.py`
+- **Purpose**: Defines the lifecycle of the application. It manages the transition between different execution phases (e.g., `QUESTION_GENERATION`, `TASK_PLANNING`, `MAIN_EXECUTION`).
+- **Key Components**:
+  - `Phase` & `SubPhase` Enums: Define all possible states of the workflow.
+  - `StateContext`: A dataclass that holds the runtime data (e.g., current task, iteration count, LLM configuration, debug flags) passed between states.
+  - `StateMachine`: The central class that enforces transition rules (`TRANSITIONS`), emits signals (`phase_changed`, `context_updated`) to the UI, and manages the `StateContext`.
+
+### `file_manager.py`
+- **Purpose**: Handles all file system operations. It ensures atomic reads and writes to critical project files and maintains the directory structure.
+- **Key Features**:
+  - Manages artifact files: `tasks.md`, `product-description.md`, `recent-changes.md`, `research.md`, and review files.
+  - Ensures existence of governance files (`AGENTS.md`, `CLAUDE.md`, etc.) and the `.agentharness` directory.
+  - Provides methods for atomic writes (`_atomic_write`) to prevent data corruption.
+  - Handles reading/clearing specific files like `answer.md` and error logs.
+
+### `project_settings.py`
+- **Purpose**: Manages persistent configuration for the project.
+- **Key Components**:
+  - `ProjectSettings`: A dataclass defining all saveable settings (LLM models, debug toggles, UI visibility prefs).
+  - `ProjectSettingsManager`: Handles loading/saving settings to `.agentharness/project-settings.json`. It includes normalization logic to handle backward compatibility and default values.
+
+### `session_manager.py`
+- **Purpose**: Enables the pause/resume functionality by persisting the application state.
+- **Key Features**:
+  - `save_session()`: Serializes the `StateMachine`'s current state (phase, context) to `session_state.json`.
+  - `load_session()`: Restores the state from the JSON file, allowing the workflow to continue exactly where it left off.
+
+### `debug_settings.py`
+- **Purpose**: Centralizes debug configuration constants.
+- **Key Features**:
+  - `DEBUG_STAGE_LABELS`: Maps internal stage names to human-readable labels.
+  - `default_debug_breakpoints()`: Defines default breakpoint behaviors (e.g., pause before/after a stage).
+
+### `error_context.py`
+- **Purpose**: structures for error handling and recovery.
+- **Key Components**:
+  - `ErrorInfo`: A dataclass capturing the full context of an error (traceback, logs, phase info) for the recovery UI.
+  - `ErrorRecoveryTracker`: Tracks retry attempts per phase/iteration to prevent infinite error loops.
+
+### `file_watcher.py`
+- **Purpose**: Monitors specific files for external changes.
+- **Key Features**:
+  - `DescriptionFileWatcher`: Uses `QFileSystemWatcher` to detect external edits to `product-description.md`, emitting a signal to prompt the UI to reload the file.
+
+### `exceptions.py`
+- **Purpose**: Defines custom exception classes (e.g., `LLMError`, `FileOperationError`, `StateTransitionError`) used throughout the application for precise error handling.
+
+### `update_markdown_files_with_llm.bat`
+- **Purpose**: A utility script for developers. It iterates through all `.md` files in the project and uses a selected CLI LLM (Claude, Codex, Gemini) to update them based on a prompt.
 
 ## Key Interactions
-- `MainWindow` owns the `StateMachine` and applies context updates for every phase.
-- Workers call `FileManager` for workflow artifact I/O.
-- `SessionManager` serializes `StateMachine.to_dict()` and restores with `from_dict()`.
-- Default stage LLM config is seeded in `StateContext.llm_config` (including `description_molding` for the post-Q&A rewrite and `unit_test_prep` for the pre-review unit-test phase) and is replaced by the current UI selection at workflow start.
-- Debug step config also lives in `StateContext` (`debug_mode_enabled`, per-stage `debug_breakpoints`, `show_llm_terminals`) so pause points and terminal visibility can be saved/loaded and restored from sessions.
+- **UI & State**: The `MainWindow` (in `src/ui`) connects to `StateMachine` signals to update the display. It calls `StateMachine.transition_to()` to drive the workflow.
+- **Workers & Files**: Worker threads (in `src/workers`) use `FileManager` to read/write task artifacts. They do not access the file system directly to ensure consistency.
+- **Configuration**: `ProjectSettings` initializes the `StateContext` with user preferences (like selected LLMs) at the start of a run.
+- **Persistence**: `SessionManager` is used by the main application to save state on exit or pause, and restore it on startup.
 
-## When to Edit Core
-- Add phases or transitions: `state_machine.py` (`Phase`, `SubPhase`, `TRANSITIONS`).
-- Persist new context fields: `state_machine.py` (`StateContext`) and `session_manager.py`.
-- Change how `tasks.md`/`recent-changes.md`/review artifacts are created or trimmed: `file_manager.py`.
-- Add new configurable settings or defaults: `project_settings.py`.
-- Add or rename debug pause stages: `debug_settings.py` and the corresponding worker `debug_stage` values in `workers/`.
-
-## Change Map
-- Phase flow and pause/resume: `state_machine.py`, `session_manager.py`.
-- Artifact limits (like recent-changes size): `file_manager.py`.
-- Default review types, pre-review unit-test-update defaults, or LLM config storage: `project_settings.py`, `state_machine.py`.
+## How to Modify
+- **Adding a Workflow Step**:
+  1. Add a new `Phase` or `SubPhase` in `state_machine.py`.
+  2. Update `TRANSITIONS` in `StateMachine`.
+  3. Implement the corresponding worker logic (outside this folder).
+- **Adding a Setting**:
+  1. Add the field to `ProjectSettings` dataclass in `project_settings.py`.
+  2. Update `_normalize_settings_dict` to provide a default.
+  3. Update `StateContext` in `state_machine.py` if the setting needs to be available during execution.
+- **Changing File Handling**:
+  1. Modify `FileManager` in `file_manager.py`. Always use `_atomic_write` for safety.
