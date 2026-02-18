@@ -1,7 +1,7 @@
 """Settings-related UI handlers shared by MainWindow."""
 
 from PySide6.QtCore import Slot
-from PySide6.QtWidgets import QFileDialog, QMessageBox, QSplitter
+from PySide6.QtWidgets import QFileDialog, QMessageBox
 from pathlib import Path
 
 from .dialogs.configuration_settings_dialog import ConfigurationSettingsDialog
@@ -216,11 +216,10 @@ class SettingsMixin:
             current_config=self.llm_selector_panel.get_config_dict(),
             parent=self
         )
-        if not dialog.exec():
-            return
-
+        dialog.exec()
         self.llm_selector_panel.set_config(dialog.get_config_dict())
         self.on_runtime_llm_config_changed()
+        self._save_settings_for_working_directory(self.config_panel.get_working_directory())
         self.log_viewer.append_log("Updated LLM provider/model settings", "info")
 
     @Slot()
