@@ -29,7 +29,7 @@ class ExecutionWorker(BaseWorker):
     def execute(self):
         """Execute a single task."""
         self.update_status("Executing single task...")
-        self.log(f"=== SINGLE TASK EXECUTION START ===", "phase")
+        self.log("=== SINGLE TASK EXECUTION START ===", "phase")
         self.log(f"Working directory: {self.working_directory}", "info")
         self.log(f"Current iteration: {self.current_iteration}", "info")
 
@@ -38,7 +38,7 @@ class ExecutionWorker(BaseWorker):
 
         file_manager = FileManager(self.working_directory)
         file_manager.ensure_files_exist()
-        self.log(f"Initialized file manager, tracking files ready", "debug")
+        self.log("Initialized file manager, tracking files ready", "debug")
 
         # Check for stop/pause
         if self.should_stop():
@@ -101,7 +101,7 @@ class ExecutionWorker(BaseWorker):
             self.update_status(f"Executing: {task_preview}")
         else:
             self.update_status(f"Executing task (iteration {iteration})...")
-        self.log(f"Invoking LLM for task execution...", "info")
+        self.log("Invoking LLM for task execution...", "info")
 
         llm_worker = LLMWorker(
             provider=provider,
@@ -132,17 +132,24 @@ class ExecutionWorker(BaseWorker):
         new_completed, new_total = count_tasks(new_tasks_content)
 
         task_was_completed = False
+        completed_task_items = []
         if new_completed > completed:
             task_diff = new_completed - completed
             task_was_completed = True
             self.log(f"Completed {task_diff} task(s) this iteration", "success")
             # Log which tasks were completed
-            old_incomplete = set(line.strip() for line in tasks_content.split('\n')
-                                if line.strip().startswith('- [ ]'))
-            new_incomplete = set(line.strip() for line in new_tasks_content.split('\n')
-                                if line.strip().startswith('- [ ]'))
-            completed_tasks = old_incomplete - new_incomplete
+            old_incomplete = [
+                line.strip() for line in tasks_content.split('\n')
+                if line.strip().startswith('- [ ]')
+            ]
+            new_incomplete = {
+                line.strip() for line in new_tasks_content.split('\n')
+                if line.strip().startswith('- [ ]')
+            }
+            completed_tasks = [task for task in old_incomplete if task not in new_incomplete]
             for task in completed_tasks:
+                task_text = task[6:].strip()
+                completed_task_items.append(task_text)
                 self.log(f"  [x] {task[6:][:80]}{'...' if len(task) > 86 else ''}", "success")
             self.signals.task_completed.emit(f"Iteration {iteration}: {task_diff} task(s) completed")
         else:
@@ -156,10 +163,11 @@ class ExecutionWorker(BaseWorker):
         # Check if all tasks are now done
         all_done = not has_incomplete_tasks(new_tasks_content)
 
-        self.log(f"=== SINGLE TASK EXECUTION END ===", "phase")
+        self.log("=== SINGLE TASK EXECUTION END ===", "phase")
 
         return {
             "task_completed": task_was_completed,
+            "completed_tasks": completed_task_items,
             "all_tasks_done": all_done,
             "iteration": self.current_iteration,
             "stopped_early": self._is_cancelled or self._is_paused

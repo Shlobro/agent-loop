@@ -697,23 +697,44 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
         if "processing client message" in status_lower:
             return [
-                "Working through your latest message now.",
-                "Looking at your request and applying updates.",
-                "Processing your message and syncing files.",
+                "Reading your latest message with maximum squint.",
+                "Parsing your request and lining up edits.",
+                "Translating your ask into actionable changes.",
+                "Opening files and wiring your request in.",
+                "Queueing your updates and syncing outputs.",
+                "Running your request through the tiny project goblins.",
+                "Applying requested changes without spilling coffee.",
+                "Turning your message into concrete file updates.",
+                "Working your request through the pipeline now.",
+                "Finishing this message pass and syncing results.",
             ]
 
         if phase == Phase.QUESTION_GENERATION:
             return [
-                "Generating clarifying questions for you.",
-                "Thinking through what to ask next.",
-                "Building a focused question batch.",
+                "Drafting smart questions so we do not build nonsense.",
+                "Interrogating the requirements politely.",
+                "Generating clarifying questions with detective energy.",
+                "Collecting unknowns before writing risky code.",
+                "Building a question set sharper than a linters warning.",
+                "Finding ambiguous spots and poking them gently.",
+                "Assembling the next question volley.",
+                "Turning vague ideas into answerable prompts.",
+                "Preparing questions that save us future rework.",
+                "Question factory is running at full curiosity.",
             ]
 
         if phase == Phase.TASK_PLANNING:
             return [
-                "Planning the task list from your description.",
-                "Breaking the work into actionable steps.",
-                "Structuring the next set of tasks.",
+                "Breaking work into bite-size tasks for this run.",
+                "Building the task plan like tiny LEGO bricks.",
+                "Converting requirements into executable checklist items.",
+                "Sequencing tasks to avoid chaos-induced bugs.",
+                "Planning now so future-us can sleep later.",
+                "Turning scope into practical next steps.",
+                "Structuring the backlog with ruthless pragmatism.",
+                "Designing a task list that actually ships.",
+                "Organizing steps so the loop can move fast.",
+                "Task planner is mapping the route.",
             ]
 
         if phase == Phase.MAIN_EXECUTION:
@@ -721,83 +742,165 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
                 task_text = status_text.split(":", 1)[1].strip()
                 if task_text:
                     return [
-                        f"Currently I'm executing some tasks... ({task_text})",
-                        f"Implementing: {task_text}",
-                        f"Working through this task now: {task_text}",
+                        f"Implementing now: {task_text}",
+                        f"Wrestling this task into done: {task_text}",
+                        f"Shipping code for: {task_text}",
+                        f"Keyboard is in overdrive for: {task_text}",
+                        f"Turning TODO into DONE: {task_text}",
+                        f"Refactoring reality around: {task_text}",
+                        f"Running build-brain on: {task_text}",
+                        f"Polishing this task until it behaves: {task_text}",
+                        f"Coding pass active for: {task_text}",
+                        f"Advancing the checklist with: {task_text}",
                     ]
             return [
-                "Currently I'm executing some tasks....",
-                "Implementing the next task in the queue.",
-                "Working through code updates for this iteration.",
+                "Executing tasks and collecting tiny victories.",
+                "Pushing code changes through this iteration.",
+                "Implementing the next checklist item now.",
+                "Making progress one commit-worthy chunk at a time.",
+                "Coding in a straight line toward done.",
+                "Advancing the main loop with fresh edits.",
+                "Working through implementation details now.",
+                "Converting plan into running code.",
+                "Putting features where the TODOs used to be.",
+                "Current mode: practical code generation.",
             ]
 
         if phase == Phase.DEBUG_REVIEW:
             if "unit test prep" in status_lower:
                 return [
-                    "Working on some unit tests at the moment.",
-                    "Preparing unit tests before the review pass.",
-                    "Updating tests so review has a clean baseline.",
+                    "Warming up unit tests before review starts.",
+                    "Teaching tests new tricks for recent changes.",
+                    "Preparing a test baseline so review can focus.",
+                    "Updating tests to keep regressions unemployed.",
+                    "Fortifying unit tests before reviewer mode.",
+                    "Tuning test coverage with surgical keyboard taps.",
+                    "Making sure tests and code still speak the same language.",
+                    "Laying test guardrails for the next pass.",
+                    "Unit-test prep is sharpening its tiny knives.",
+                    "Testing scaffolding is being aligned now.",
                 ]
             if status_lower.startswith("review:"):
                 review_name = status_text.split(":", 1)[1].strip()
-                transition_line = (
-                    "Unit tests done... now moving on to reviewing."
-                    if last_status_lower.startswith("unit test prep")
-                    else "Reviewing the latest changes now."
-                )
+                transition_line = "Unit tests done, reviewer hat is now on."
+                if not last_status_lower.startswith("unit test prep"):
+                    transition_line = "Reviewing latest changes with bug-hunting goggles."
                 if review_name:
                     return [
                         transition_line,
-                        f"Running {review_name} review checks.",
-                        f"Inspecting code quality in {review_name}.",
+                        f"Running {review_name} checks for sneaky issues.",
+                        f"Inspecting {review_name} quality signals now.",
+                        f"Review lane active: {review_name}.",
+                        f"Scanning {review_name} for footguns and oddities.",
+                        f"Putting {review_name} under the microscope.",
+                        f"Hunting edge cases in {review_name}.",
+                        f"Reviewing {review_name} with mild paranoia.",
+                        f"Applying reviewer skepticism to {review_name}.",
+                        f"Cross-checking {review_name} behavior and structure.",
                     ]
                 return [
-                    transition_line,
-                    "Reviewing the latest changes now.",
-                    "Running review checks.",
+                    "Reviewing the latest changes with bug-hunting goggles.",
+                    "Review checks in progress.",
+                    "Inspecting code quality and behavior.",
+                    "Looking for regressions and risky assumptions.",
+                    "Running a full review sweep.",
+                    "Poking weak spots before they poke production.",
+                    "Checking correctness, clarity, and maintainability.",
+                    "Review pass underway with strict standards.",
+                    "Evaluating changes for hidden side effects.",
+                    "Running quality gate checks now.",
                 ]
             if status_lower.startswith("fixing:"):
                 review_name = status_text.split(":", 1)[1].strip()
                 if review_name:
                     return [
-                        f"Applying fixes from {review_name} review.",
-                        f"Resolving issues flagged in {review_name}.",
-                        "Patching findings from the review pass.",
+                        f"Applying {review_name} fixes one by one.",
+                        f"Resolving findings from {review_name}.",
+                        f"Patching issues flagged by {review_name}.",
+                        f"Turning {review_name} review comments into code changes.",
+                        f"Fix pass active for {review_name}.",
+                        f"Cleaning up defects found in {review_name}.",
+                        f"Repair cycle engaged: {review_name}.",
+                        f"Closing {review_name} review items now.",
+                        f"Fixing what {review_name} complained about.",
+                        f"Converting {review_name} findings into green checks.",
                     ]
                 return [
                     "Applying fixes from review feedback.",
                     "Resolving issues from the latest review pass.",
-                    "Patching findings from the review pass.",
+                    "Patching findings with minimal drama.",
+                    "Fix cycle in progress.",
+                    "Closing review gaps and tightening behavior.",
+                    "Addressing quality findings now.",
+                    "Repairing issues before the next loop step.",
+                    "Fixing defects with deterministic intent.",
+                    "Turning review notes into merged reality.",
+                    "Patch set underway for reviewer findings.",
                 ]
             return [
-                "Running review checks.",
-                "Analyzing changes for quality and risks.",
                 "Review cycle in progress.",
+                "Analyzing changes for quality and risks.",
+                "Running reviewer checks now.",
+                "Scanning for regressions and brittle logic.",
+                "Checking safety rails and behavior edges.",
+                "Reviewing implementation choices critically.",
+                "Quality gate is actively judging the diff.",
+                "Pulling on loose threads in the patch.",
+                "Risk audit underway for current changes.",
+                "Review bot is in serious mode.",
             ]
 
         if phase in (Phase.GIT_OPERATIONS, Phase.AWAITING_GIT_APPROVAL):
             if "generating commit message" in status_lower:
                 return [
-                    "Writing a clear commit message.",
-                    "Preparing commit summary for these changes.",
-                    "Drafting commit text from the latest diff.",
+                    "Writing a commit message that future-us can trust.",
+                    "Summarizing this diff without fiction.",
+                    "Drafting commit text from the latest changes.",
+                    "Composing commit poetry (strictly technical edition).",
+                    "Packaging edits into an understandable commit summary.",
+                    "Turning diff noise into clear human words.",
+                    "Generating commit message with context and restraint.",
+                    "Naming this batch of changes responsibly.",
+                    "Preparing a concise commit narrative.",
+                    "Building commit text from evidence in the diff.",
                 ]
             if "committing changes" in status_lower:
                 return [
                     "Committing the latest updates.",
                     "Saving this iteration to git history.",
-                    "Finalizing local commit now.",
+                    "Sealing changes into local history.",
+                    "Recording this work in the timeline.",
+                    "Committing now, blame annotations loading...",
+                    "Locking in this patch set.",
+                    "Capturing the diff in a commit snapshot.",
+                    "Making this iteration officially versioned.",
+                    "Writing changes into git memory.",
+                    "Finalizing commit metadata and content.",
                 ]
             if "pushing changes" in status_lower:
                 return [
                     "Pushing updates to the remote repository.",
                     "Syncing this commit upstream.",
                     "Publishing latest changes to origin.",
+                    "Sending fresh commits to their cloud apartment.",
+                    "Remote sync in progress, fingers crossed.",
+                    "Uploading this iteration to shared history.",
+                    "Shipping commits upstream now.",
+                    "Propagating local truth to remote truth.",
+                    "Pushing branch updates over the wire.",
+                    "Making sure origin sees what we changed.",
                 ]
             return [
                 "Wrapping up git operations.",
                 "Preparing repository state for the next step.",
                 "Finishing repository housekeeping.",
+                "Tidying repository metadata and status.",
+                "Final git checks before continuing the loop.",
+                "Closing out source-control chores.",
+                "Repo maintenance mode is active.",
+                "Making git state clean for the next phase.",
+                "Completing VCS bookkeeping tasks.",
+                "Git phase is doing its paperwork.",
             ]
 
         return []

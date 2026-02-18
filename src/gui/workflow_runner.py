@@ -13,6 +13,13 @@ from ..workers.git_worker import GitWorker
 class WorkflowRunnerMixin:
     """Shared worker execution logic for MainWindow."""
 
+    def _post_bot_progress_message(self, message: str):
+        """Post a one-line workflow progress message in chat."""
+        if not message:
+            return
+        if hasattr(self, "chat_panel"):
+            self.chat_panel.add_bot_message(message)
+
     def run_task_planning(self):
         """Run Phase 2: Task Planning."""
         ctx = self.state_machine.context
@@ -40,6 +47,7 @@ class WorkflowRunnerMixin:
         self.state_machine.update_context(tasks_content=tasks_content)
         self.log_viewer.append_success("Task list created")
         self._refresh_task_loop_snapshot(action="Task list created")
+        self._post_bot_progress_message("Completed task planning.")
 
         # Move to main execution
         self.log_viewer.append_log("Transitioning to Main Execution phase...", "info")
@@ -106,12 +114,21 @@ class WorkflowRunnerMixin:
         # Check if all tasks are done
         if result.get("all_tasks_done"):
             self.log_viewer.append_log("All tasks completed!", "success")
+            self._post_bot_progress_message("All tasks are complete.")
 
             self._run_review_or_git(is_final=True)
             return
 
         # Task was worked on - now run review loop for this task's changes
         self.log_viewer.append_log(f"Task iteration {result.get('iteration')} complete", "success")
+        completed_tasks = [str(task).strip() for task in result.get("completed_tasks", []) if str(task).strip()]
+        if completed_tasks:
+            completed_lines = "\n".join([f"- {task}" for task in completed_tasks])
+            self._post_bot_progress_message(f"Completed tasks:\n{completed_lines}")
+        elif result.get("task_completed"):
+            self._post_bot_progress_message("Completed task execution.")
+        else:
+            self._post_bot_progress_message("Execution pass finished. No tasks were marked complete.")
 
         # Check if we should run review loop
         self._run_review_or_git(is_final=False)
@@ -119,6 +136,7 @@ class WorkflowRunnerMixin:
     def run_review_loop(self):
         """Run Phase 4: Debug/Review Loop."""
         ctx = self.state_machine.context
+        self._pending_unit_test_validation_message = bool(ctx.run_unit_test_prep)
         if not ctx.review_types:
             self.log_viewer.append_log("No review types selected - skipping review loop", "warning")
             self.state_machine.transition_to(Phase.GIT_OPERATIONS)
@@ -180,6 +198,7 @@ class WorkflowRunnerMixin:
             return
 
         self.log_viewer.append_log(f"Review loop completed: {result.get('review_iterations_completed', 0)} iterations", "success")
+        self._post_bot_progress_message("Completed review phase.")
 
         # Move to git operations for this task
         self.log_viewer.append_log("Transitioning to Git Operations for this task...", "info")
@@ -227,6 +246,7 @@ class WorkflowRunnerMixin:
 
             self.log_viewer.append_log(f"Git operations result: {result}", "debug")
             self._refresh_task_loop_snapshot(action="Git operations finished")
+            self._post_bot_progress_message("Completed git operations.")
 
             if result.get("skipped"):
                 self.log_viewer.append_log("Git operations skipped (no changes detected)", "info")
@@ -345,9 +365,21 @@ class WorkflowRunnerMixin:
         worker.signals.log.connect(self.log_viewer.append_log)
         worker.signals.llm_output.connect(self.log_viewer.append_llm_output)
         worker.signals.status.connect(self.on_worker_status)
+        worker.signals.status.connect(self._on_worker_status_for_chat)
         worker.signals.review_summary.connect(self.on_review_summary)
         worker.signals.error.connect(self.on_worker_error)
         worker.signals.finished.connect(self.on_worker_finished)
+
+    @Slot(str)
+    def _on_worker_status_for_chat(self, status: str):
+        """Emit UX chat milestones inferred from worker status updates."""
+        if not getattr(self, "_pending_unit_test_validation_message", False):
+            return
+        if self.state_machine.phase != Phase.DEBUG_REVIEW:
+            return
+        if status.startswith("Review:"):
+            self._pending_unit_test_validation_message = False
+            self._post_bot_progress_message("Validated unit tests.")
 
     @Slot(tuple)
     def on_worker_error(self, error_info_tuple):
