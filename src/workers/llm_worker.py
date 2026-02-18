@@ -19,7 +19,7 @@ class LLMWorker(BaseWorker):
     Streams output in real-time and captures full response.
     """
 
-    DEFAULT_TIMEOUT = 300  # 5 minutes
+    DEFAULT_TIMEOUT = 600  # 10 minutes
     _debug_gate_callback: Optional[Callable[[str, str], bool]] = None
     _show_live_terminal_windows: bool = True
 
@@ -143,7 +143,7 @@ class LLMWorker(BaseWorker):
                 self.process.wait()
                 raise LLMTimeoutError(f"LLM process timed out after {self.timeout}s")
 
-            output_thread.join(timeout=5)
+            output_thread.join(timeout=10)
 
             full_output = ''.join(self._output_lines)
             if output_path and output_path.exists():
@@ -254,7 +254,7 @@ class LLMWorker(BaseWorker):
                 self.process.terminate()
                 # Give it a moment to terminate gracefully
                 try:
-                    self.process.wait(timeout=2)
+                    self.process.wait(timeout=4)
                     self.log(f"Process terminated gracefully", "debug")
                 except subprocess.TimeoutExpired:
                     self.log(f"Process did not terminate, force killing...", "warning")
@@ -360,7 +360,7 @@ class RetryingLLMWorker(LLMWorker):
     """
 
     MAX_RETRIES = 3
-    RETRY_DELAY = 2  # seconds
+    RETRY_DELAY = 4  # seconds
 
     def execute(self) -> str:
         """Execute with retry logic."""

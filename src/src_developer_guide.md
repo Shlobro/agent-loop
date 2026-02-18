@@ -8,7 +8,7 @@ Application source package for AgentHarness. This is where the workflow, UI, LLM
 - `gui/`: Main window orchestration, centralized theme (`gui/theme.py`), and UI panels/dialogs.
 - `llm/`: CLI-based LLM providers (Claude, Gemini, Codex). Codex supports reasoning effort levels (low, medium, high, xhigh) via model ID suffixes (e.g., `gpt-5.3-codex:high`). Provider-agnostic prompt templates ensure consistent instruction formatting.
 - `utils/`: Common parsing utilities for JSON, Markdown, and other formats.
-- `workers/`: QRunnable workers for each workflow phase (LLM runner logs full prompts, emits output-file content to the log, supports per-stage debug breakpoints before/after each LLM call, can show/hide Windows live terminal popups per setting, and validates subprocess cwd with a safe fallback when a configured working directory is invalid).
+- `workers/`: QRunnable workers for each workflow phase (LLM runner logs full prompts, emits output-file content to the log, supports per-stage debug breakpoints before/after each LLM call, can show/hide Windows live terminal popups per setting, and validates subprocess cwd with a safe fallback when a configured working directory is invalid). LLM defaults use longer time budgets: 600-second base timeout and 1200-second execution-stage timeout override.
 - `__init__.py`: Package marker; importing `src.llm` registers providers.
 
 ## Phase-to-File Map
@@ -27,7 +27,7 @@ Application source package for AgentHarness. This is where the workflow, UI, LLM
 - UI layout or control wiring: `gui/main_window.py` plus panels in `gui/widgets/` and `gui/dialogs/` (`File -> Open Project...`, `Settings -> Configuration Settings`, `Settings -> LLM Settings`, `Settings -> Review Settings` with separate pre-review prep vs review-loop type sections, and `Settings -> Debug Settings` are wired in `main_window.py`). `main_window.py` also owns the minimalist default shell (`Product Description` header + one input area) and menu-driven workflow/view controls.
 - Global look-and-feel, typography scale, button variants, Markdown display widget styling, and lightweight fade motion: `gui/theme.py`.
 - Settings persistence and debug settings menu actions (including left logs-panel visibility; default hidden): `gui/settings_mixin.py` (invoked by `MainWindow`).
-- Working-directory git bootstrap and remote auto-configuration at startup/runtime: `gui/widgets/config_panel.py`.
+- Working-directory git bootstrap and remote auto-configuration at startup/runtime: `gui/widgets/config_panel.py` (git subprocess timeout: 10 seconds).
 - Worker execution routing in the GUI: `gui/workflow_runner.py`.
 - Review label display formatting in logs/activity: `gui/main_window.py` (uses `PromptTemplates.get_review_display_name`).
 - New runtime settings or persistence: `core/project_settings.py` and `gui/widgets/config_panel.py`.

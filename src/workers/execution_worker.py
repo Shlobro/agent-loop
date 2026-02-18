@@ -107,7 +107,7 @@ class ExecutionWorker(BaseWorker):
             provider=provider,
             prompt=prompt,
             working_directory=self.working_directory,
-            timeout=600,  # 10 minutes for execution tasks
+            timeout=1200,  # 20 minutes for execution tasks
             model=self.model,
             debug_stage="execution"
         )

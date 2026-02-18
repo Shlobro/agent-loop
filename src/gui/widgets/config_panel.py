@@ -185,7 +185,7 @@ class ConfigPanel(QWidget):
             "Please install Git and restart the application."
         )
 
-    def _run_git_command(self, directory: str, args: List[str], timeout: int = 5):
+    def _run_git_command(self, directory: str, args: List[str], timeout: int = 10):
         """Run a git command in the given directory."""
         return subprocess.run(
             ["git", *args],
@@ -288,7 +288,7 @@ class ConfigPanel(QWidget):
                 cwd=directory,
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=10
             )
             if result.returncode == 0:
                 return result.stdout.strip()
