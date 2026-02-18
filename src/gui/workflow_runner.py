@@ -456,10 +456,7 @@ class WorkflowRunnerMixin:
 
     def skip_to_next_iteration(self):
         """Skip current failed operation and move to next iteration."""
-        from PySide6.QtWidgets import QMessageBox
-
         phase = self.state_machine.phase
-        ctx = self.state_machine.context
 
         self.log_viewer.append_log(f"Skipping {phase.name} phase...", "warning")
 
@@ -548,7 +545,6 @@ class WorkflowRunnerMixin:
 
     def _show_error_recovery_dialog(self, error_info):
         """Show error recovery dialog and handle user choice."""
-        from PySide6.QtWidgets import QMessageBox
         from .dialogs.error_recovery_dialog import ErrorRecoveryDialog
 
         dialog = ErrorRecoveryDialog(self, error_info)
@@ -696,6 +692,10 @@ class WorkflowRunnerMixin:
         """Handle client message processing completion."""
         ctx = self.state_machine.context
 
+        # Client message processing is done for this worker run.
+        # Clear stale "working" chat activity immediately after completion.
+        self.chat_panel.clear_bot_activity()
+
         # Remove processed message from queue
         if ctx.pending_client_messages:
             ctx.pending_client_messages.pop(0)
@@ -735,6 +735,8 @@ class WorkflowRunnerMixin:
                 self.state_machine.update_context(tasks_content=new_tasks)
                 # Update button states to reflect new task status
                 self.update_button_states()
+                # Keep Tasks tab counters/lists in sync immediately after chat updates.
+                self._refresh_task_display()
 
         # If answer was provided, show it to user
         if result.get("has_answer"):
@@ -770,13 +772,14 @@ class WorkflowRunnerMixin:
             # More messages - process next
             self._process_client_messages()
         else:
+            # Ensure no residual activity bubble remains when all queued messages are done.
+            self.chat_panel.clear_bot_activity()
             # All messages processed - continue to task checking
             self._continue_after_messages()
 
     def _continue_after_messages(self):
         """Continue workflow after all client messages processed."""
         from ..utils.markdown_parser import has_incomplete_tasks
-        ctx = self.state_machine.context
         phase = self.state_machine.phase
 
         # If we're in an active workflow iteration, continue the loop

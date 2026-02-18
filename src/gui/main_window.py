@@ -3,10 +3,10 @@
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QPushButton, QMessageBox, QApplication, QInputDialog,
-    QStyle, QGraphicsDropShadowEffect, QTabWidget
+    QStyle, QTabWidget
 )
-from PySide6.QtCore import Qt, Slot, QThreadPool, Signal, QSize
-from PySide6.QtGui import QAction, QActionGroup, QColor
+from PySide6.QtCore import Qt, Slot, QThreadPool, Signal
+from PySide6.QtGui import QAction, QActionGroup
 from pathlib import Path
 import threading
 
@@ -19,7 +19,7 @@ from .widgets.status_panel import StatusPanel
 from .widgets.chat_panel import ChatPanel
 from .settings_mixin import SettingsMixin
 from .workflow_runner import WorkflowRunnerMixin
-from .theme import apply_app_theme, polish_button, animate_fade_in
+from .theme import apply_app_theme, animate_fade_in
 from ..core.state_machine import StateMachine, Phase, SubPhase
 from ..core.debug_settings import DEBUG_STAGE_LABELS, default_debug_breakpoints
 from ..core.file_manager import FileManager
@@ -391,49 +391,6 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         animate_fade_in(self.left_tab_widget, duration_ms=420, delay_ms=100)
         animate_fade_in(right_column, duration_ms=440, delay_ms=160)
 
-        self.floating_start_button = QPushButton(self.centralWidget())
-        self.floating_start_button.setObjectName("floatingStartButton")
-        self.floating_start_button.setToolTip("Start question phase")
-        self.floating_start_button.setCursor(Qt.PointingHandCursor)
-        self.floating_start_button.setIcon(
-            self.style().standardIcon(QStyle.SP_ArrowForward)
-        )
-        self.floating_start_button.setIconSize(QSize(22, 22))
-        self.floating_start_button.setFixedSize(56, 56)
-        self.floating_start_button.clicked.connect(self.on_start_clicked)
-        polish_button(self.floating_start_button, "primary")
-        self.floating_start_button.setStyleSheet(
-            "QPushButton#floatingStartButton {"
-            "padding: 0;"
-            "border-radius: 28px;"
-            "border: 1px solid #57a7dc;"
-            "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, "
-            "stop:0 #2f8fd1, stop:1 #266da9);"
-            "color: #f4fbff;"
-            "}"
-            "QPushButton#floatingStartButton:hover {"
-            "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, "
-            "stop:0 #3b9ce0, stop:1 #2d78b8);"
-            "border-color: #6eb5e3;"
-            "}"
-            "QPushButton#floatingStartButton:pressed {"
-            "background: #245f95;"
-            "border-color: #4f95c7;"
-            "}"
-            "QPushButton#floatingStartButton:disabled {"
-            "background: #1d2a36;"
-            "border-color: #2a3e4f;"
-            "color: #7f9bb4;"
-            "}"
-        )
-        floating_shadow = QGraphicsDropShadowEffect(self.floating_start_button)
-        floating_shadow.setBlurRadius(28)
-        floating_shadow.setOffset(0, 7)
-        floating_shadow.setColor(QColor(5, 12, 20, 160))
-        self.floating_start_button.setGraphicsEffect(floating_shadow)
-        self.floating_start_button.hide()
-        self._position_floating_start_button()
-
         self._set_logs_panel_visible(False)
 
     def connect_signals(self):
@@ -685,7 +642,6 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         # Description panel is now always in the left tab widget, so no visibility toggle needed
         self.llm_selector_panel.set_enabled(True)
         self.config_panel.set_enabled(is_idle)
-        self._update_floating_start_button_visibility()
 
         # Enable chat panel when there's a working directory and file manager
         # Chat works during execution (queues for next boundary), when idle, and when completed
@@ -1060,36 +1016,6 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         if phase not in [Phase.MAIN_EXECUTION, Phase.DEBUG_REVIEW, Phase.GIT_OPERATIONS]:
             self.log_viewer.append_log("Processing message immediately (workflow not running)...", "info")
             self._process_client_messages()
-
-    def _position_floating_start_button(self):
-        """Anchor the floating start button to the lower-right of the content area."""
-        if not hasattr(self, "floating_start_button"):
-            return
-        host = self.centralWidget()
-        if not host:
-            return
-        margin = 20
-        x = max(0, host.width() - self.floating_start_button.width() - margin)
-        y = max(0, host.height() - self.floating_start_button.height() - margin)
-        self.floating_start_button.move(x, y)
-
-    def _update_floating_start_button_visibility(self):
-        """Show minimalist start button only when starting a new run is valid."""
-        # Check if there are incomplete tasks
-        has_tasks = False
-        if self.file_manager:
-            working_dir = self.config_panel.get_working_directory()
-            if working_dir:
-                has_tasks = self._working_directory_has_incomplete_tasks(working_dir)
-
-        can_show = (
-            self.state_machine.phase == Phase.IDLE
-            and not not self._get_description().strip()
-            and self.start_workflow_action.isEnabled()
-            and has_tasks
-        )
-        self.floating_start_button.setVisible(can_show)
-        self._position_floating_start_button()
 
     def _get_description(self) -> str:
         """Get the current description content."""
@@ -1929,11 +1855,6 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     # on_description_changed removed - description updates now come through chat workflow
     # Description panel is always read-only; updates handled by chat_to_description flow
 
-    def resizeEvent(self, event):
-        """Keep floating start control anchored after window resizes."""
-        super().resizeEvent(event)
-        self._position_floating_start_button()
-
     @Slot()
     def on_runtime_config_changed(self):
         """Apply live config edits to the current run context."""
@@ -2036,7 +1957,6 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
             # Update state machine
             self.state_machine.update_context(description=new_description)
-            self._update_floating_start_button_visibility()
 
             # Update file watcher's known content
             self.description_watcher.update_known_content(new_description)
@@ -2073,7 +1993,6 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
         # Update state machine
         self.state_machine.update_context(description=new_content)
-        self._update_floating_start_button_visibility()
 
         # Update chat panel placeholder text
         has_description = bool(new_content and new_content.strip())
