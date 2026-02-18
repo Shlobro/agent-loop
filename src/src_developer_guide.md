@@ -24,7 +24,7 @@ Application source package for AgentHarness. This is where the workflow, UI, LLM
 - Debug step mode and stage breakpoints: `core/debug_settings.py`, `gui/dialogs/debug_settings_dialog.py`, `gui/main_window.py`, `workers/llm_worker.py`.
 
 ## When to Edit What
-- UI layout or control wiring: `gui/main_window.py` plus panels in `gui/widgets/` and `gui/dialogs/` (`Settings -> Configuration Settings`, `Settings -> LLM Settings`, `Settings -> Review Settings` with separate pre-review prep vs review-loop type sections, and `Settings -> Debug Settings` are wired in `main_window.py`). `main_window.py` also owns the minimalist default shell (`Product Description` header + one input area) and menu-driven workflow/view controls.
+- UI layout or control wiring: `gui/main_window.py` plus panels in `gui/widgets/` and `gui/dialogs/` (`File -> Open Project...`, `Settings -> Configuration Settings`, `Settings -> LLM Settings`, `Settings -> Review Settings` with separate pre-review prep vs review-loop type sections, and `Settings -> Debug Settings` are wired in `main_window.py`). `main_window.py` also owns the minimalist default shell (`Product Description` header + one input area) and menu-driven workflow/view controls.
 - Global look-and-feel, typography scale, button variants, Markdown display widget styling, and lightweight fade motion: `gui/theme.py`.
 - Settings persistence and debug settings menu actions (including left logs-panel visibility; default hidden): `gui/settings_mixin.py` (invoked by `MainWindow`).
 - Working-directory git bootstrap and remote auto-configuration at startup/runtime: `gui/widgets/config_panel.py`.
@@ -37,7 +37,7 @@ Application source package for AgentHarness. This is where the workflow, UI, LLM
 - Change phase sequencing or transitions: `core/state_machine.py` and `gui/main_window.py`.
 
 ## How It Fits
-`main.py` first requires a startup working-directory selection (with recent-directory shortcuts), then instantiates `gui/main_window.py`. The GUI coordinates workers, which call into core utilities and LLM providers to drive the multi-phase workflow.
+`main.py` first requires a startup working-directory selection (with recent-directory shortcuts), then instantiates `gui/main_window.py`. During runtime, `File -> Open Project...` uses the same picker flow to switch projects. The GUI coordinates workers, which call into core utilities and LLM providers to drive the multi-phase workflow.
 
 ## Change Map
 - Core workflow or persistence: `core/`.

@@ -3,10 +3,12 @@
 from PySide6.QtCore import Slot
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 from pathlib import Path
+from PySide6.QtCore import QSettings
 
 from .dialogs.configuration_settings_dialog import ConfigurationSettingsDialog
 from .dialogs.debug_settings_dialog import DebugSettingsDialog
 from .dialogs.llm_settings_dialog import LLMSettingsDialog
+from .dialogs.startup_directory_dialog import StartupDirectoryDialog
 from .widgets.config_panel import ExecutionConfig
 from ..core.project_settings import ProjectSettings, ProjectSettingsManager
 from ..workers.llm_worker import LLMWorker
@@ -14,6 +16,8 @@ from ..workers.llm_worker import LLMWorker
 
 class SettingsMixin:
     """Save/load and debug-settings handlers for the main window."""
+    RECENT_WORKING_DIRECTORIES_KEY = "recent_working_directories"
+    MAX_RECENT_WORKING_DIRECTORIES = 10
     _settings_sync_suspended = False
     _active_working_directory = ""
     _logs_panel_visible = False
@@ -241,6 +245,45 @@ class SettingsMixin:
         self._apply_git_mode(updated_config.git_mode)
         self.on_runtime_config_changed()
         self.log_viewer.append_log("Updated configuration settings", "info")
+
+    def _load_recent_working_directories(self) -> list[str]:
+        """Load recent working directories from Qt settings."""
+        settings = QSettings()
+        raw = settings.value(self.RECENT_WORKING_DIRECTORIES_KEY, [])
+        if isinstance(raw, str):
+            return [raw] if raw.strip() else []
+        if isinstance(raw, list):
+            return [str(path).strip() for path in raw if str(path).strip()]
+        return []
+
+    def _save_recent_working_directories(self, paths: list[str]):
+        """Persist recent working directories to Qt settings."""
+        settings = QSettings()
+        deduped: list[str] = []
+        for path in paths:
+            normalized = str(path).strip()
+            if normalized and normalized not in deduped:
+                deduped.append(normalized)
+        settings.setValue(
+            self.RECENT_WORKING_DIRECTORIES_KEY,
+            deduped[:self.MAX_RECENT_WORKING_DIRECTORIES]
+        )
+
+    @Slot()
+    def on_open_project_directory(self):
+        """Open startup-like project picker and switch working directory."""
+        recent_dirs = self._load_recent_working_directories()
+        dialog = StartupDirectoryDialog(recent_dirs, self)
+        if dialog.exec() == 0:
+            return
+
+        selected = dialog.get_selected_directory().strip()
+        if not selected:
+            return
+
+        self.config_panel.set_working_directory(selected)
+        self._save_recent_working_directories([selected, *recent_dirs])
+        self.log_viewer.append_log(f"Opened project: {selected}", "info")
 
     def _set_logs_panel_visible(self, visible: bool):
         """Show or hide the logs tab in the left panel."""

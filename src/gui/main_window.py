@@ -99,6 +99,11 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         menu_bar.setCornerWidget(self._create_workflow_icon_buttons(), Qt.TopRightCorner)
 
         file_menu = menu_bar.addMenu("&File")
+        self.open_project_action = QAction("&Open Project...", self)
+        file_menu.addAction(self.open_project_action)
+
+        file_menu.addSeparator()
+
         save_action = QAction("&Save Settings...", self)
         save_action.setShortcut("Ctrl+S")
         save_action.setStatusTip("Save current project settings to file")
@@ -412,6 +417,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.config_panel.working_directory_changed.connect(self.on_working_dir_changed)
         self.config_panel.config_changed.connect(self.on_runtime_config_changed)
         self.llm_selector_panel.config_changed.connect(self.on_runtime_llm_config_changed)
+        self.open_project_action.triggered.connect(self.on_open_project_directory)
         self.configuration_settings_action.triggered.connect(self.on_open_configuration_settings)
         self.llm_settings_action.triggered.connect(self.on_open_llm_settings)
         self.review_settings_action.triggered.connect(self.config_panel.open_review_settings)

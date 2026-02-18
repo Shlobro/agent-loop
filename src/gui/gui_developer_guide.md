@@ -5,7 +5,7 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 
 ## Contents
 - `main_window.py`: Application controller and UI shell. Wires panels, manages phase transitions, and delegates worker execution to mixins.
-- `settings_mixin.py`: Settings handlers used by `MainWindow` (save/load project settings, configuration/LLM/review/debug settings dialog wiring, left panel tab visibility control for logs/description/tasks, and automatic per-working-directory settings sync under `.agentharness/project-settings.json`). UI defaults are all hidden left tabs unless a directory settings file enables them. Settings are automatically saved when the application closes to preserve UI state between sessions, and LLM selections are also persisted immediately when the LLM settings dialog closes.
+- `settings_mixin.py`: Settings handlers used by `MainWindow` (save/load project settings, configuration/LLM/review/debug settings dialog wiring, `File -> Open Project...` project switching via the same startup directory picker, left panel tab visibility control for logs/description/tasks, and automatic per-working-directory settings sync under `.agentharness/project-settings.json`). UI defaults are all hidden left tabs unless a directory settings file enables them. Settings are automatically saved when the application closes to preserve UI state between sessions, and LLM selections are also persisted immediately when the LLM settings dialog closes.
 - `workflow_runner.py`: Worker execution mixin for planning, execution, review, and git phases.
 - `theme.py`: Centralized Qt Fusion stylesheet plus helper utilities for button variants and fade-in animations. It defines the global typography scale (base font, inputs, group titles, buttons, hero labels, and list-item spacing) used across dialogs and widgets.
 - `widgets/`: Reusable UI panels (description with Edit/Preview/Task List modes and automatic mode switching during iteration, hidden question-flow bridge, logs, config, status, LLM selection).
@@ -15,6 +15,7 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 ## Key Interactions
 - `MainWindow` owns the `StateMachine` and a `QThreadPool`, and mixes in worker handlers from `WorkflowRunnerMixin`.
 - `main.py` shows `dialogs/startup_directory_dialog.py` before creating `MainWindow`; app startup now requires selecting a working directory and supports recent-directory shortcuts.
+- `File -> Open Project...` reuses `dialogs/startup_directory_dialog.py` during runtime, including the same recent-directory list behavior used at startup.
 - After directory selection, `MainWindow` defaults to a minimalist two-column composition: optional left tab panel (hidden by default) and right chat panel (always visible). The left panel can contain up to 3 independently toggleable tabs (Logs, Description, Tasks) controlled via `View` menu. The status panel (top bar) is always visible and shows current phase, iteration count, sub-status details, and task-based progress. Workflow commands are exposed in the `Workflow` menu with shortcuts and menu bar icon buttons.
 - Workflow start is exposed through the `Workflow` menu and the top-right menu bar icon buttons; there is no floating start button in the content area.
 - The menu bar includes workflow control icon buttons (Start/Play, Pause, Stop, Next Step) positioned in the top-right corner for quick access. These mirror the functionality of the Workflow menu items. Control buttons row has been removed - all workflow controls are accessible via menu bar icons and Workflow menu actions. IMPORTANT: The corner widget container (`menu_button_container`) must be stored as a member variable to prevent Qt from prematurely deleting it and its child buttons. Updates to menu buttons include RuntimeError exception handling to gracefully handle Qt object lifetime edge cases.
@@ -42,6 +43,7 @@ Implements the PySide6 UI layer. The main window orchestrates the workflow, conn
 - Manage working directory artifacts via `FileManager`.
 - Manage session save/resume through `SessionManager`.
 - Expose menu actions including `Settings -> LLM Settings` for stage provider/model choices.
+- Expose menu actions including `File -> Open Project...` for startup-style project switching with recent-directory shortcuts.
 - Expose menu actions including `Settings -> Configuration Settings` for execution controls and working directory/git remote.
 - Expose menu actions including `Settings -> Review Settings`, which opens a dialog with separate sections for one-time pre-review unit-test prep and per-iteration review-loop type selection.
 - Expose menu actions including `Settings -> Debug Settings` (which also controls left logs-panel visibility).
