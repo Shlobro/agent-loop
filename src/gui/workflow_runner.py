@@ -752,20 +752,25 @@ class WorkflowRunnerMixin:
             dialog.exec()
         else:
             # No direct answer - LLM chose to update files instead
-            # Build status message
-            status_parts = []
-            if description_updated:
-                status_parts.append("Updated product description")
-            if tasks_updated:
-                status_parts.append("Updated tasks")
-
-            if status_parts:
-                status_message = " and ".join(status_parts)
-                self.log_viewer.append_log(f"Client message processed - {status_message}", "info")
-                # Add the status as an "answer" in the chat panel
-                self.chat_panel.add_answer(self._current_message_id, status_message)
+            if description_updated and tasks_updated:
+                status_message = (
+                    "Updated product description and tasks. "
+                    "You can view the updated description in the Description tab and "
+                    "new incomplete tasks in the Tasks tab."
+                )
+            elif tasks_updated:
+                status_message = (
+                    "Updated tasks. You can view new incomplete tasks in the Tasks tab."
+                )
+            elif description_updated:
+                status_message = (
+                    "Updated product description. You can view it in the Description tab."
+                )
             else:
-                self.log_viewer.append_log("Client message processed - no changes detected", "info")
+                status_message = "nothing done"
+
+            self.log_viewer.append_log(f"Client message processed - {status_message}", "info")
+            self.chat_panel.add_answer(self._current_message_id, status_message)
 
         # Process next message or continue workflow
         if ctx.pending_client_messages:
