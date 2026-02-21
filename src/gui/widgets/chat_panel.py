@@ -224,14 +224,26 @@ class ChatPanel(QWidget):
         if not self._bot_activity_options:
             return
         self._activity_frame_index = (self._activity_frame_index + 1) % len(self._activity_frames)
-        self._update_display()
+        if self._should_refresh_activity_tick():
+            self._update_display()
 
     def _advance_activity_message(self):
         """Rotate to the next activity message option."""
         if len(self._bot_activity_options) <= 1:
             return
         self._activity_option_index = (self._activity_option_index + 1) % len(self._bot_activity_options)
-        self._update_display()
+        if self._should_refresh_activity_tick():
+            self._update_display()
+
+    def _should_refresh_activity_tick(self) -> bool:
+        """
+        Return True when animation redraw should run.
+
+        While the user is reading older messages, skip timer-driven redraws so
+        manual scrolling is not interrupted by frequent setHtml refreshes.
+        """
+        scrollbar = self.history_browser.verticalScrollBar()
+        return (scrollbar.maximum() - scrollbar.value()) <= 8
 
     def _get_current_activity_text(self) -> str:
         """Return the currently active activity message text."""
@@ -242,6 +254,11 @@ class ChatPanel(QWidget):
 
     def _update_display(self):
         """Refresh the HTML display of all messages."""
+        old_scrollbar = self.history_browser.verticalScrollBar()
+        old_max = old_scrollbar.maximum()
+        old_value = old_scrollbar.value()
+        was_near_bottom = (old_max - old_value) <= 8
+
         html = "<div style='font-family: \"Segoe UI Variable Text\", sans-serif; color: #ece6de;'>"
 
         current_activity = self._get_current_activity_text()
@@ -307,9 +324,11 @@ class ChatPanel(QWidget):
         html += "</div>"
         self.history_browser.setHtml(html)
 
-        # Scroll to bottom
         scrollbar = self.history_browser.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+        if was_near_bottom:
+            scrollbar.setValue(scrollbar.maximum())
+        else:
+            scrollbar.setValue(min(old_value, scrollbar.maximum()))
 
     def _escape_html(self, text: str) -> str:
         """Escape HTML special characters."""

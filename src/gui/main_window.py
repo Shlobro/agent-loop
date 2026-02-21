@@ -519,12 +519,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         # Show resume button when:
         # 1. Phase is IDLE or COMPLETED
         # 2. There are incomplete tasks in tasks.md
-        # 3. Not already resuming (to avoid confusion)
         show_button = bool(
             phase in (Phase.IDLE, Phase.COMPLETED)
             and working_dir
             and self._working_directory_has_incomplete_tasks(working_dir)
-            and self._resume_incomplete_tasks_directory != working_dir
         )
 
         self.status_panel.set_resume_button_visible(show_button)
@@ -573,6 +571,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         ctx = self.state_machine.context
 
         is_idle = phase == Phase.IDLE
+        is_completed = phase == Phase.COMPLETED
         is_running = phase not in (Phase.IDLE, Phase.COMPLETED, Phase.ERROR,
                                    Phase.CANCELLED, Phase.PAUSED, Phase.AWAITING_ANSWERS)
         is_paused = phase == Phase.PAUSED
@@ -589,9 +588,9 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
                 has_incomplete_tasks = self._working_directory_has_incomplete_tasks(working_dir)
 
         # Enable start button when:
-        # - idle/paused and there are incomplete tasks
+        # - idle/paused/completed and there are incomplete tasks
         # - or question flow has answered questions and is ready to move to planning
-        can_start = ((is_idle or is_paused) and has_incomplete_tasks) or can_start_from_question_flow
+        can_start = ((is_idle or is_paused or is_completed) and has_incomplete_tasks) or can_start_from_question_flow
 
         # Update menu bar icon buttons
         try:
@@ -1108,6 +1107,18 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         from datetime import datetime
 
         description = self._get_description()
+        if not description or not description.strip():
+            existing = self._load_description_from_file()
+            if existing and existing.strip():
+                # Keep chat routing aligned with persisted project state.
+                self._set_description(existing)
+                self.state_machine.update_context(description=existing)
+                self.chat_panel.update_placeholder_text(has_description=True)
+                description = existing
+                self.log_viewer.append_log(
+                    "Loaded existing product-description.md before handling chat message.",
+                    "info",
+                )
         message_id = str(uuid.uuid4())
 
         # Case 1: Empty description - direct initialization
