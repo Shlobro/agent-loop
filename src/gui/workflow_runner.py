@@ -486,25 +486,29 @@ class WorkflowRunnerMixin:
         self.current_worker = worker
         self.thread_pool.start(worker)
 
-    def skip_to_next_iteration(self):
+    def skip_to_next_iteration(self, failed_phase=None):
         """Skip current failed operation and move to next iteration."""
-        phase = self.state_machine.phase
+        phase = failed_phase or self.state_machine.phase
 
         self.log_viewer.append_log(f"Skipping {phase.name} phase...", "warning")
+
+        # Error state only allows transition to IDLE, so hop there first.
+        if self.state_machine.phase == Phase.ERROR:
+            self.state_machine.transition_to(Phase.IDLE)
 
         if phase in (Phase.MAIN_EXECUTION, Phase.DEBUG_REVIEW, Phase.GIT_OPERATIONS):
             # These are part of main loop
             self._skip_current_task()
         elif phase == Phase.TASK_PLANNING:
             self.log_viewer.append_warning("Cannot skip planning. Returning to idle.")
-            self.state_machine.transition_to(Phase.COMPLETED)
+            self.state_machine.transition_to(Phase.IDLE)
         elif phase == Phase.QUESTION_GENERATION:
             self.log_viewer.append_warning("Skipping questions. Moving to planning.")
             self.state_machine.transition_to(Phase.TASK_PLANNING)
             self.run_task_planning()
         else:
             self.log_viewer.append_warning(f"Cannot skip phase: {phase.name}")
-            self.state_machine.transition_to(Phase.COMPLETED)
+            self.state_machine.transition_to(Phase.IDLE)
 
     def _skip_current_task(self):
         """Skip current task and move to next incomplete task or complete."""
@@ -615,7 +619,7 @@ class WorkflowRunnerMixin:
 
     def _handle_error_skip(self, error_info):
         """Handle skip to next iteration action."""
-        self.skip_to_next_iteration()
+        self.skip_to_next_iteration(error_info.phase)
 
     def _handle_error_send_to_llm(self, error_info, provider_name: str):
         """Handle send to LLM for fixing action."""
@@ -671,7 +675,7 @@ class WorkflowRunnerMixin:
     def _handle_conclusion_skip(self, error_info):
         """Handle skip after LLM fix conclusion."""
         self.log_viewer.append_log("Skipping to next iteration...", "info")
-        self.skip_to_next_iteration()
+        self.skip_to_next_iteration(error_info.phase)
 
     # =========================================================================
     # Client Message Processing Methods

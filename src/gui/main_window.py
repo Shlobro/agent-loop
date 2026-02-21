@@ -732,10 +732,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         working_dir = self.config_panel.get_working_directory()
 
         # Show resume button when:
-        # 1. Phase is IDLE or COMPLETED
+        # 1. Phase is IDLE, COMPLETED, or CANCELLED
         # 2. There are incomplete tasks in tasks.md
         show_button = bool(
-            phase in (Phase.IDLE, Phase.COMPLETED)
+            phase in (Phase.IDLE, Phase.COMPLETED, Phase.CANCELLED)
             and working_dir
             and self._working_directory_has_incomplete_tasks(working_dir)
         )
@@ -787,6 +787,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
         is_idle = phase == Phase.IDLE
         is_completed = phase == Phase.COMPLETED
+        is_cancelled = phase == Phase.CANCELLED
+        is_error = phase == Phase.ERROR
         is_running = phase not in (Phase.IDLE, Phase.COMPLETED, Phase.ERROR,
                                    Phase.CANCELLED, Phase.PAUSED, Phase.AWAITING_ANSWERS)
         is_paused = phase == Phase.PAUSED
@@ -795,17 +797,12 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             is_awaiting and ctx.questions_answered and self.current_worker is None
         )
 
-        # Check if there are incomplete tasks
-        has_incomplete_tasks = False
-        if self.file_manager:
-            working_dir = self.config_panel.get_working_directory()
-            if working_dir:
-                has_incomplete_tasks = self._working_directory_has_incomplete_tasks(working_dir)
-
         # Enable start button when:
-        # - idle/paused/completed and there are incomplete tasks
+        # - loop is not running (idle/paused/completed/cancelled/error)
         # - or question flow has answered questions and is ready to move to planning
-        can_start = ((is_idle or is_paused or is_completed) and has_incomplete_tasks) or can_start_from_question_flow
+        can_start = (
+            (is_idle or is_paused or is_completed or is_cancelled or is_error) and self.current_worker is None
+        ) or can_start_from_question_flow
 
         # Update menu bar icon buttons
         try:
@@ -1592,6 +1589,15 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             working_directory=working_dir,
             max_iterations=config.max_main_iterations,
             debug_iterations=config.debug_loop_iterations,
+            current_iteration=0,
+            current_debug_iteration=0,
+            current_review_type="",
+            tasks_content="",
+            error_message=None,
+            stop_requested=False,
+            pause_requested=False,
+            paused_from_phase=None,
+            paused_from_sub_phase=None,
             debug_mode_enabled=self.debug_mode_enabled,
             debug_breakpoints=self.debug_breakpoints,
             show_llm_terminals=self.show_llm_terminals,
@@ -1746,6 +1752,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             self.log_viewer.append_log("Stopping workflow...", "warning")
             self.state_machine.request_stop()
             self._release_debug_wait()
+
+            working_dir = self.config_panel.get_working_directory()
+            if working_dir and self._working_directory_has_incomplete_tasks(working_dir):
+                self._resume_incomplete_tasks_directory = working_dir
 
             if self.current_worker:
                 self.current_worker.cancel()
