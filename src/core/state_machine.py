@@ -90,26 +90,26 @@ class StateContext:
     show_llm_terminals: bool = True
     # LLM configuration per stage
     llm_config: Dict[str, str] = field(default_factory=lambda: {
-        "question_gen": "gemini",
-        "description_molding": "gemini",
-        "research": "gemini",
+        "question_gen": "codex",
+        "description_molding": "claude",
+        "research": "claude",
         "task_planning": "claude",
-        "coder": "claude",
+        "coder": "codex",
         "reviewer": "codex",
-        "fixer": "codex",
-        "unit_test_prep": "gemini",
-        "git_ops": "gemini",
-        "client_message_handler": "gemini",
-        "question_gen_model": "gemini-3-pro-preview",
-        "description_molding_model": "gemini-3-pro-preview",
-        "research_model": "gemini-3-pro-preview",
-        "task_planning_model": "claude-opus-4-6",
-        "coder_model": "claude-opus-4-6",
+        "fixer": "claude",
+        "unit_test_prep": "codex",
+        "git_ops": "codex",
+        "client_message_handler": "codex",
+        "question_gen_model": "gpt-5.3-codex:low",
+        "description_molding_model": "claude-sonnet-4-6",
+        "research_model": "claude-sonnet-4-6",
+        "task_planning_model": "claude-sonnet-4-6",
+        "coder_model": "gpt-5.3-codex",
         "reviewer_model": "gpt-5.3-codex",
-        "fixer_model": "gpt-5.3-codex",
-        "unit_test_prep_model": "gemini-3-pro-preview",
-        "git_ops_model": "gemini-3-pro-preview",
-        "client_message_handler_model": "gemini-3-pro-preview",
+        "fixer_model": "claude-opus-4-6",
+        "unit_test_prep_model": "gpt-5.3-codex",
+        "git_ops_model": "gpt-5.3-codex:low",
+        "client_message_handler_model": "gpt-5.3-codex:low",
     })
     # For pause/resume - track where we were
     paused_from_phase: Optional[Phase] = None
@@ -254,6 +254,9 @@ class StateMachine(QObject):
 
     def get_phase_display_name(self) -> str:
         """Get human-readable name for current phase."""
+        if self._phase == Phase.AWAITING_ANSWERS and self._context.questions_answered:
+            return "Ready to Continue"
+
         names = {
             Phase.IDLE: "Idle",
             Phase.QUESTION_GENERATION: "Generating Questions",

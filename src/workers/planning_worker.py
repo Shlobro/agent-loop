@@ -18,7 +18,7 @@ class PlanningWorker(BaseWorker):
     def __init__(self, description: str, answers: Dict[str, str],
                  qa_pairs: list = None,
                  provider_name: str = "claude",
-                 research_provider_name: str = "gemini",
+                 research_provider_name: str = "claude",
                  working_directory: str = None,
                  model: str = None,
                  research_model: str = None):

@@ -77,6 +77,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self._last_worker_status = ""
         self._task_progress_cycle_active = False
         self._task_progress_cycle_baseline_completed = 0
+        self._suppress_external_description_prompt = False
 
         # File watcher for external edits to product-description.md
         self.description_watcher = DescriptionFileWatcher(self)
@@ -409,6 +410,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self.question_panel.answers_submitted.connect(self.on_answers_submitted)
         self.question_panel.generate_again_requested.connect(self.on_generate_again_requested)
         self.question_panel.start_planning_requested.connect(self.on_start_planning_requested)
+        self.question_panel.set_description_callbacks(
+            self._get_description,
+            self._apply_edited_description
+        )
 
         # Description panel
         # Note: description_changed signal no longer connected - description updates come through chat
@@ -565,12 +570,16 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     def update_button_states(self):
         """Update button enabled states based on current phase."""
         phase = self.state_machine.phase
+        ctx = self.state_machine.context
 
         is_idle = phase == Phase.IDLE
         is_running = phase not in (Phase.IDLE, Phase.COMPLETED, Phase.ERROR,
                                    Phase.CANCELLED, Phase.PAUSED, Phase.AWAITING_ANSWERS)
         is_paused = phase == Phase.PAUSED
         is_awaiting = phase == Phase.AWAITING_ANSWERS
+        can_start_from_question_flow = (
+            is_awaiting and ctx.questions_answered and self.current_worker is None
+        )
 
         # Check if there are incomplete tasks
         has_incomplete_tasks = False
@@ -579,8 +588,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             if working_dir:
                 has_incomplete_tasks = self._working_directory_has_incomplete_tasks(working_dir)
 
-        # Enable start button only when idle/paused AND there are incomplete tasks
-        can_start = (is_idle or is_paused) and has_incomplete_tasks
+        # Enable start button when:
+        # - idle/paused and there are incomplete tasks
+        # - or question flow has answered questions and is ready to move to planning
+        can_start = ((is_idle or is_paused) and has_incomplete_tasks) or can_start_from_question_flow
 
         # Update menu bar icon buttons
         try:
@@ -645,7 +656,6 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self._update_resume_button_visibility()
 
         # Also update panel states
-        ctx = self.state_machine.context
         description_editable = is_idle or (is_awaiting and ctx.questions_answered and self.current_worker is None)
         self.description_panel.set_readonly(not description_editable)
         # Description panel is now always in the left tab widget, so no visibility toggle needed
@@ -727,6 +737,19 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             ]
 
         if phase == Phase.TASK_PLANNING:
+            if "research" in status_lower:
+                return [
+                    "Research phase is mapping the problem space.",
+                    "Gathering implementation notes from description and tasks.",
+                    "Building research context to guide clean execution.",
+                    "Analyzing constraints before coding starts.",
+                    "Research pass is filling in product and domain details.",
+                    "Collecting references and edge cases for the next loop.",
+                    "Turning planned tasks into focused technical context.",
+                    "Researching now so implementation decisions are less risky.",
+                    "Preparing deeper context for the execution phase.",
+                    "Compiling practical research notes into research.md.",
+                ]
             return [
                 "Breaking work into bite-size tasks for this run.",
                 "Building the task plan like tiny LEGO bricks.",
@@ -1164,6 +1187,14 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self._description_content = content
         self._sync_description_to_left_preview()
 
+    def _apply_edited_description(self, content: str):
+        """Apply direct edits from the post-question decision dialog."""
+        text = (content or "").strip()
+        self._set_description(text)
+        self.state_machine.update_context(description=text)
+        self._sync_description_to_file(text)
+        self.log_viewer.append_log("Updated product description from edit dialog.", "success")
+
     def _sync_description_to_left_preview(self):
         """Sync description content to left tab preview."""
         if hasattr(self, "left_description_preview"):
@@ -1276,7 +1307,15 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     @Slot()
     def on_start_clicked(self):
         """Begin or resume the workflow."""
-        if self.state_machine.phase == Phase.PAUSED:
+        phase = self.state_machine.phase
+        ctx = self.state_machine.context
+
+        if phase == Phase.AWAITING_ANSWERS and ctx.questions_answered and self.current_worker is None:
+            self.log_viewer.append_log("Continuing from answered questions to task planning...", "info")
+            self.on_start_planning_requested()
+            return
+
+        if phase == Phase.PAUSED:
             # Resume from pause
             self.resume_workflow()
         else:
@@ -1853,6 +1892,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             questions_answered=True,
             description=description
         )
+        # Rewriting product-description.md in the background is expected here.
+        self._suppress_external_description_prompt = True
         self.question_panel.show_updating_description()
         self.log_viewer.append_log("Saved answers; updating project description...", "info")
         self.run_definition_rewrite()
@@ -1953,15 +1994,16 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         """Rewrite the description from Q&A before generating more questions."""
         ctx = self.state_machine.context
         if not ctx.qa_pairs:
+            self._suppress_external_description_prompt = False
             self.run_question_generation()
             return
 
         worker = DefinitionRewriteWorker(
             description=self._get_description(),
             qa_pairs=ctx.qa_pairs,
-            provider_name=ctx.llm_config.get("description_molding", "gemini"),
+            provider_name=ctx.llm_config.get("description_molding", "claude"),
             working_directory=ctx.working_directory,
-            model=ctx.llm_config.get("description_molding_model", "gemini-3-pro-preview")
+            model=ctx.llm_config.get("description_molding_model", "claude-sonnet-4-6")
         )
 
         self._connect_worker_signals(worker)
@@ -1973,6 +2015,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
     @Slot(str)
     def on_definition_rewrite_ready(self, definition: str):
         """Handle completion of the product definition rewrite."""
+        self._suppress_external_description_prompt = False
         updated = self._load_rewritten_description_from_file() or (definition or "").strip()
         if updated:
             self._suppress_description_sync = True
@@ -1987,11 +2030,16 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             )
             self._sync_description_to_file(updated)
             self.log_viewer.append_log("Updated product description from Q&A rewrite", "success")
+            self.chat_panel.add_bot_message("Updated product description from your answers.")
         else:
             self.log_viewer.append_log(
                 "Definition rewrite returned empty output; using existing description",
                 "warning"
             )
+            self.chat_panel.add_bot_message(
+                "Saved your answers. Product description was not changed."
+            )
+        self.state_machine.set_sub_phase(SubPhase.NONE)
         self.question_panel.show_answers_saved()
 
     # on_description_changed removed - description updates now come through chat workflow
@@ -2049,106 +2097,109 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
     def _initialize_description_from_chat(self, message: str):
         """Initialize product description from first chat message."""
-        from ..workers.chat_to_description_worker import ChatToDescriptionWorker
-
         ctx = self.state_machine.context
         if not ctx.working_directory:
             self.log_viewer.append_log("No working directory set - cannot initialize description", "error")
+            if self._initial_description_message_id:
+                self.chat_panel.update_message_status(self._initial_description_message_id, "failed")
+                self.chat_panel.add_answer(
+                    self._initial_description_message_id,
+                    "Could not initialize product description (no working directory)."
+                )
+                self._initial_description_message_id = None
             return
 
-        self.log_viewer.append_log("Processing first message to initialize product description...", "info")
-
-        # Create worker to initialize description
-        worker = ChatToDescriptionWorker(
-            message=message,
-            provider_name=ctx.llm_config.get("client_message_handler", "gemini"),
-            working_directory=ctx.working_directory,
-            is_initialization=True,
-            model=ctx.llm_config.get("client_message_handler_model"),
-            debug_mode=ctx.debug_mode_enabled,
-            debug_breakpoints=ctx.debug_breakpoints,
-            show_terminal=ctx.show_llm_terminals
-        )
-
-        # Connect signals
-        worker.signals.log.connect(self.log_viewer.append_log)
-        worker.signals.llm_output.connect(lambda msg: self.log_viewer.append_log(msg, "llm"))
-        worker.signals.status.connect(lambda msg: self.log_viewer.append_log(msg, "info"))
-        worker.signals.result.connect(self._on_description_initialization_complete)
-
-        self.current_worker = worker
-        self.thread_pool.start(worker)
-
-    @Slot(object)
-    def _on_description_initialization_complete(self, result: dict):
-        """Handle completion of description initialization from chat."""
-        if result.get("description_changed"):
-            if self._initial_description_message_id:
-                self.chat_panel.update_message_status(self._initial_description_message_id, "completed")
-                self.chat_panel.add_answer(self._initial_description_message_id, "Initialized product description.")
-                self._initial_description_message_id = None
-            new_description = result.get("new_description", "")
-            self.log_viewer.append_log("Product description initialized successfully", "success")
-
-            # Update UI
-            self._suppress_description_sync = True
-            try:
-                self._set_description(new_description)
-            finally:
-                self._suppress_description_sync = False
-
-            # Update state machine
-            self.state_machine.update_context(description=new_description)
-
-            # Update file watcher's known content
-            self.description_watcher.update_known_content(new_description)
-
-            # Update chat panel placeholder text
-            self.chat_panel.update_placeholder_text(has_description=True)
-
-            # Auto-trigger question generation if max_questions > 0
-            config = self.config_panel.get_config()
-            if config.max_questions > 0:
-                self.log_viewer.append_log(
-                    f"Auto-generating {config.max_questions} clarifying questions...",
-                    "info"
-                )
-                self.run_question_generation()
-        else:
+        initial_description = (message or "").strip()
+        if not initial_description:
+            self.log_viewer.append_log("First message was empty - cannot initialize description", "warning")
             if self._initial_description_message_id:
                 self.chat_panel.update_message_status(self._initial_description_message_id, "failed")
                 self.chat_panel.add_answer(self._initial_description_message_id, "Could not initialize product description.")
                 self._initial_description_message_id = None
-            self.log_viewer.append_log("Product description initialization failed or unchanged", "warning")
+            return
+
+        self.log_viewer.append_log(
+            "Storing first message as original product description before question generation...",
+            "info"
+        )
+
+        # Keep the first message as-is so clarifying questions are based on the original request.
+        self._suppress_description_sync = True
+        try:
+            self._set_description(initial_description)
+        finally:
+            self._suppress_description_sync = False
+
+        self._sync_description_to_file(initial_description)
+        self.state_machine.update_context(description=initial_description)
+        self.description_watcher.update_known_content(initial_description)
+        self.chat_panel.update_placeholder_text(has_description=True)
+
+        if self._initial_description_message_id:
+            self.chat_panel.update_message_status(self._initial_description_message_id, "completed")
+            self.chat_panel.add_answer(
+                self._initial_description_message_id,
+                "Saved initial product description."
+            )
+            self._initial_description_message_id = None
+
+        self.log_viewer.append_log("Product description initialized successfully", "success")
+
+        # Auto-trigger question generation if max_questions > 0
+        config = self.config_panel.get_config()
+        if config.max_questions > 0:
+            self.log_viewer.append_log(
+                f"Auto-generating {config.max_questions} clarifying questions...",
+                "info"
+            )
+            self.run_question_generation()
 
     @Slot(str)
     def _on_description_changed_externally(self, new_content: str):
         """Handle external changes to product-description.md."""
         self.log_viewer.append_log("Product description updated externally", "info")
+        incoming = (new_content or "").strip()
+        current = self._get_description().strip()
 
-        # Update UI
-        self._suppress_description_sync = True
-        try:
-            self._set_description(new_content)
-        finally:
-            self._suppress_description_sync = False
+        if incoming == current:
+            self.log_viewer.append_log("Ignoring external description change with no content delta", "debug")
+            return
 
-        # Update state machine
-        self.state_machine.update_context(description=new_content)
+        if self._suppress_external_description_prompt:
+            self._suppress_description_sync = True
+            try:
+                self._set_description(incoming)
+            finally:
+                self._suppress_description_sync = False
+            self.state_machine.update_context(description=incoming)
+            self.chat_panel.update_placeholder_text(has_description=bool(incoming))
+            self.log_viewer.append_log("Loaded expected external description update without prompt", "info")
+            return
 
-        # Update chat panel placeholder text
-        has_description = bool(new_content and new_content.strip())
-        self.chat_panel.update_placeholder_text(has_description=has_description)
-
-        # Show notification
-        from PySide6.QtWidgets import QMessageBox
         msg = QMessageBox(self)
-        msg.setIcon(QMessageBox.Information)
-        msg.setWindowTitle("Description Updated Externally")
-        msg.setText("The product description has been updated by an external editor.")
-        msg.setInformativeText("The changes have been loaded into the application.")
-        msg.setStandardButtons(QMessageBox.Ok)
+        msg.setIcon(QMessageBox.Question)
+        msg.setWindowTitle("External Description Change")
+        msg.setText("The product description was changed by an external source.")
+        msg.setInformativeText(
+            "Choose whether to load the external changes or keep your current description."
+        )
+        load_button = msg.addButton("Load External Changes", QMessageBox.AcceptRole)
+        keep_button = msg.addButton("Keep Current Description", QMessageBox.RejectRole)
+        msg.setDefaultButton(load_button)
         msg.exec()
+
+        if msg.clickedButton() == keep_button:
+            self._sync_description_to_file(self._get_description())
+            self.log_viewer.append_log("Kept current description and overwrote external changes", "info")
+        else:
+            self._suppress_description_sync = True
+            try:
+                self._set_description(incoming)
+            finally:
+                self._suppress_description_sync = False
+            self.state_machine.update_context(description=incoming)
+            self.chat_panel.update_placeholder_text(has_description=bool(incoming))
+            self.log_viewer.append_log("Loaded external description changes into the UI", "info")
 
         # Warn if workflow is running
         if self.state_machine.phase in [Phase.MAIN_EXECUTION, Phase.DEBUG_REVIEW, Phase.GIT_OPERATIONS]:

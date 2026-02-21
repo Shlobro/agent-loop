@@ -24,7 +24,7 @@ class QuestionWorker(BaseWorker):
 
     def __init__(self, description: str, question_count: int,
                  previous_qa: List[Dict[str, str]] | None = None,
-                 provider_name: str = "gemini", working_directory: str = None,
+                 provider_name: str = "codex", working_directory: str = None,
                  model: str = None):
         super().__init__()
         self.description = description
@@ -143,7 +143,7 @@ class DefinitionRewriteWorker(BaseWorker):
     DESCRIPTION_FILENAME = "product-description.md"
 
     def __init__(self, description: str, qa_pairs: List[Dict[str, str]],
-                 provider_name: str = "gemini", working_directory: str = None,
+                 provider_name: str = "claude", working_directory: str = None,
                  model: str = None):
         super().__init__()
         self.description = description

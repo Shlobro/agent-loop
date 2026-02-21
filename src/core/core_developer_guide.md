@@ -9,8 +9,8 @@ This directory contains the foundational logic for the AgentHarness application.
 - **Purpose**: Defines the lifecycle of the application. It manages the transition between different execution phases (e.g., `QUESTION_GENERATION`, `TASK_PLANNING`, `MAIN_EXECUTION`).
 - **Key Components**:
   - `Phase` & `SubPhase` Enums: Define all possible states of the workflow.
-  - `StateContext`: A dataclass that holds the runtime data (e.g., current task, iteration count, LLM configuration, debug flags) passed between states.
-  - `StateMachine`: The central class that enforces transition rules (`TRANSITIONS`), emits signals (`phase_changed`, `context_updated`) to the UI, and manages the `StateContext`.
+  - `StateContext`: A dataclass that holds the runtime data (e.g., current task, iteration count, LLM configuration, debug flags) passed between states. Default `llm_config` follows the codex/claude baseline profile used by the UI defaults.
+  - `StateMachine`: The central class that enforces transition rules (`TRANSITIONS`), emits signals (`phase_changed`, `context_updated`) to the UI, and manages the `StateContext`. During `Phase.AWAITING_ANSWERS`, `get_phase_display_name()` returns `Ready to Continue` when `questions_answered` is already true so the UI reflects post-answer readiness instead of still waiting for input.
 
 ### `file_manager.py`
 - **Purpose**: Handles all file system operations. It ensures atomic reads and writes to critical project files and maintains the directory structure.

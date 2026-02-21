@@ -21,6 +21,8 @@ class QuestionPanel(QWidget):
         self._readonly = False
         self._submitted_pairs: List[Dict[str, str]] = []
         self._decision_dialog: Optional[QuestionFlowDecisionDialog] = None
+        self._pending_get_description = None
+        self._pending_set_description = None
         self.hide()
 
     def show_questions(self, questions: List[Dict[str, object]]):
@@ -40,10 +42,21 @@ class QuestionPanel(QWidget):
             self._decision_dialog.ask_more_requested.connect(self.generate_again_requested.emit)
             self._decision_dialog.start_main_loop_requested.connect(self.start_planning_requested.emit)
             self._decision_dialog.finished.connect(self._on_decision_dialog_finished)
+            self._decision_dialog.set_description_callbacks(
+                self._pending_get_description,
+                self._pending_set_description
+            )
 
         self._decision_dialog.show()
         self._decision_dialog.raise_()
         self._decision_dialog.activateWindow()
+
+    def set_description_callbacks(self, get_description, set_description):
+        """Provide callbacks for direct description editing from decision dialog."""
+        if self._decision_dialog is not None:
+            self._decision_dialog.set_description_callbacks(get_description, set_description)
+        self._pending_get_description = get_description
+        self._pending_set_description = set_description
 
     def show_updating_description(self, message: str = "Updating project description..."):
         _ = message

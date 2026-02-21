@@ -29,7 +29,7 @@ class WorkflowRunnerMixin:
             answers=ctx.answers,
             qa_pairs=ctx.qa_pairs,
             provider_name=ctx.llm_config.get("task_planning", "claude"),
-            research_provider_name=ctx.llm_config.get("research", "gemini"),
+            research_provider_name=ctx.llm_config.get("research", "claude"),
             working_directory=ctx.working_directory,
             model=ctx.llm_config.get("task_planning_model"),
             research_model=ctx.llm_config.get("research_model")
@@ -153,16 +153,16 @@ class WorkflowRunnerMixin:
             run_unit_test_prep=ctx.run_unit_test_prep,
             reviewer_model=ctx.llm_config.get("reviewer_model"),
             fixer_model=ctx.llm_config.get("fixer_model"),
-            unit_test_prep_provider_name=ctx.llm_config.get("unit_test_prep", "gemini"),
-            unit_test_prep_model=ctx.llm_config.get("unit_test_prep_model", "gemini-3-pro-preview"),
+            unit_test_prep_provider_name=ctx.llm_config.get("unit_test_prep", "codex"),
+            unit_test_prep_model=ctx.llm_config.get("unit_test_prep_model", "gpt-5.3-codex"),
             runtime_config_provider=lambda: {
                 "debug_iterations": self.state_machine.context.debug_iterations,
                 "reviewer": self.state_machine.context.llm_config.get("reviewer", "claude"),
                 "fixer": self.state_machine.context.llm_config.get("fixer", "claude"),
                 "reviewer_model": self.state_machine.context.llm_config.get("reviewer_model"),
                 "fixer_model": self.state_machine.context.llm_config.get("fixer_model"),
-                "unit_test_prep": self.state_machine.context.llm_config.get("unit_test_prep", "gemini"),
-                "unit_test_prep_model": self.state_machine.context.llm_config.get("unit_test_prep_model", "gemini-3-pro-preview"),
+                "unit_test_prep": self.state_machine.context.llm_config.get("unit_test_prep", "codex"),
+                "unit_test_prep_model": self.state_machine.context.llm_config.get("unit_test_prep_model", "gpt-5.3-codex"),
             }
         )
 
@@ -474,7 +474,7 @@ class WorkflowRunnerMixin:
 
         worker = QuestionWorker(
             description=ctx.description,
-            provider_name=ctx.llm_config.get("question_gen", "gemini"),
+            provider_name=ctx.llm_config.get("question_gen", "codex"),
             working_directory=ctx.working_directory,
             model=ctx.llm_config.get("question_gen_model"),
             question_count=ctx.max_questions
@@ -701,7 +701,7 @@ class WorkflowRunnerMixin:
 
         worker = ClientMessageWorker(
             message=message_data["content"],
-            provider_name=ctx.llm_config.get("client_message_handler", "gemini"),
+            provider_name=ctx.llm_config.get("client_message_handler", "codex"),
             working_directory=ctx.working_directory,
             model=ctx.llm_config.get("client_message_handler_model"),
             debug_mode=ctx.debug_mode_enabled,

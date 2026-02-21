@@ -5,7 +5,7 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 
 ## Contents
 - `description_panel.py`: Task list panel located ONLY in the left tab widget (Tasks tab). Shows task progress with current action, completed/incomplete task counts, and tabbed task filtering (All/Completed/Incomplete). The panel no longer handles description preview - that's now in a separate QTextBrowser in the Description tab of the left panel. Description content is stored in MainWindow's `_description_content` variable. View mode controls are hidden since the panel is always in Task List mode when used in the left tab. The Tasks tab can be toggled via `View -> Show Tasks` in `MainWindow`.
-- `question_panel.py`: Hidden signal bridge for question flow. It opens `dialogs/question_answer_dialog.py` as a modal window when questions are ready, emits submitted Q&A pairs, and then opens `dialogs/question_flow_decision_dialog.py` after rewrite so the user explicitly chooses `Ask More Questions` or `Start Main Loop`.
+- `question_panel.py`: Hidden signal bridge for question flow. It opens `dialogs/question_answer_dialog.py` as a modal window when questions are ready, emits submitted Q&A pairs, and then opens `dialogs/question_flow_decision_dialog.py` after rewrite so the user explicitly chooses among `Ask More Questions`, `Edit Product Description`, `Continue`, or `Start Main Loop`.
 - `llm_selector_panel.py`: Provider/model selection per workflow stage from the LLM registry, including built-in default stage assignments; hosted by `Settings -> LLM Settings` and used as the canonical in-memory stage config for the run. Stages are displayed in execution order, including a dedicated `Research (after task planning)` stage, with Unit Test Prep shown before Reviewer and Fixer to reflect that it runs first in the review phase. Includes Client Message Handler stage for processing user messages during workflow execution.
 - `config_panel.py`: Execution settings (iterations, tasks per iteration, questions, working directory, git settings), stored review-type selections, and the optional pre-review unit-test-update toggle used by the review settings dialog; hosted by `Settings -> Configuration Settings`, while values stay live-editable during execution.
 - `log_viewer.py`: Color-coded log viewer with filtering and auto-scroll; uses an enlarged monospace font for clearer streaming output.
@@ -16,15 +16,16 @@ Reusable PySide6 panels used by `MainWindow` to assemble the UI.
 ## Key Interactions
 - Widgets use the centralized stylesheet from `src/gui/theme.py`; prefer setting widget properties (for example `role="muted"`) instead of hardcoded inline colors.
 - `LLMSelectorPanel` queries `LLMProviderRegistry` to populate providers/models and then applies stage defaults (in execution order):
-- Question generation: Gemini + `gemini-3-pro-preview`
-- Description molding: Gemini + `gemini-3-pro-preview`
-- Task planning: Claude + `claude-opus-4-6`
-- Research (after task planning): Gemini + `gemini-3-pro-preview`
-- Coder: Claude + `claude-opus-4-6`
-- Unit Test Prep (runs first in review): Gemini + `gemini-3-pro-preview`
+- Question generation: Codex + `gpt-5.3-codex:low`
+- Description molding: Claude + `claude-sonnet-4-6`
+- Task planning: Claude + `claude-sonnet-4-6`
+- Research (after task planning): Claude + `claude-sonnet-4-6`
+- Coder: Codex + `gpt-5.3-codex`
+- Unit Test Prep (runs first in review): Codex + `gpt-5.3-codex`
 - Reviewer: Codex + `gpt-5.3-codex`
-- Fixer: Codex + `gpt-5.3-codex`
-- Git operations: Gemini + `gemini-3-pro-preview`
+- Fixer: Claude + `claude-opus-4-6`
+- Git operations: Codex + `gpt-5.3-codex:low`
+- Client Message Handler: Codex + `gpt-5.3-codex:low`
 - `ConfigPanel` exposes `ExecutionConfig`; review type selections are edited through the main menu action `Settings -> Review Settings` and include all active review categories (General, Architecture, Efficiency, Error Handling, Safety, Testing, Documentation, UI/UX). The same dialog also controls whether the optional pre-review unit-test-update pass runs.
 - `ConfigPanel` keeps `Number of Questions`, `Max Main Iterations`, `Tasks Per Iteration`, and `Debug Loop Iterations` enabled during active runs so users can change upcoming question batches, loop limits, and tasks-per-iteration without stopping.
 - `ConfigPanel` performs git bootstrap checks for the selected working directory both when the directory/remote changes and when planning starts: checks whether the directory is already a git repo, runs `git init` when needed, shows a user-facing install notice if git commands are unavailable/fail, and configures `origin` when a remote URL is set. Git subprocess calls in this panel use a 10-second timeout.

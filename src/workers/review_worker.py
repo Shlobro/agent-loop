@@ -24,8 +24,8 @@ class ReviewWorker(BaseWorker):
                  run_unit_test_prep: bool = True,
                  reviewer_model: str = None,
                  fixer_model: str = None,
-                 unit_test_prep_provider_name: str = "gemini",
-                 unit_test_prep_model: str = "gemini-3-pro-preview",
+                 unit_test_prep_provider_name: str = "codex",
+                 unit_test_prep_model: str = "gpt-5.3-codex",
                  runtime_config_provider: Optional[Callable[[], Dict[str, object]]] = None):
         super().__init__()
         self.reviewer_provider_name = reviewer_provider_name

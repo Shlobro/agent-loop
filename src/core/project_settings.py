@@ -13,24 +13,24 @@ from ..llm.prompt_templates import ReviewType
 class ProjectSettings:
     """Project-specific settings that can be saved and loaded."""
     # LLM Configuration
-    question_gen: str
-    description_molding: str
-    research: str
-    task_planning: str
-    coder: str
-    reviewer: str
-    fixer: str
-    unit_test_prep: str = "gemini"
-    git_ops: str = "gemini"
-    question_gen_model: str = ""
-    description_molding_model: str = "gemini-3-pro-preview"
-    research_model: str = "gemini-3-pro-preview"
-    task_planning_model: str = ""
-    coder_model: str = ""
-    reviewer_model: str = ""
-    fixer_model: str = ""
-    unit_test_prep_model: str = "gemini-3-pro-preview"
-    git_ops_model: str = ""
+    question_gen: str = "codex"
+    description_molding: str = "claude"
+    research: str = "claude"
+    task_planning: str = "claude"
+    coder: str = "codex"
+    reviewer: str = "codex"
+    fixer: str = "claude"
+    unit_test_prep: str = "codex"
+    git_ops: str = "codex"
+    question_gen_model: str = "gpt-5.3-codex:low"
+    description_molding_model: str = "claude-sonnet-4-6"
+    research_model: str = "claude-sonnet-4-6"
+    task_planning_model: str = "claude-sonnet-4-6"
+    coder_model: str = "gpt-5.3-codex"
+    reviewer_model: str = "gpt-5.3-codex"
+    fixer_model: str = "claude-opus-4-6"
+    unit_test_prep_model: str = "gpt-5.3-codex"
+    git_ops_model: str = "gpt-5.3-codex:low"
     review_types: List[str] = field(
         default_factory=lambda: [ReviewType.GENERAL.value]
     )
@@ -160,17 +160,41 @@ class ProjectSettingsManager:
             auto_push = settings_dict.get("auto_push", False)
             normalized["git_mode"] = "push" if auto_push else "local"
         if "description_molding" not in normalized:
-            normalized["description_molding"] = "gemini"
+            normalized["description_molding"] = "claude"
+        if "question_gen" not in normalized:
+            normalized["question_gen"] = "codex"
         if "research" not in normalized:
-            normalized["research"] = "gemini"
+            normalized["research"] = "claude"
+        if "task_planning" not in normalized:
+            normalized["task_planning"] = "claude"
+        if "coder" not in normalized:
+            normalized["coder"] = "codex"
+        if "reviewer" not in normalized:
+            normalized["reviewer"] = "codex"
+        if "fixer" not in normalized:
+            normalized["fixer"] = "claude"
         if "unit_test_prep" not in normalized:
-            normalized["unit_test_prep"] = "gemini"
+            normalized["unit_test_prep"] = "codex"
+        if "git_ops" not in normalized:
+            normalized["git_ops"] = "codex"
+        if "question_gen_model" not in normalized:
+            normalized["question_gen_model"] = "gpt-5.3-codex:low"
         if "description_molding_model" not in normalized:
-            normalized["description_molding_model"] = "gemini-3-pro-preview"
+            normalized["description_molding_model"] = "claude-sonnet-4-6"
         if "research_model" not in normalized:
-            normalized["research_model"] = "gemini-3-pro-preview"
+            normalized["research_model"] = "claude-sonnet-4-6"
+        if "task_planning_model" not in normalized:
+            normalized["task_planning_model"] = "claude-sonnet-4-6"
+        if "coder_model" not in normalized:
+            normalized["coder_model"] = "gpt-5.3-codex"
+        if "reviewer_model" not in normalized:
+            normalized["reviewer_model"] = "gpt-5.3-codex"
+        if "fixer_model" not in normalized:
+            normalized["fixer_model"] = "claude-opus-4-6"
         if "unit_test_prep_model" not in normalized:
-            normalized["unit_test_prep_model"] = "gemini-3-pro-preview"
+            normalized["unit_test_prep_model"] = "gpt-5.3-codex"
+        if "git_ops_model" not in normalized:
+            normalized["git_ops_model"] = "gpt-5.3-codex:low"
         if "debug_mode_enabled" not in normalized:
             normalized["debug_mode_enabled"] = False
         normalized["debug_breakpoints"] = normalize_debug_breakpoints(

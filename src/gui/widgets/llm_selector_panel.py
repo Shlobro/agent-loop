@@ -64,16 +64,16 @@ class LLMSelectorPanel(QWidget):
         ("client_message_handler", "Client Message Handler"),
     ]
     DEFAULT_STAGE_CONFIG = {
-        "question_gen": ("gemini", "gemini-3-pro-preview"),
-        "description_molding": ("gemini", "gemini-3-pro-preview"),
-        "research": ("gemini", "gemini-3-pro-preview"),
-        "task_planning": ("claude", "claude-opus-4-6"),
-        "coder": ("claude", "claude-opus-4-6"),
+        "question_gen": ("codex", "gpt-5.3-codex:low"),
+        "description_molding": ("claude", "claude-sonnet-4-6"),
+        "research": ("claude", "claude-sonnet-4-6"),
+        "task_planning": ("claude", "claude-sonnet-4-6"),
+        "coder": ("codex", "gpt-5.3-codex"),
         "reviewer": ("codex", "gpt-5.3-codex"),
-        "fixer": ("codex", "gpt-5.3-codex"),
-        "unit_test_prep": ("gemini", "gemini-3-pro-preview"),
-        "git_ops": ("gemini", "gemini-3-pro-preview"),
-        "client_message_handler": ("gemini", "gemini-3-pro-preview"),
+        "fixer": ("claude", "claude-opus-4-6"),
+        "unit_test_prep": ("codex", "gpt-5.3-codex"),
+        "git_ops": ("codex", "gpt-5.3-codex:low"),
+        "client_message_handler": ("codex", "gpt-5.3-codex:low"),
     }
 
     def __init__(self, parent=None):
