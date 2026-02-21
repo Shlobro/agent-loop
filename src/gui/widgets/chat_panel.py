@@ -37,6 +37,8 @@ class ChatPanel(QWidget):
     def __init__(self):
         super().__init__()
         self.message_history = []  # List of message dicts
+        self._input_enabled = True
+        self._has_description = False
         self._bot_activity_options = []
         self._activity_option_index = 0
         self._activity_frame_index = 0
@@ -107,6 +109,7 @@ class ChatPanel(QWidget):
 
         # Initial display
         self._update_display()
+        self._refresh_input_controls()
 
     def _on_send_clicked(self):
         """Handle send button click."""
@@ -342,18 +345,33 @@ class ChatPanel(QWidget):
 
     def set_input_enabled(self, enabled: bool):
         """Enable/disable message input."""
-        self.input_area.setEnabled(enabled)
-        self.send_button.setEnabled(enabled)
-        self.update_description_cb.setEnabled(enabled)
-        self.add_tasks_cb.setEnabled(enabled)
-        self.provide_answer_cb.setEnabled(enabled)
+        self._input_enabled = bool(enabled)
+        self._refresh_input_controls()
 
     def update_placeholder_text(self, has_description: bool):
         """Update placeholder text based on whether product description exists."""
-        if has_description:
+        self._has_description = bool(has_description)
+        if self._has_description:
             self.input_area.setPlaceholderText("Ask a question or request changes...")
         else:
             self.input_area.setPlaceholderText("Enter your project description here...")
+            # Initial prompt is always treated as description bootstrap.
+            self.update_description_cb.setChecked(False)
+            self.add_tasks_cb.setChecked(False)
+            self.provide_answer_cb.setChecked(False)
+        self._refresh_input_controls()
+
+    def _refresh_input_controls(self):
+        """Apply combined input/description state to controls."""
+        self.input_area.setEnabled(self._input_enabled)
+        self.send_button.setEnabled(self._input_enabled)
+        checkbox_enabled = self._input_enabled and self._has_description
+        self.update_description_cb.setEnabled(checkbox_enabled)
+        self.add_tasks_cb.setEnabled(checkbox_enabled)
+        self.provide_answer_cb.setEnabled(checkbox_enabled)
+        self.send_button.setText(
+            "Send Message" if self._has_description else "Create initial description"
+        )
 
     def _render_bubble(self, label: str, content: str, bubble_color: str, border_color: str,
                        label_color: str, align: str = "left", is_italic: bool = False) -> str:

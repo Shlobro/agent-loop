@@ -477,6 +477,28 @@ If an update is needed, modify product-description.md accordingly.
 """
 
     # =========================================================================
+    # Existing Repo -> Initial Description Bootstrap
+    # =========================================================================
+    REPOSITORY_DESCRIPTION_BOOTSTRAP_PROMPT = """You are onboarding an existing codebase into AgentHarness.
+
+Goal:
+- Create an initial `product-description.md` by analyzing this repository.
+
+Instructions:
+1. Inspect the existing repository structure and key source/config/docs files.
+2. Infer what product currently exists, who it is for, and what it does today.
+3. Write a clear, practical product description into `product-description.md`.
+4. Keep the description developer-friendly and implementation-focused.
+5. Include a short "Assumptions / Open Questions" section for uncertain parts.
+
+Constraints:
+- Do not modify files other than `product-description.md`.
+- Do not modify governance files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`) if they already exist.
+- Do not create tasks in this step.
+- If the repository is unclear, still produce the best description you can from available evidence.
+"""
+
+    # =========================================================================
     # Phase 5: Git Operations
     # =========================================================================
     GIT_COMMIT_MESSAGE = '''Create a git commit message and write it to `{message_file}`.
@@ -742,3 +764,8 @@ Client message:
     def format_description_update_prompt(message: str) -> str:
         """Format the description update prompt."""
         return PromptTemplates.DESCRIPTION_UPDATE_PROMPT.format(message=message)
+
+    @staticmethod
+    def format_repository_description_bootstrap_prompt() -> str:
+        """Format the prompt for generating initial description from existing repository."""
+        return PromptTemplates.REPOSITORY_DESCRIPTION_BOOTSTRAP_PROMPT

@@ -131,6 +131,32 @@ def apply_app_theme(app: QApplication):
             color: #fff5f6;
         }
         QPushButton[variant="danger"]:hover { background: #96404a; }
+        QCheckBox {
+            spacing: 8px;
+            color: #d7e0ea;
+        }
+        QCheckBox:disabled {
+            color: #7f8a95;
+        }
+        QCheckBox::indicator {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            border: 2px solid #6f8497;
+            background: #0f1419;
+        }
+        QCheckBox::indicator:hover {
+            border-color: #91abc0;
+            background: #131a22;
+        }
+        QCheckBox::indicator:checked {
+            border-color: #59a2db;
+            background: #2f6f9d;
+        }
+        QCheckBox::indicator:disabled {
+            border-color: #4a5662;
+            background: #13181d;
+        }
         """
     )
 

@@ -3,7 +3,7 @@
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QPushButton, QMessageBox, QApplication, QInputDialog,
-    QStyle, QTabWidget
+    QStyle, QTabWidget, QDialog, QFormLayout, QDialogButtonBox, QComboBox
 )
 from PySide6.QtCore import Qt, Slot, QThreadPool, Signal
 from PySide6.QtGui import QAction, QActionGroup
@@ -28,6 +28,7 @@ from ..core.error_context import ErrorRecoveryTracker
 from ..core.file_watcher import DescriptionFileWatcher
 from ..core.chat_history_manager import ChatHistoryManager
 from ..llm.prompt_templates import PromptTemplates
+from ..llm.base_provider import LLMProviderRegistry
 from ..utils.markdown_parser import has_incomplete_tasks, parse_tasks
 
 from ..workers.question_worker import QuestionWorker, DefinitionRewriteWorker
@@ -78,6 +79,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         self._task_progress_cycle_active = False
         self._task_progress_cycle_baseline_completed = 0
         self._suppress_external_description_prompt = False
+        self._description_bootstrap_prompted_paths = set()
+        self._description_bootstrap_prev_content = ""
 
         # File watcher for external edits to product-description.md
         self.description_watcher = DescriptionFileWatcher(self)
@@ -510,6 +513,218 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         except OSError as exc:
             self.log_viewer.append_log(f"Failed to read tasks.md: {exc}", "warning")
             return False
+
+    def _directory_has_non_framework_content(self, path: str) -> bool:
+        """Return True when directory has non-framework content worth bootstrapping."""
+        ignored_names = {
+            ".agentharness",
+            ".git",
+            ".idea",
+            ".vscode",
+            ".venv",
+            "__pycache__",
+            FileManager.TASKS_FILE,
+            FileManager.RECENT_CHANGES_FILE,
+            FileManager.DESCRIPTION_FILE,
+            FileManager.RESEARCH_FILE,
+            FileManager.ANSWER_FILE,
+            "session_state.json",
+            "questions.json",
+            FileManager.AGENTS_FILE,
+            FileManager.CLAUDE_FILE,
+            FileManager.GEMINI_FILE,
+            ".gitignore",
+            "review",
+        }
+        try:
+            for entry in Path(path).iterdir():
+                if entry.name in ignored_names:
+                    continue
+                return True
+        except OSError as exc:
+            self.log_viewer.append_log(f"Failed to inspect directory contents: {exc}", "warning")
+        return False
+
+    def _prompt_bootstrap_description_choice(self, path: str) -> bool:
+        """Ask user whether to auto-generate initial description for an existing folder."""
+        reply = QMessageBox.question(
+            self,
+            "Existing Folder Detected",
+            "You selected a non-empty folder.\n\n"
+            "Is this an existing project?\n"
+            "Would you like to create an initial product description from the current codebase?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes
+        )
+        self.log_viewer.append_log(
+            f"Initial-description bootstrap prompt for '{path}': "
+            f"{'accepted' if reply == QMessageBox.Yes else 'declined'}",
+            "info",
+        )
+        return reply == QMessageBox.Yes
+
+    def _prompt_bootstrap_llm_selection(self) -> tuple[str, str] | None:
+        """Open provider/model selection dialog for description bootstrap."""
+        providers = LLMProviderRegistry.get_all()
+        if not providers:
+            QMessageBox.warning(self, "No LLM Providers", "No LLM providers are registered.")
+            return None
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select LLM for Initial Description")
+        dialog.setMinimumWidth(520)
+        layout = QVBoxLayout(dialog)
+        form = QFormLayout()
+
+        provider_combo = QComboBox()
+        model_combo = QComboBox()
+        provider_keys = sorted(providers.keys(), key=lambda name: providers[name].display_name.lower())
+
+        for key in provider_keys:
+            provider_combo.addItem(providers[key].display_name, key)
+
+        def refresh_models():
+            model_combo.clear()
+            provider_name = provider_combo.currentData()
+            provider = providers.get(provider_name)
+            if not provider:
+                return
+            models = provider.get_models() or []
+            for model_id, display_name in models:
+                model_combo.addItem(display_name, model_id)
+            if model_combo.count() == 0:
+                default_model = provider.get_default_model()
+                if default_model:
+                    model_combo.addItem(default_model, default_model)
+
+        provider_combo.currentIndexChanged.connect(refresh_models)
+        refresh_models()
+
+        ctx = self.state_machine.context
+        preferred_provider = str(ctx.llm_config.get("description_molding", "claude"))
+        preferred_model = str(ctx.llm_config.get("description_molding_model", ""))
+        provider_index = provider_combo.findData(preferred_provider)
+        if provider_index >= 0:
+            provider_combo.setCurrentIndex(provider_index)
+            refresh_models()
+        if preferred_model:
+            model_index = model_combo.findData(preferred_model)
+            if model_index >= 0:
+                model_combo.setCurrentIndex(model_index)
+
+        form.addRow("Provider:", provider_combo)
+        form.addRow("Model:", model_combo)
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec() != QDialog.Accepted:
+            return None
+
+        return str(provider_combo.currentData()), str(model_combo.currentData() or "")
+
+    def _maybe_offer_initial_description_bootstrap(
+        self, path: str, has_non_framework_content: bool, existing_description: str
+    ):
+        """Offer LLM-generated initial description for non-empty existing projects."""
+        if not path or not has_non_framework_content:
+            return
+        if existing_description.strip():
+            return
+        normalized_path = str(Path(path))
+        if normalized_path in self._description_bootstrap_prompted_paths:
+            return
+        self._description_bootstrap_prompted_paths.add(normalized_path)
+        if not self._prompt_bootstrap_description_choice(path):
+            return
+        selection = self._prompt_bootstrap_llm_selection()
+        if not selection:
+            self.log_viewer.append_log("Initial-description bootstrap cancelled.", "info")
+            return
+        provider_name, model = selection
+        self._run_initial_description_bootstrap(provider_name, model)
+
+    def _run_initial_description_bootstrap(self, provider_name: str, model: str):
+        """Run an LLM pass that creates product-description.md from existing codebase."""
+        if self.current_worker:
+            self.log_viewer.append_log(
+                "Cannot start initial-description bootstrap while another worker is running.",
+                "warning",
+            )
+            return
+        if not self.file_manager:
+            self.log_viewer.append_log(
+                "Cannot start initial-description bootstrap without an active working directory.",
+                "warning",
+            )
+            return
+
+        try:
+            provider = LLMProviderRegistry.get(provider_name)
+        except Exception as exc:
+            self.log_viewer.append_log(f"Invalid bootstrap LLM provider '{provider_name}': {exc}", "error")
+            QMessageBox.warning(self, "Invalid Provider", str(exc))
+            return
+
+        prompt = PromptTemplates.format_repository_description_bootstrap_prompt()
+        self._description_bootstrap_prev_content = (self._load_description_from_file() or "").strip()
+        worker = LLMWorker(
+            provider=provider,
+            prompt=prompt,
+            working_directory=self.state_machine.context.working_directory,
+            model=model or None,
+            debug_stage="repository_description_bootstrap",
+        )
+        self._connect_worker_signals(worker)
+        worker.signals.result.connect(self.on_initial_description_bootstrap_complete)
+
+        self.current_worker = worker
+        self.thread_pool.start(worker)
+        self.chat_panel.set_bot_activity("Creating initial description from existing codebase...")
+        self.log_viewer.append_log(
+            f"Generating initial product description with {provider.display_name}"
+            f"{f' ({model})' if model else ''}...",
+            "info",
+        )
+        self.update_button_states()
+
+    @Slot(object)
+    def on_initial_description_bootstrap_complete(self, _result):
+        """Handle completion of initial description bootstrap generation."""
+        self.chat_panel.clear_bot_activity()
+        generated = (self._load_description_from_file() or "").strip()
+        if not generated:
+            self.log_viewer.append_log(
+                "Initial-description bootstrap completed but product-description.md is still empty.",
+                "warning",
+            )
+            QMessageBox.warning(
+                self,
+                "Description Not Generated",
+                "The LLM did not produce content for product-description.md.\n"
+                "You can enter it manually in chat using 'Create initial description'.",
+            )
+            return
+
+        self._suppress_description_sync = True
+        try:
+            self._set_description(generated)
+        finally:
+            self._suppress_description_sync = False
+
+        self.state_machine.update_context(description=generated)
+        self.chat_panel.update_placeholder_text(has_description=True)
+        if generated != self._description_bootstrap_prev_content:
+            self.log_viewer.append_log("Generated initial product description from repository.", "success")
+            self.chat_panel.add_bot_message("Generated initial product description from the existing codebase.")
+        else:
+            self.log_viewer.append_log(
+                "Bootstrap completed; product-description.md content was unchanged.",
+                "info",
+            )
 
     def _update_resume_button_visibility(self):
         """Update the resume button visibility based on current state."""
@@ -1765,6 +1980,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         if not path_obj.exists() or not path_obj.is_dir():
             return
 
+        has_non_framework_content = self._directory_has_non_framework_content(path)
         self._resume_incomplete_tasks_directory = ""
         self.state_machine.update_context(working_directory=path)
         self._prepare_working_directory(path)
@@ -1781,6 +1997,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         # Update chat panel placeholder text based on whether description exists
         has_description = bool(existing and existing.strip())
         self.chat_panel.update_placeholder_text(has_description=has_description)
+        self._maybe_offer_initial_description_bootstrap(path, has_non_framework_content, existing)
 
         # Load chat history for this project
         history = ChatHistoryManager.load(path)
