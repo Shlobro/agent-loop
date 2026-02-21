@@ -685,6 +685,7 @@ GIT DIFF:
             chat_history: Optional list of prior conversation entries
 
         If no checkboxes are specified (all None), uses legacy auto-detect behavior.
+        If all checkboxes are explicitly unchecked (all False), sends message as-is.
         """
         from ..core.chat_history_manager import ChatHistoryManager
         history_block = ""
@@ -751,9 +752,8 @@ Client message:
 """.format(message=message)
             return history_block + prompt
 
-        # No checkboxes selected - default to legacy behavior
-        prompt = PromptTemplates.CLIENT_MESSAGE_HANDLER_PROMPT.format(message=message)
-        return history_block + prompt
+        # No checkboxes selected - send the user message directly as the prompt.
+        return message
 
     @staticmethod
     def format_description_initialize_prompt(message: str) -> str:

@@ -1,6 +1,6 @@
 # Client Message Checkbox Prompts
 
-This document describes the 6 prompts used when sending messages to the LLM based on which checkboxes are selected.
+This document describes the 6 specialized prompts used when sending messages to the LLM based on which checkboxes are selected.
 
 ## Checkboxes
 - **Update description**: Update `product-description.md` with information from the message
@@ -174,6 +174,18 @@ Client message:
 
 ---
 
+## Case 8: No Checkboxes Selected
+**Checkboxes**: none selected
+
+**What it does**: Sends the user's message directly to the LLM as-is (no wrapper prompt).
+
+**Prompt**:
+```
+{message}
+```
+
+---
+
 ## Implementation Details
 
 ### Code Location
@@ -208,7 +220,7 @@ prompt = PromptTemplates.format_client_message_prompt(
     provide_answer=False
 )
 
-# Legacy auto-detect behavior (no checkboxes)
+# No checkboxes selected: direct passthrough behavior
 prompt = PromptTemplates.format_client_message_prompt(
     message="Add a login feature"
 )

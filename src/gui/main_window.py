@@ -1376,7 +1376,7 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         if provide_answer:
             actions.append("provide answer")
 
-        actions_str = ", ".join(actions) if actions else "auto-detect"
+        actions_str = ", ".join(actions) if actions else "direct message"
         self.log_viewer.append_log(f"Client message queued ({actions_str}): {message[:50]}...", "info")
 
         # If not in active workflow execution, process immediately
