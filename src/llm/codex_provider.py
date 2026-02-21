@@ -49,6 +49,17 @@ class CodexProvider(BaseLLMProvider):
         The prompt is provided through stdin by LLMWorker.
         """
         cmd = ["codex", "exec", "--skip-git-repo-check", "--full-auto"]
+
+        normalized_working_directory: Optional[str] = None
+        if working_directory and str(working_directory).strip():
+            candidate_working_directory = Path(working_directory)
+            if candidate_working_directory.exists() and candidate_working_directory.is_dir():
+                normalized_working_directory = str(candidate_working_directory)
+        if normalized_working_directory:
+            # Ensure Codex workspace-write sandbox is rooted at the selected project.
+            cmd.extend(["--cd", normalized_working_directory])
+            # Explicitly grant write access to the selected project tree.
+            cmd.extend(["--add-dir", normalized_working_directory])
         
         # Parse reasoning effort from model ID if present (e.g. "gpt-5.3-codex:high")
         actual_model = model
@@ -56,7 +67,7 @@ class CodexProvider(BaseLLMProvider):
         if model and ":" in model:
             actual_model, reasoning_effort = model.split(":", 1)
 
-        output_path = self.get_output_last_message_path(working_directory)
+        output_path = self.get_output_last_message_path(normalized_working_directory)
         if output_path:
             cmd.extend(["--output-last-message", output_path])
             

@@ -6,7 +6,7 @@ Application source package for AgentHarness. This is where the workflow, UI, LLM
 ## Folder Map
 - `core/`: Phase state machine, debug settings defaults, session persistence, file I/O, and settings models.
 - `gui/`: Main window orchestration, centralized theme (`gui/theme.py`), and UI panels/dialogs.
-- `llm/`: CLI-based LLM providers (Claude, Gemini, Codex). Codex supports reasoning effort levels (low, medium, high, xhigh) via model ID suffixes (e.g., `gpt-5.3-codex:high`). Provider-agnostic prompt templates ensure consistent instruction formatting.
+- `llm/`: CLI-based LLM providers (Claude, Gemini, Codex). Codex supports reasoning effort levels (low, medium, high, xhigh) via model ID suffixes (e.g., `gpt-5.3-codex:high`) and, when a working directory is provided, pins sandbox scope with `--cd <working_directory>` plus `--add-dir <working_directory>` so file writes target the selected project tree. Provider-agnostic prompt templates ensure consistent instruction formatting.
 - `utils/`: Common parsing utilities for JSON, Markdown, and other formats.
 - `workers/`: QRunnable workers for each workflow phase (LLM runner logs full prompts, emits output-file content to the log, supports per-stage debug breakpoints before/after each LLM call, can show/hide Windows live terminal popups per setting, and validates subprocess cwd with a safe fallback when a configured working directory is invalid). LLM defaults use longer time budgets: 600-second base timeout and 1200-second execution-stage timeout override.
 - `__init__.py`: Package marker; importing `src.llm` registers providers.
