@@ -177,10 +177,16 @@ Client message:
 ## Case 8: No Checkboxes Selected
 **Checkboxes**: none selected
 
-**What it does**: Sends the user's message directly to the LLM as-is (no wrapper prompt).
+**What it does**: Sends a headless-mode instruction prompt plus the user's message.
+The prompt tells the LLM the user only sees `answer.md`, so anything user-visible must be written there.
 
 **Prompt**:
 ```
+The user sent a message but you are running in headless mode.
+This means that whatever you output the user will not see.
+If there is something the user should see you must put it in answer.md.
+The user will only see the contents of answer.md.
+The user sent:
 {message}
 ```
 
@@ -220,7 +226,7 @@ prompt = PromptTemplates.format_client_message_prompt(
     provide_answer=False
 )
 
-# No checkboxes selected: direct passthrough behavior
+# No checkboxes selected: headless wrapper behavior
 prompt = PromptTemplates.format_client_message_prompt(
     message="Add a login feature"
 )

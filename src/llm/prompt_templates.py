@@ -435,6 +435,15 @@ Client message:
 {message}
 """
 
+    # Case 8: No checkboxes selected (headless passthrough context)
+    CLIENT_MESSAGE_HEADLESS_DIRECT = """The user sent a message but you are running in headless mode.
+This means that whatever you output the user will not see.
+If there is something the user should see you must put it in answer.md.
+The user will only see the contents of answer.md.
+The user sent:
+{message}
+"""
+
     # =========================================================================
     # Chat-to-Description Initialization
     # =========================================================================
@@ -685,7 +694,8 @@ GIT DIFF:
             chat_history: Optional list of prior conversation entries
 
         If no checkboxes are specified (all None), uses legacy auto-detect behavior.
-        If all checkboxes are explicitly unchecked (all False), sends message as-is.
+        If all checkboxes are explicitly unchecked (all False), sends a headless-mode
+        wrapper with answer.md visibility instructions and the raw user message.
         """
         from ..core.chat_history_manager import ChatHistoryManager
         history_block = ""
@@ -752,8 +762,9 @@ Client message:
 """.format(message=message)
             return history_block + prompt
 
-        # No checkboxes selected - send the user message directly as the prompt.
-        return message
+        # No checkboxes selected - send headless context + raw user message.
+        prompt = PromptTemplates.CLIENT_MESSAGE_HEADLESS_DIRECT.format(message=message)
+        return history_block + prompt
 
     @staticmethod
     def format_description_initialize_prompt(message: str) -> str:
