@@ -75,6 +75,7 @@ class SettingsMixin:
             review_types=exec_config.review_types,
             run_unit_test_prep=exec_config.run_unit_test_prep,
             tasks_per_iteration=exec_config.tasks_per_iteration,
+            chat_history_limit=exec_config.chat_history_limit,
         )
 
     def _apply_project_settings(self, settings: ProjectSettings):
@@ -110,6 +111,7 @@ class SettingsMixin:
             review_types=settings.review_types,
             run_unit_test_prep=settings.run_unit_test_prep,
             tasks_per_iteration=settings.tasks_per_iteration,
+            chat_history_limit=settings.chat_history_limit,
         )
         self.config_panel.set_config(exec_config)
         self._apply_git_mode(settings.git_mode)

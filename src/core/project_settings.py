@@ -52,6 +52,7 @@ class ProjectSettings:
     # Project Configuration
     working_directory: str = ""
     git_remote: str = ""
+    chat_history_limit: int = 50
 
 
 class ProjectSettingsManager:
@@ -187,5 +188,7 @@ class ProjectSettingsManager:
             normalized["run_unit_test_prep"] = True
         if "tasks_per_iteration" not in normalized:
             normalized["tasks_per_iteration"] = 1
+        if "chat_history_limit" not in normalized:
+            normalized["chat_history_limit"] = 50
 
         return normalized

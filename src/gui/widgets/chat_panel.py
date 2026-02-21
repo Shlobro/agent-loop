@@ -1,7 +1,25 @@
 """Chat panel for sending messages to LLM during workflow execution."""
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTextEdit, QTextBrowser, QLabel, QCheckBox
-from PySide6.QtCore import Signal, QTimer
+from PySide6.QtCore import Signal, QTimer, Qt
+from PySide6.QtGui import QKeyEvent
+
+
+class ChatInputTextEdit(QTextEdit):
+    """Chat input editor with Enter-to-send and Shift+Enter newline behavior."""
+
+    send_requested = Signal()
+
+    def keyPressEvent(self, event: QKeyEvent):
+        """Send on Enter/Return, insert newline on Shift+Enter/Shift+Return."""
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            if event.modifiers() & Qt.ShiftModifier:
+                super().keyPressEvent(event)
+                return
+            self.send_requested.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
 
 class ChatPanel(QWidget):
@@ -13,6 +31,8 @@ class ChatPanel(QWidget):
     """
 
     message_sent = Signal(str, bool, bool, bool)  # Emits: message, update_desc, add_tasks, provide_answer
+    clear_history_requested = Signal()
+    bot_message_added = Signal(str)  # Emits content of every bot message saved to history
 
     def __init__(self):
         super().__init__()
@@ -51,9 +71,10 @@ class ChatPanel(QWidget):
         input_label.setProperty("role", "muted")
         layout.addWidget(input_label)
 
-        self.input_area = QTextEdit()
+        self.input_area = ChatInputTextEdit()
         self.input_area.setPlaceholderText("Enter your project description here...")
         self.input_area.setMaximumHeight(100)
+        self.input_area.send_requested.connect(self._on_send_clicked)
         layout.addWidget(self.input_area, stretch=1)
 
         # Checkboxes for controlling LLM behavior
@@ -91,6 +112,11 @@ class ChatPanel(QWidget):
         """Handle send button click."""
         message = self.input_area.toPlainText().strip()
         if not message:
+            return
+
+        if message.lower() == "/clear":
+            self.input_area.clear()
+            self.clear_history_requested.emit()
             return
 
         # Get checkbox states
@@ -142,6 +168,26 @@ class ChatPanel(QWidget):
             "content": content,
             "status": "completed"
         })
+        self._update_display()
+        self.bot_message_added.emit(content)
+
+    def load_history(self, messages: list):
+        """Load persisted chat history entries into the display."""
+        self.message_history.clear()
+        for entry in messages:
+            role = entry.get("role", "user")
+            content = entry.get("content", "")
+            self.message_history.append({
+                "id": f"history_{len(self.message_history)}",
+                "role": role,
+                "content": content,
+                "status": "completed"
+            })
+        self._update_display()
+
+    def clear_display(self):
+        """Clear all messages from the display."""
+        self.message_history.clear()
         self._update_display()
 
     def set_bot_activity(self, activity_text: str = ""):

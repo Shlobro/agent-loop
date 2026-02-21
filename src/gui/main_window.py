@@ -26,6 +26,7 @@ from ..core.file_manager import FileManager
 from ..core.session_manager import SessionManager
 from ..core.error_context import ErrorRecoveryTracker
 from ..core.file_watcher import DescriptionFileWatcher
+from ..core.chat_history_manager import ChatHistoryManager
 from ..llm.prompt_templates import PromptTemplates
 from ..utils.markdown_parser import has_incomplete_tasks, parse_tasks
 
@@ -429,6 +430,8 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
 
         # Chat panel
         self.chat_panel.message_sent.connect(self.on_client_message_sent)
+        self.chat_panel.clear_history_requested.connect(self.on_clear_chat_history)
+        self.chat_panel.bot_message_added.connect(self.on_bot_message_added)
 
     def _initialize_startup_working_directory(self):
         """Initialize artifacts for the startup/default working directory."""
@@ -1089,6 +1092,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
             self.chat_panel.add_message(message_id, message, "processing")
             self._initial_description_message_id = message_id
             self.log_viewer.append_log("Initializing product description from chat message...", "info")
+            working_dir = self.config_panel.get_working_directory()
+            if working_dir:
+                limit = self.config_panel.chat_history_limit_spin.value()
+                ChatHistoryManager.append_message(working_dir, "user", message, limit=limit)
             self._initialize_description_from_chat(message)
             return
 
@@ -1108,6 +1115,12 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         # Update UI
         self.chat_panel.add_message(message_id, message, "queued")
 
+        # Persist user message to history
+        working_dir = self.config_panel.get_working_directory()
+        if working_dir:
+            limit = self.config_panel.chat_history_limit_spin.value()
+            ChatHistoryManager.append_message(working_dir, "user", message, limit=limit)
+
         # Log which actions are requested
         actions = []
         if update_description:
@@ -1125,6 +1138,22 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         if phase not in [Phase.MAIN_EXECUTION, Phase.DEBUG_REVIEW, Phase.GIT_OPERATIONS]:
             self.log_viewer.append_log("Processing message immediately (workflow not running)...", "info")
             self._process_client_messages()
+
+    @Slot()
+    def on_clear_chat_history(self):
+        """Clear chat history file and display."""
+        working_dir = self.config_panel.get_working_directory()
+        if working_dir:
+            ChatHistoryManager.clear(working_dir)
+        self.chat_panel.clear_display()
+
+    @Slot(str)
+    def on_bot_message_added(self, content: str):
+        """Persist bot message to chat history."""
+        working_dir = self.config_panel.get_working_directory()
+        if working_dir:
+            limit = self.config_panel.chat_history_limit_spin.value()
+            ChatHistoryManager.append_message(working_dir, "bot", content, limit=limit)
 
     def _get_description(self) -> str:
         """Get the current description content."""
@@ -1702,6 +1731,10 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         # Update chat panel placeholder text based on whether description exists
         has_description = bool(existing and existing.strip())
         self.chat_panel.update_placeholder_text(has_description=has_description)
+
+        # Load chat history for this project
+        history = ChatHistoryManager.load(path)
+        self.chat_panel.load_history(history)
 
         # Load existing tasks if Tasks tab is enabled
         if self._tasks_enabled:

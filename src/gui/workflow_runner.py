@@ -695,6 +695,9 @@ class WorkflowRunnerMixin:
 
         # Create worker
         from ..workers.client_message_worker import ClientMessageWorker
+        from ..core.chat_history_manager import ChatHistoryManager
+
+        chat_history = ChatHistoryManager.load(ctx.working_directory) if ctx.working_directory else []
 
         worker = ClientMessageWorker(
             message=message_data["content"],
@@ -706,7 +709,8 @@ class WorkflowRunnerMixin:
             show_terminal=ctx.show_llm_terminals,
             update_description=message_data.get("update_description"),
             add_tasks=message_data.get("add_tasks"),
-            provide_answer=message_data.get("provide_answer")
+            provide_answer=message_data.get("provide_answer"),
+            chat_history=chat_history
         )
 
         # Connect signals

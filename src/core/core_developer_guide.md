@@ -49,6 +49,15 @@ This directory contains the foundational logic for the AgentHarness application.
 - **Key Features**:
   - `DescriptionFileWatcher`: Uses `QFileSystemWatcher` to detect external edits to `product-description.md`, emitting a signal to prompt the UI to reload the file.
 
+### `chat_history_manager.py`
+- **Purpose**: Manages per-project chat history persistence in `.agentharness/chat-history.json`.
+- **Key Methods**:
+  - `load(working_directory)`: Reads the history file and returns a list of `{role, content, timestamp}` dicts. Returns `[]` on missing file or error.
+  - `save(working_directory, messages, limit=50)`: Trims to last `limit` entries and writes atomically via a `.tmp` file.
+  - `append_message(working_directory, role, content, limit=50)`: Loads current history, appends one entry, then saves. No-op when `limit == 0`.
+  - `clear(working_directory)`: Resets the file to an empty list.
+  - `format_for_prompt(messages)`: Returns a formatted block with `=== Recent Conversation History ===` header/footer for injection into LLM prompts.
+
 ### `exceptions.py`
 - **Purpose**: Defines custom exception classes (e.g., `LLMError`, `FileOperationError`, `StateTransitionError`) used throughout the application for precise error handling.
 

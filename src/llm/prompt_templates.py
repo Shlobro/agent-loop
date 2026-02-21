@@ -650,7 +650,8 @@ GIT DIFF:
 
     @staticmethod
     def format_client_message_prompt(message: str, update_description: bool = None,
-                                     add_tasks: bool = None, provide_answer: bool = None) -> str:
+                                     add_tasks: bool = None, provide_answer: bool = None,
+                                     chat_history: list = None) -> str:
         """
         Format the client message handler prompt based on checkbox selections.
 
@@ -659,12 +660,21 @@ GIT DIFF:
             update_description: If True, update product-description.md
             add_tasks: If True, add tasks to tasks.md
             provide_answer: If True, provide answer in answer.md
+            chat_history: Optional list of prior conversation entries
 
         If no checkboxes are specified (all None), uses legacy auto-detect behavior.
         """
+        from ..core.chat_history_manager import ChatHistoryManager
+        history_block = ""
+        if chat_history:
+            formatted = ChatHistoryManager.format_for_prompt(chat_history)
+            if formatted:
+                history_block = formatted + "\n\n"
+
         # Legacy behavior - auto-detect what to do
         if update_description is None and add_tasks is None and provide_answer is None:
-            return PromptTemplates.CLIENT_MESSAGE_HANDLER_PROMPT.format(message=message)
+            prompt = PromptTemplates.CLIENT_MESSAGE_HANDLER_PROMPT.format(message=message)
+            return history_block + prompt
 
         # Convert None to False for easier logic
         update_description = update_description or False
@@ -673,31 +683,37 @@ GIT DIFF:
 
         # Case 1: Update description only
         if update_description and not add_tasks and not provide_answer:
-            return PromptTemplates.CLIENT_MESSAGE_UPDATE_DESCRIPTION_ONLY.format(message=message)
+            prompt = PromptTemplates.CLIENT_MESSAGE_UPDATE_DESCRIPTION_ONLY.format(message=message)
+            return history_block + prompt
 
         # Case 2: Add tasks only
         if add_tasks and not update_description and not provide_answer:
-            return PromptTemplates.CLIENT_MESSAGE_ADD_TASKS_ONLY.format(message=message)
+            prompt = PromptTemplates.CLIENT_MESSAGE_ADD_TASKS_ONLY.format(message=message)
+            return history_block + prompt
 
         # Case 3: Provide answer only
         if provide_answer and not update_description and not add_tasks:
-            return PromptTemplates.CLIENT_MESSAGE_PROVIDE_ANSWER_ONLY.format(message=message)
+            prompt = PromptTemplates.CLIENT_MESSAGE_PROVIDE_ANSWER_ONLY.format(message=message)
+            return history_block + prompt
 
         # Case 4: Update description + Add tasks
         if update_description and add_tasks and not provide_answer:
-            return PromptTemplates.CLIENT_MESSAGE_UPDATE_DESC_ADD_TASKS.format(message=message)
+            prompt = PromptTemplates.CLIENT_MESSAGE_UPDATE_DESC_ADD_TASKS.format(message=message)
+            return history_block + prompt
 
         # Case 5: Update description + Provide answer
         if update_description and provide_answer and not add_tasks:
-            return PromptTemplates.CLIENT_MESSAGE_UPDATE_DESC_PROVIDE_ANSWER.format(message=message)
+            prompt = PromptTemplates.CLIENT_MESSAGE_UPDATE_DESC_PROVIDE_ANSWER.format(message=message)
+            return history_block + prompt
 
         # Case 6: Add tasks + Provide answer
         if add_tasks and provide_answer and not update_description:
-            return PromptTemplates.CLIENT_MESSAGE_ADD_TASKS_PROVIDE_ANSWER.format(message=message)
+            prompt = PromptTemplates.CLIENT_MESSAGE_ADD_TASKS_PROVIDE_ANSWER.format(message=message)
+            return history_block + prompt
 
         # All three checkboxes - combine all behaviors
         if update_description and add_tasks and provide_answer:
-            return """You are a dev working on the current project. The client has sent in a message.
+            prompt = """You are a dev working on the current project. The client has sent in a message.
 
 Read product-description.md and tasks.md.
 
@@ -711,9 +727,11 @@ Your job is to:
 Client message:
 {message}
 """.format(message=message)
+            return history_block + prompt
 
         # No checkboxes selected - default to legacy behavior
-        return PromptTemplates.CLIENT_MESSAGE_HANDLER_PROMPT.format(message=message)
+        prompt = PromptTemplates.CLIENT_MESSAGE_HANDLER_PROMPT.format(message=message)
+        return history_block + prompt
 
     @staticmethod
     def format_description_initialize_prompt(message: str) -> str:

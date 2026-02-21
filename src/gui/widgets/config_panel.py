@@ -29,6 +29,7 @@ class ExecutionConfig:
     )
     run_unit_test_prep: bool = True
     tasks_per_iteration: int = 1
+    chat_history_limit: int = 50
 
 
 class ConfigPanel(QWidget):
@@ -93,6 +94,16 @@ class ConfigPanel(QWidget):
         self.debug_iterations_spin.setToolTip("Number of debug/review loop iterations (0 to skip)")
         self.debug_iterations_spin.valueChanged.connect(self._on_config_changed)
         form.addRow("Debug Loop Iterations:", self.debug_iterations_spin)
+
+        # Chat history limit
+        self.chat_history_limit_spin = QSpinBox()
+        self.chat_history_limit_spin.setRange(0, 500)
+        self.chat_history_limit_spin.setValue(50)
+        self.chat_history_limit_spin.setToolTip(
+            "Maximum number of messages to keep in chat history (0 to disable)"
+        )
+        self.chat_history_limit_spin.valueChanged.connect(self._on_config_changed)
+        form.addRow("Chat History Limit:", self.chat_history_limit_spin)
 
         # Git remote URL
         self.git_remote_label = QLabel("Git Remote URL:")
@@ -322,7 +333,8 @@ class ConfigPanel(QWidget):
             max_questions=self.max_questions_spin.value(),
             review_types=self.get_review_types(),
             run_unit_test_prep=self.get_run_unit_test_prep(),
-            tasks_per_iteration=self.tasks_per_iteration_spin.value()
+            tasks_per_iteration=self.tasks_per_iteration_spin.value(),
+            chat_history_limit=self.chat_history_limit_spin.value()
         )
 
     def set_config(self, config: ExecutionConfig):
@@ -337,6 +349,7 @@ class ConfigPanel(QWidget):
         self._selected_review_types = [review for review in self._all_review_types if review in set(selected)]
         self._run_unit_test_prep = bool(config.run_unit_test_prep)
         self.tasks_per_iteration_spin.setValue(config.tasks_per_iteration)
+        self.chat_history_limit_spin.setValue(config.chat_history_limit)
 
     def get_review_types(self) -> List[str]:
         """Get the selected review types."""

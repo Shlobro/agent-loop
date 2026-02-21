@@ -28,7 +28,8 @@ class ClientMessageWorker(BaseWorker):
         show_terminal: bool = True,
         update_description: bool = None,
         add_tasks: bool = None,
-        provide_answer: bool = None
+        provide_answer: bool = None,
+        chat_history: list = None
     ):
         super().__init__()
         self.message = message
@@ -41,6 +42,7 @@ class ClientMessageWorker(BaseWorker):
         self.update_description = update_description
         self.add_tasks = add_tasks
         self.provide_answer = provide_answer
+        self.chat_history = chat_history or []
         self.file_manager = FileManager(working_directory)
 
     def execute(self):
@@ -60,7 +62,8 @@ class ClientMessageWorker(BaseWorker):
             self.message,
             update_description=self.update_description,
             add_tasks=self.add_tasks,
-            provide_answer=self.provide_answer
+            provide_answer=self.provide_answer,
+            chat_history=self.chat_history
         )
 
         # Call LLM using LLMWorker
