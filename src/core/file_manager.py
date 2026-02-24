@@ -174,6 +174,18 @@ class FileManager:
         existing = self.read_recent_changes()
         self.write_recent_changes(existing + "\n" + content)
 
+    def cap_recent_changes(self, max_lines: int = 500):
+        """Trim recent-changes.md to at most max_lines, dropping oldest lines after the header."""
+        content = self.read_recent_changes()
+        lines = content.splitlines()
+        if len(lines) <= max_lines:
+            return
+        # Always keep the "# Recent Changes" header (first line)
+        header = [lines[0]] if lines else ["# Recent Changes"]
+        body = lines[1:]
+        keep = body[-(max_lines - 1):]
+        self.write_recent_changes("\n".join(header + keep) + "\n")
+
     def read_description(self) -> str:
         """Read product-description.md content."""
         try:

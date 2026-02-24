@@ -35,22 +35,10 @@ Do not implement any code I only want the clarifying questions in the `questions
 Do not create any new files, only edit the existing questions.json with new questions and answers.
         """
     )
-    # QUESTION_GENERATION_PROMPT = (
-    #     'your job is to edit `questions.json` file with {question_count} questions to clarify '
-    #     'exactly what the user wants to make. provide the user with 3-5 possible '
-    #     'answers for each question. the format of the json should be '
-    #     '{{"questions":[{{"question":"...","options":["...","..."]}}]}}.\n\n'
-    #     'there already exists an empty questions.json file. edit it and put the questions there. '
-    #     'Write the JSON to `questions.json` in the working directory: {working_directory}. '
-    #     'Do not implement any code I only want the clarifying questions in the `questions.json` file. '
-    #     'Do not create any new files, only edit the existing questions.json with new questions and answers. '
-    #     'in the project description the user inputted was: "{description}".'
-    # )
 
-    # =========================================================================
-    # Question Follow-up: Q&A -> Product Definition Rewrite
-    # =========================================================================
-    DEFINITION_REWRITE_PROMPT = '''
+
+
+    DEFINITION_REWRITE_PROMPT_USING_QUESTIONS = '''
 update product-description.md.
 Rewrite the project description into a clear product definition using the original description and the clarifying Q&A.
 to be clear the client has sent us a product description and we have sent him clarifying questions, the client has responded to those questions and now we need to create a new updated product description based on these questions and the original product description
@@ -65,19 +53,7 @@ CLARIFYING QUESTIONS AND ANSWERS:
     # =========================================================================
     # Phase 2: Task Planning
     # =========================================================================
-    RESEARCH_PROMPT = '''
-I want you to search online and fill in the research.md file.
-We already have product-description.md and tasks.md.
-Use both files while conducting research.
-Fill in research.md with any information a developer should have while working on this product and planned tasks.
 
-Requirements for research.md:
-- Keep it practical and implementation-focused for engineers.
-- Include relevant standards, APIs, libraries, constraints, edge cases, and security/privacy considerations.
-- Include assumptions and open questions that should be validated with the client.
-- Do not write tasks in this file.
-- Do not modify any files other than research.md.
-'''
 
     TASK_PLANNING = '''
 I want you to make a task list in the tasks.md file.
@@ -92,6 +68,20 @@ OUTPUT FORMAT (write directly into tasks.md):
 - Do not use nested tasks or sub-items.
 - Each task should be self-contained.
 '''
+
+    RESEARCH_PROMPT = '''
+    I want you to search online and fill in the research.md file.
+    We already have product-description.md and tasks.md.
+    Use both files while conducting research.
+    Fill in research.md with any information a developer should have while working on this product and planned tasks.
+
+    Requirements for research.md:
+    - Keep it practical and implementation-focused for engineers.
+    - Include relevant standards, APIs, libraries, constraints, edge cases, and security/privacy considerations.
+    - Include assumptions and open questions that should be validated with the client.
+    - Do not write tasks in this file.
+    - Do not modify any files other than research.md.
+    '''
 
     # =========================================================================
     # Phase 3: Main Execution
@@ -581,7 +571,7 @@ GIT DIFF:
             answers_text = "\n".join(qa_lines).strip()
         else:
             answers_text = "(none)"
-        return cls.DEFINITION_REWRITE_PROMPT.format(
+        return cls.DEFINITION_REWRITE_PROMPT_USING_QUESTIONS.format(
             description=description,
             answers=answers_text,
             working_directory=working_directory

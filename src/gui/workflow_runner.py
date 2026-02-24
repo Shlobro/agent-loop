@@ -323,13 +323,13 @@ class WorkflowRunnerMixin:
             self.state_machine.set_error(str(exc))
 
     def _clear_recent_changes(self):
-        """Clear recent-changes.md after git push so next task starts fresh."""
+        """Cap recent-changes.md to 500 lines after git so history accumulates but stays bounded."""
         if self.file_manager:
             try:
-                self.file_manager.write_recent_changes("# Recent Changes\n\n")
-                self.log_viewer.append_log("Cleared recent-changes.md for next task", "debug")
+                self.file_manager.cap_recent_changes(max_lines=500)
+                self.log_viewer.append_log("Capped recent-changes.md to 500 lines", "debug")
             except Exception as e:
-                self.log_viewer.append_log(f"Failed to clear recent-changes.md: {e}", "warning")
+                self.log_viewer.append_log(f"Failed to cap recent-changes.md: {e}", "warning")
 
     def _should_run_review_loop(self) -> bool:
         """Return True if review loop is configured to run."""

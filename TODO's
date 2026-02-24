@@ -32,8 +32,6 @@ if the debuggers change anything they should also update the recent changes
 
 With UI programs we have the issue of the agent running it and then waiting for it to quit sometimes? does this mean we need user input?
 
-recent changes should NOT be reset after each iteration instead the recent changes should not be over 500 lines long. this should be handled by the code to start erasing old lines to keep it at 500 lines
-
 need an option in the UI to add things to the list of what needs to be done
 
 should the questions.json be updated after the user inputs his answers?

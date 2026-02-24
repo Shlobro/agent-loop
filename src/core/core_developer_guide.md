@@ -19,6 +19,7 @@ This directory contains the foundational logic for the AgentHarness application.
   - Ensures existence of governance files (`AGENTS.md`, `CLAUDE.md`, etc.) and the `.agentharness` directory.
   - Provides methods for atomic writes (`_atomic_write`) to prevent data corruption.
   - Handles reading/clearing specific files like `answer.md` and error logs.
+  - `cap_recent_changes(max_lines=500)` trims `recent-changes.md` to at most 500 lines (keeping the header), dropping the oldest entries. Called after each git operation instead of clearing the file.
 
 ### `project_settings.py`
 - **Purpose**: Manages persistent configuration for the project.
