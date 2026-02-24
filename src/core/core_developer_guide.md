@@ -16,7 +16,10 @@ This directory contains the foundational logic for the AgentHarness application.
 - **Purpose**: Handles all file system operations. It ensures atomic reads and writes to critical project files and maintains the directory structure.
 - **Key Features**:
   - Manages artifact files: `tasks.md`, `product-description.md`, `recent-changes.md`, `research.md`, and review files.
-  - Ensures existence of governance files (`AGENTS.md`, `CLAUDE.md`, etc.) and the `.agentharness` directory.
+  - Ensures existence of governance files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`) and the `.agentharness` directory. The governance file template includes two headless-mode rules at the top: agents are told the user cannot see their terminal output and must write a phase summary to `answer.md` after completing all their work.
+  - `get_stale_governance_files()` returns a list of governance filenames that exist in the project folder but whose content differs from the current recommended template. Used to prompt users to update old files.
+  - `append_governance_content(filenames)` appends the recommended template to the end of each named file.
+  - `replace_governance_content(filenames)` overwrites each named file with the recommended template.
   - Provides methods for atomic writes (`_atomic_write`) to prevent data corruption.
   - Handles reading/clearing specific files like `answer.md` and error logs.
   - `cap_recent_changes(max_lines=500)` trims `recent-changes.md` to at most 500 lines (keeping the header), dropping the oldest entries. Called after each git operation instead of clearing the file.

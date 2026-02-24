@@ -501,6 +501,41 @@ class MainWindow(QMainWindow, WorkflowRunnerMixin, SettingsMixin):
         except Exception as exc:
             self.log_viewer.append_log(f"Failed to initialize working directory files: {exc}", "warning")
 
+        self._check_governance_files()
+
+    def _check_governance_files(self):
+        """Show update dialog if any governance files exist but are out of date."""
+        if not self.file_manager:
+            return
+        try:
+            stale = self.file_manager.get_stale_governance_files()
+        except Exception as exc:
+            self.log_viewer.append_log(f"Could not check governance files: {exc}", "warning")
+            return
+        if not stale:
+            return
+
+        from .dialogs.governance_update_dialog import GovernanceUpdateDialog
+        dialog = GovernanceUpdateDialog(stale, parent=self)
+        dialog.exec()
+
+        if dialog.choice == GovernanceUpdateDialog.APPEND:
+            try:
+                self.file_manager.append_governance_content(stale)
+                self.log_viewer.append_log(
+                    f"Appended recommended content to: {', '.join(stale)}", "info"
+                )
+            except Exception as exc:
+                self.log_viewer.append_log(f"Failed to append governance content: {exc}", "warning")
+        elif dialog.choice == GovernanceUpdateDialog.REPLACE:
+            try:
+                self.file_manager.replace_governance_content(stale)
+                self.log_viewer.append_log(
+                    f"Replaced governance files with recommended content: {', '.join(stale)}", "info"
+                )
+            except Exception as exc:
+                self.log_viewer.append_log(f"Failed to replace governance content: {exc}", "warning")
+
     def _working_directory_has_incomplete_tasks(self, path: str) -> bool:
         """Return True when tasks.md exists and contains unchecked tasks."""
         if not path:

@@ -116,6 +116,8 @@ class FileManager:
     def _default_governance_content() -> str:
         """Return the unified default content for governance files (AGENTS.md, CLAUDE.md, GEMINI.md)."""
         return "\n".join([
+            "- You are running in headless mode. The user cannot see your terminal output, tool calls, or any work you do. The only way to communicate with the user is through answer.md.",
+            "- After completing all your work for this phase, write a brief summary to answer.md describing what you did (e.g. which tasks you completed, what you changed, what issues you found and fixed). Keep it concise and human-readable.",
             "- Always start with reading product-description.md.",
             "- each folder must have a developer-guide.md that must be updated after any change in that folder, if there is a folder with code files and no developer guide then create it.",
             "- the point of the developer guides md files are so that any new developer can understand what is in that folder without having to ever read the code in that folder",
@@ -295,6 +297,43 @@ class FileManager:
     def clear_error_conclusion(self):
         """Clear/truncate error-conclusion.md file."""
         self.write_error_conclusion("")
+
+    def get_stale_governance_files(self) -> list[str]:
+        """Return names of governance files that exist but don't match the current recommended content."""
+        recommended = self._default_governance_content()
+        stale = []
+        for name in (self.AGENTS_FILE, self.CLAUDE_FILE, self.GEMINI_FILE):
+            path = self.working_dir / name
+            if path.exists():
+                try:
+                    current = path.read_text(encoding="utf-8")
+                    if current != recommended:
+                        stale.append(name)
+                except OSError:
+                    pass
+        return stale
+
+    def append_governance_content(self, filenames: list[str]):
+        """Append the recommended governance content to the given files."""
+        recommended = self._default_governance_content()
+        for name in filenames:
+            path = self.working_dir / name
+            try:
+                existing = path.read_text(encoding="utf-8") if path.exists() else ""
+                separator = "\n" if existing and not existing.endswith("\n") else ""
+                self._atomic_write(path, existing + separator + recommended)
+            except OSError as e:
+                raise FileOperationError(f"Failed to append to {name}: {e}")
+
+    def replace_governance_content(self, filenames: list[str]):
+        """Replace the given governance files with the recommended content."""
+        recommended = self._default_governance_content()
+        for name in filenames:
+            path = self.working_dir / name
+            try:
+                self._atomic_write(path, recommended)
+            except OSError as e:
+                raise FileOperationError(f"Failed to replace {name}: {e}")
 
     def read_answer(self) -> str:
         """Read answer.md content."""

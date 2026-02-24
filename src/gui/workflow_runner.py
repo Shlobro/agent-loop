@@ -20,6 +20,22 @@ class WorkflowRunnerMixin:
         if hasattr(self, "chat_panel"):
             self.chat_panel.add_bot_message(message)
 
+    def _post_phase_summary(self, milestone: str):
+        """Read answer.md, post its content to chat under a milestone header, then clear it."""
+        summary = ""
+        if self.file_manager:
+            try:
+                summary = self.file_manager.read_answer().strip()
+                if summary:
+                    self.file_manager.truncate_answer()
+            except Exception:
+                summary = ""
+
+        if summary:
+            self._post_bot_progress_message(f"**{milestone}**\n\n{summary}")
+        else:
+            self._post_bot_progress_message(milestone)
+
     def run_task_planning(self):
         """Run Phase 2: Task Planning."""
         ctx = self.state_machine.context
@@ -47,7 +63,7 @@ class WorkflowRunnerMixin:
         self.state_machine.update_context(tasks_content=tasks_content)
         self.log_viewer.append_success("Task list created")
         self._refresh_task_loop_snapshot(action="Task list created")
-        self._post_bot_progress_message("Completed task planning.")
+        self._post_phase_summary("Completed task planning.")
 
         # Move to main execution
         self.log_viewer.append_log("Transitioning to Main Execution phase...", "info")
@@ -114,7 +130,7 @@ class WorkflowRunnerMixin:
         # Check if all tasks are done
         if result.get("all_tasks_done"):
             self.log_viewer.append_log("All tasks completed!", "success")
-            self._post_bot_progress_message("All tasks are complete.")
+            self._post_phase_summary("All tasks are complete.")
 
             self._run_review_or_git(is_final=True)
             return
@@ -124,11 +140,12 @@ class WorkflowRunnerMixin:
         completed_tasks = [str(task).strip() for task in result.get("completed_tasks", []) if str(task).strip()]
         if completed_tasks:
             completed_lines = "\n".join([f"- {task}" for task in completed_tasks])
-            self._post_bot_progress_message(f"Completed tasks:\n{completed_lines}")
+            milestone = f"Completed tasks:\n{completed_lines}"
         elif result.get("task_completed"):
-            self._post_bot_progress_message("Completed task execution.")
+            milestone = "Completed task execution."
         else:
-            self._post_bot_progress_message("Execution pass finished. No tasks were marked complete.")
+            milestone = "Execution pass finished. No tasks were marked complete."
+        self._post_phase_summary(milestone)
 
         # Check if we should run review loop
         self._run_review_or_git(is_final=False)
@@ -198,7 +215,7 @@ class WorkflowRunnerMixin:
             return
 
         self.log_viewer.append_log(f"Review loop completed: {result.get('review_iterations_completed', 0)} iterations", "success")
-        self._post_bot_progress_message("Completed review phase.")
+        self._post_phase_summary("Completed review phase.")
 
         # Move to git operations for this task
         self.log_viewer.append_log("Transitioning to Git Operations for this task...", "info")

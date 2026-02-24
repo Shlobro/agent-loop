@@ -1,0 +1,68 @@
+{
+  "question_gen": "gemini",
+  "description_molding": "gemini",
+  "task_planning": "gemini",
+  "coder": "gemini",
+  "reviewer": "gemini",
+  "fixer": "gemini",
+  "unit_test_prep": "gemini",
+  "git_ops": "gemini",
+  "question_gen_model": "",
+  "description_molding_model": "gemini-3-pro-preview",
+  "task_planning_model": "",
+  "coder_model": "",
+  "reviewer_model": "",
+  "fixer_model": "",
+  "unit_test_prep_model": "gemini-3-pro-preview",
+  "git_ops_model": "",
+  "review_types": [
+    "general"
+  ],
+  "run_unit_test_prep": true,
+  "tasks_per_iteration": 1,
+  "max_main_iterations": 10,
+  "debug_loop_iterations": 1,
+  "debug_mode_enabled": false,
+  "debug_breakpoints": {
+    "question_generation": {
+      "before": true,
+      "after": false
+    },
+    "description_molding": {
+      "before": true,
+      "after": false
+    },
+    "task_planning": {
+      "before": true,
+      "after": false
+    },
+    "execution": {
+      "before": true,
+      "after": false
+    },
+    "reviewer": {
+      "before": true,
+      "after": false
+    },
+    "fixer": {
+      "before": true,
+      "after": false
+    },
+    "git_commit": {
+      "before": true,
+      "after": false
+    },
+    "git_push": {
+      "before": true,
+      "after": false
+    }
+  },
+  "show_llm_terminals": true,
+  "show_logs_panel": true,
+  "show_description_tab": true,
+  "show_tasks_tab": true,
+  "max_questions": 5,
+  "git_mode": "local",
+  "working_directory": "C:\\Users\\shlob\\Pycharm Projects\\agentHarness",
+  "git_remote": ""
+}

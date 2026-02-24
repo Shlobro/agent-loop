@@ -14,6 +14,7 @@ Contains dialogs used by the GUI for user approvals, confirmations, and post-que
 - `startup_directory_dialog.py`: Working-directory picker dialog used both at startup and from `File -> Open Project...` at runtime. Requires selecting a valid working directory and includes recent-directory shortcuts.
 - `error_recovery_dialog.py`: Modal dialog shown when workflow errors occur. Provides three recovery options: Retry Phase (re-run from start), Skip to Next (move to next iteration), and Send to LLM (automated error fixing with provider selection). Returns via signals (`retry_requested`, `skip_requested`, `send_to_llm_requested`). Blocks manual close to force user choice.
 - `error_conclusion_dialog.py`: Modal dialog shown after LLM error fix attempt to display contents of `error-conclusion.md`. If empty (LLM failed), prompts user to try different LLM, retry manually, or skip. If has content (LLM succeeded), shows conclusion and allows retry with fixes, try different LLM, or skip. Returns via signals (`retry_requested`, `try_different_llm_requested`, `skip_requested`).
+- `governance_update_dialog.py`: Modal dialog shown when `CLAUDE.md`, `AGENTS.md`, or `GEMINI.md` exist in the project folder but don't match the current recommended AgentHarness template. Lists the stale files and offers three choices: `Append` (add recommended content to end of each file), `Replace` (overwrite with recommended content), or `Skip` (leave as-is). After `exec()`, read `.choice` for the result.
 - `__init__.py`: Module marker.
 
 ## Key Interactions

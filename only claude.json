@@ -1,0 +1,24 @@
+{
+  "llm_config": {
+    "question_gen": "claude",
+    "description_molding": "claude",
+    "research": "claude",
+    "task_planning": "claude",
+    "coder": "claude",
+    "reviewer": "claude",
+    "fixer": "claude",
+    "unit_test_prep": "claude",
+    "git_ops": "claude",
+    "client_message_handler": "claude",
+    "question_gen_model": "claude-sonnet-4-6",
+    "description_molding_model": "claude-sonnet-4-6",
+    "research_model": "claude-sonnet-4-6",
+    "task_planning_model": "claude-sonnet-4-6",
+    "coder_model": "claude-sonnet-4-6",
+    "reviewer_model": "claude-sonnet-4-6",
+    "fixer_model": "claude-sonnet-4-6",
+    "unit_test_prep_model": "claude-sonnet-4-6",
+    "git_ops_model": "claude-sonnet-4-6",
+    "client_message_handler_model": "claude-sonnet-4-6"
+  }
+}
