@@ -16,7 +16,7 @@
     "task_planning_model": "claude-sonnet-4-6",
     "coder_model": "gpt-5.3-codex",
     "reviewer_model": "gpt-5.3-codex",
-    "fixer_model": "claude-opus-4-6",
+    "fixer_model": "claude-sonnet-4-6",
     "unit_test_prep_model": "gpt-5.3-codex",
     "git_ops_model": "gpt-5.3-codex:low",
     "client_message_handler_model": "gpt-5.3-codex:low"

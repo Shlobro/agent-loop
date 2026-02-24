@@ -96,35 +96,18 @@ OUTPUT FORMAT (write directly into tasks.md):
     # =========================================================================
     # Phase 3: Main Execution
     # =========================================================================
-    MAIN_EXECUTION_SINGLE = '''
+    MAIN_EXECUTION = '''
 INSTRUCTIONS:
 1. Read the recent-changes.md
 2. Read research.md if it exists and use it as context
-3. Choose exactly ONE incomplete task from tasks.md list (marked with `- [ ]`)
-4. Implement that task completely and thoroughly
-5. After implementing, update the recent-changes.md file with what you changed
-6. Mark the task as complete in tasks.md by changing `- [ ]` to `- [x]`
-7. If you discover additional tasks that need to be done, add them to tasks.md but do not execute them
-
-CRITICAL RULES:
-- Only work on ONE task and complete it do not complete more than 1 task
-- Only mark one task as complete once you have fully completed it
-- Be thorough - the task should be fully complete before marking done
-- Always update both tasks.md and recent-changes.md
-'''
-
-    MAIN_EXECUTION_MULTI = '''
-INSTRUCTIONS:
-1. Read the recent-changes.md
-2. Read research.md if it exists and use it as context
-3. Choose up to {tasks_per_iteration} incomplete tasks from tasks.md list (marked with `- [ ]`)
+3. Choose up to {tasks_per_iteration} incomplete task(s) from tasks.md list (marked with `- [ ]`)
 4. Implement each chosen task completely and thoroughly
 5. After implementing, update the recent-changes.md file with what you changed
 6. Mark each completed task in tasks.md by changing `- [ ]` to `- [x]`
 7. If you discover additional tasks that need to be done, add them to tasks.md but do not execute them
 
 CRITICAL RULES:
-- Work on up to {tasks_per_iteration} tasks and complete them
+- Work on up to {tasks_per_iteration} task(s) and complete them
 - Only mark a task as complete once you have fully completed it
 - Be thorough - each task should be fully complete before marking done
 - Always update both tasks.md and recent-changes.md
@@ -630,11 +613,7 @@ GIT DIFF:
                                 recent_changes: str, tasks: str,
                                 tasks_per_iteration: int = 1) -> str:
         """Format the main execution prompt."""
-        if tasks_per_iteration <= 1:
-            template = cls.MAIN_EXECUTION_SINGLE
-        else:
-            template = cls.MAIN_EXECUTION_MULTI
-        return template.format(
+        return cls.MAIN_EXECUTION.format(
             working_directory=working_directory,
             recent_changes=recent_changes or "(No recent changes yet)",
             tasks=tasks,

@@ -19,7 +19,7 @@ class LLMWorker(BaseWorker):
     Streams output in real-time and captures full response.
     """
 
-    DEFAULT_TIMEOUT = 600  # 10 minutes
+    DEFAULT_TIMEOUT = 3600  # 60 minutes
     _debug_gate_callback: Optional[Callable[[str, str], bool]] = None
     _show_live_terminal_windows: bool = True
 
